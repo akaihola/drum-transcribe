@@ -41,26 +41,35 @@ Listening to it is the fastest way to check the transcription: a missing
 blip = missed hit, a blip with no drum under it = false detection, the wrong
 blip sound = wrong drum. No musical training needed.
 
-## The review website
+## The web app
 
 ```bash
 uv run drum-transcribe serve
 ```
 
-Open `http://atom.crane-boa.ts.net:8765/` (or the machine's address) from any
-of your machines. For every song you get:
+Open `http://<the machine's address>:8765/` from any of your machines.
 
-- players for the **original**, the **drums stem**, and each variant's
+**Main page**: your projects, plus a form to transcribe a new piece — upload
+a sound or video file, or paste a public link (YouTube, a Google Drive share
+link, or a direct URL). Submitting creates the project page and starts all
+pipelines in the background; reload the project page to watch results appear.
+
+**Project page**: one piece, with every uploaded/linked version of it (say,
+the backing track and the album recording) in its own tab. Adding another
+version for comparison happens at the bottom of the page. Per version:
+
+- players for the **original**, the **drums stem**, and each pipeline's
   **sonification**;
 - while any player plays, the **bar being heard is highlighted in red** in
-  the scores and kept in view;
+  the scores;
 - **download links**: MusicXML (opens directly in MuseScore), MIDI, the raw
   detection data (JSON), and a ready MuseScore file when conversion succeeded
   — MuseScore 4's command-line converter sometimes refuses files its own
   editor opens fine, so the .mscz link can be missing;
-- all variants' **scores rendered on the page** for direct comparison.
+- both pipelines' **scores rendered on the page** in tabs;
+- a **pipeline log** link while processing runs (or if it fails).
 
-## Running a transcription
+## Running a transcription from the command line
 
 ```bash
 uv sync                                          # once, installs everything
@@ -68,10 +77,10 @@ uv run drum-transcribe run song.mp3              # adtof variant (default)
 uv run drum-transcribe run song.mp3 --variant mdx23c
 ```
 
-Results land in `output/<song>/<variant>/`. The source recording, beat grid
-and drums stem are shared per song in `output/<song>/`. Everything runs on a
-normal CPU; a 3-minute song takes ~3 minutes with adtof, while mdx23c is
-much slower (roughly 10× the song length).
+Results land in `output/<project>/<version>/<variant>/`; the source
+recording, beat grid and drums stem are shared per version. Everything runs
+on a normal CPU; a 3-minute song takes a few minutes with adtof, while
+mdx23c is much slower (roughly 10× the song length).
 
 ## Honest limitations
 
