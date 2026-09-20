@@ -71,6 +71,11 @@ viewed from anywhere without the laptop being on:
   namespace `drum-transcribe`, containers namespace `drum-transcribe`,
   container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
   500 mvCPU, scales to zero when idle — costs nothing while unused).
+- Both code and the data snapshot only update when the image is rebuilt
+  and pushed and the container redeployed (steps above). Planned
+  improvement: sync data from the `drum-transcribe-results` bucket at
+  container startup instead of baking it in (see
+  [gpu-workers.md](gpu-workers.md) for the bucket).
 
 ## GPU workers
 
