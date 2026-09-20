@@ -37,20 +37,39 @@ def _env() -> dict[str, str]:
     }
 
 
+def _run_variant(version_dir: Path, source: Path, variant: str) -> None:
+    _log(version_dir, f"== running pipeline: {variant} ==")
+    title = f"{version_dir.parent.name} / {version_dir.name} [{variant}]"
+    with open(version_dir / "pipeline.log", "a") as logf:
+        subprocess.run(
+            [sys.executable, "-m", "drum_transcribe.cli", "run", str(source),
+             "-o", str(version_dir), "--variant", variant, "--title", title],
+            stdout=logf, stderr=logf, check=True, env=_env(),
+        )
+
+
 def _job(version_dir: Path, url: str | None, upload: Path | None) -> None:
     version_dir.mkdir(parents=True, exist_ok=True)
     try:
         source = _fetch(version_dir, url, upload)
-        title_base = f"{version_dir.parent.name} / {version_dir.name}"
         for variant in VARIANTS:
-            _log(version_dir, f"== running pipeline: {variant} ==")
-            with open(version_dir / "pipeline.log", "a") as logf:
-                subprocess.run(
-                    [sys.executable, "-m", "drum_transcribe.cli", "run",
-                     str(source), "-o", str(version_dir), "--variant", variant,
-                     "--title", f"{title_base} [{variant}]"],
-                    stdout=logf, stderr=logf, check=True, env=_env(),
-                )
+            _run_variant(version_dir, source, variant)
+        _log(version_dir, "== all pipelines finished ==")
+    except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
+        _log(version_dir, f"ERROR: {e!r}")
+
+
+def start_rerun_job(version_dir: Path) -> None:
+    """Regenerate results after a setting change; cached stages make it fast."""
+    threading.Thread(target=_rerun, args=(version_dir,), daemon=True).start()
+
+
+def _rerun(version_dir: Path) -> None:
+    try:
+        source = next(version_dir.glob("source.*"))
+        for variant in VARIANTS:
+            if (version_dir / variant / "onsets.json").exists():
+                _run_variant(version_dir, source, variant)
         _log(version_dir, "== all pipelines finished ==")
     except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
         _log(version_dir, f"ERROR: {e!r}")

@@ -17,7 +17,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .ingest import AUDIO_EXTS, VARIANTS, start_version_job
+from .beats import BeatGrid, regularize
+from .ingest import AUDIO_EXTS, VARIANTS, start_rerun_job, start_version_job
 
 DOWNLOADS = [
     ("score.mscz", "MuseScore file"),
@@ -134,6 +135,11 @@ HELP_HTML = """
   on a note — that records feedback) and the recording plays from that bar.
   It uses whichever player is already playing, or the one you listened to
   last, or the original.</p>
+
+  <p>If the beat detector hears bars of unequal length, the barlines are
+  straightened automatically to the piece's usual bar length, and a checkbox
+  appears above the results. Tick it only if the piece genuinely changes
+  meter — then the detected barlines are kept as they are.</p>
 
   <h3>5. Downloads</h3>
   <p><b>MusicXML</b> opens directly in MuseScore (File &rarr; Open) and is
@@ -252,6 +258,15 @@ function player(label, url) {
 
 let vrvReady;
 
+async function setRawBars(version, raw) {
+  const r = await fetch("/api/rawbars", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project: PROJECT, version, raw }) });
+  if (r.ok) alert("Recomputing the scores with this setting — " +
+                  "reload the page in a minute to see the result.");
+  else alert("Changing the setting failed.");
+}
+
 async function build() {
   const index = await fetch("/api/index").then(r => r.json());
   const project = index.projects.find(p => p.name === PROJECT);
@@ -275,6 +290,14 @@ async function build() {
       html += `<ul class="progress">` + v.steps.map(([label, ok]) =>
         `<li>${ok ? "✅" : "⬜"} ${label}</li>`).join("") +
         (v.stage ? `<li class="pending">now: ${v.stage}</li>` : "") + `</ul>`;
+    if (v.irregular)
+      html += `<p class="stats"><label><input type="checkbox"
+        ${v.raw_bars ? "checked" : ""}
+        onchange="setRawBars('${v.name}', this.checked)">
+        The beat detector heard bars of unequal length here, so the barlines
+        were straightened automatically. Tick this only if the piece really
+        changes meter (bars of different lengths), to keep the detected
+        barlines instead.</label></p>`;
     html += `<div class="variants">`;
     for (const name of VARIANTS) {
       const variant = v.variants.find(x => x.name === name);
@@ -541,6 +564,17 @@ def scan_output(root: Path) -> dict:
                     "n_events": len(events),
                     "n_suspect": len(suspect),
                 })
+            # Would barline repair change the tracker's raw grid? If yes, the
+            # page offers the "uneven bars are real" opt-out checkbox.
+            raw_grid = vdir / "beats_raw.json"
+            if not raw_grid.exists():
+                raw_grid = vdir / "beats.json"
+            irregular = False
+            if raw_grid.exists():
+                g = BeatGrid.load(raw_grid)
+                fixed = regularize(g)
+                irregular = (fixed.times.tolist() != g.times.tolist()
+                             or fixed.positions.tolist() != g.positions.tolist())
             stage = None
             if log.exists():
                 markers = [ln for ln in log.read_text().splitlines()
@@ -551,6 +585,8 @@ def scan_output(root: Path) -> dict:
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
                 "beats": f"{rel}/beats.json",
+                "irregular": irregular,
+                "raw_bars": (vdir / "keep-raw-bars").exists(),
                 "drums": f"{rel}/{drums[0].relative_to(vdir)}" if drums else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
                 "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
@@ -600,9 +636,41 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send(json.dumps(scan_output(self.root)).encode(), "application/json")
         elif path.startswith("/files/"):
             self.path = self.path[len("/files"):]
-            super().do_GET()
+            self._send_file()
         else:
             self.send_error(404)
+
+    def _send_file(self) -> None:
+        """Static file with byte-range support. Chromium sends `Range: bytes=0-`
+        for media and treats the file as unseekable unless it gets a 206 back
+        (seeks then snap to 0:00); stdlib SimpleHTTPRequestHandler only ever
+        serves whole files, so handle ranges here."""
+        rng = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
+        file = Path(self.translate_path(self.path))
+        if not (rng and file.is_file()):
+            super().do_GET()
+            return
+        size = file.stat().st_size
+        start = int(rng[1])
+        end = min(int(rng[2]) if rng[2] else size - 1, size - 1)
+        if start >= size:
+            self.send_error(416)
+            return
+        self.send_response(206)
+        self.send_header("Content-Type", self.guess_type(str(file)))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.end_headers()
+        with file.open("rb") as f:
+            f.seek(start)
+            remaining = end - start + 1
+            while remaining > 0:
+                chunk = f.read(min(remaining, 1 << 16))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -616,10 +684,28 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self._send_json(200, {"project": version_dir.parent.name})
             elif path == "/api/feedback":
                 self._send_json(200, self._save_feedback(data))
+            elif path == "/api/rawbars":
+                self._set_raw_bars(data)
+                self._send_json(200, {"ok": True})
             else:
                 self.send_error(404)
         except (ValueError, KeyError) as e:
             self._send_json(400, {"error": str(e)})
+
+    def _set_raw_bars(self, data: dict) -> None:
+        """Flip the keep-raw-bars flag for one version and regenerate results."""
+        parts = [data["project"], data["version"]]
+        if not all(re.fullmatch(r"[a-z0-9-]+", p) for p in parts):
+            raise ValueError("bad path component")
+        version_dir = self.root.joinpath(*parts)
+        if not version_dir.is_dir():
+            raise ValueError("no such version")
+        flag = version_dir / "keep-raw-bars"
+        if data["raw"]:
+            flag.touch()
+        else:
+            flag.unlink(missing_ok=True)
+        start_rerun_job(version_dir)
 
     def _save_feedback(self, data: dict) -> dict:
         """Set or delete one feedback entry; returns the variant's feedback map."""

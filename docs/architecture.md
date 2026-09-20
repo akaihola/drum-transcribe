@@ -6,9 +6,16 @@ musical simplification; every intermediate inspectable and re-runnable.
 ## Stages
 
 1. **Demucs htdemucs** two-stem split → drums stem (shared per version).
-2. **beat_this** → `beats.json`: beat times + position-in-bar. Bar numbers =
-   cumulative downbeat count; beats before the first downbeat form pickup
-   bar 0. `BeatGrid.meter` = modal downbeat spacing.
+2. **beat_this** → `beats_raw.json` (tracker output) + `beats.json` (the
+   effective grid everything else uses): beat times + position-in-bar. Bar
+   numbers = cumulative downbeat count; beats before the first downbeat form
+   pickup bar 0. `BeatGrid.meter` = modal downbeat spacing.
+   By default `beats.regularize()` repairs tracker slips — bursts of doubled
+   tempo and spurious downbeats (seen in taustanauha 2:04–2:30) — by walking
+   the dominant pulse through the raw beats and re-laying barlines every
+   `meter` beats on the majority phase. It assumes steady tempo + constant
+   meter; a `keep-raw-bars` flag file in the version dir (set from the web
+   UI) keeps the raw grid for pieces whose uneven bars are real.
 3. Hit detection, two variants kept side by side, never merged:
    - **adtof**: ADTOF-pytorch 5 classes (kick/snare/tom/hihat/cymbal) at
      100 fps with per-class thresholds; velocities estimated afterwards from

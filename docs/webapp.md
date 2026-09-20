@@ -14,11 +14,17 @@ the filesystem, which is what makes "reload to see progress" work.
 | `POST /api/create` | `{project, version, url}` → slugify, start background job |
 | `PUT /api/upload?project&version&filename` | raw file body (no multipart) → job |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
+| `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
 | `GET /files/**` | static from the output root |
 
 `scan_output` also derives per-version: `done`, `error` (log tail contains
-"ERROR:"), `stage` (last `== … ==` log marker), and the `steps` checklist
-from artifact existence.
+"ERROR:"), `stage` (last `== … ==` log marker), the `steps` checklist from
+artifact existence, and `irregular`/`raw_bars` — whether `regularize()`
+would change the raw beat grid (then the page shows the "uneven bars are
+real" checkbox) and whether the `keep-raw-bars` flag file is set. Flipping
+the checkbox POSTs `/api/rawbars`, which starts `start_rerun_job`: re-runs
+the pipeline for each variant that has `onsets.json`; cached stages make
+this take seconds, but note it renumbers bars, which orphans feedback keys.
 
 ## Ingestion jobs (ingest.py)
 
