@@ -58,6 +58,79 @@ STYLE = """
   ul.projects li { margin: .3rem 0; }
   ul.progress { list-style: none; padding: .4rem .8rem; margin: .4rem 0;
                 border-left: 3px solid #a60; font-size: .85rem; }
+  #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.2rem;
+              height: 2.2rem; border-radius: 50%; border: 1px solid #888;
+              background: #444; color: #fff; font-size: 1.2rem; cursor: pointer; }
+  dialog#help { max-width: 30rem; max-height: 80vh; overflow-y: auto;
+                border: 1px solid #888; border-radius: 8px; padding: 1rem 1.6rem; }
+  dialog#help::backdrop { background: rgba(0,0,0,.4); }
+  dialog#help .close { float: right; border: none; background: none;
+                       font-size: 1.4rem; cursor: pointer; }
+"""
+
+HELP_HTML = """
+<button id="help-btn" title="Help" onclick="document.getElementById('help').showModal()">?</button>
+<dialog id="help">
+  <button class="close" onclick="document.getElementById('help').close()">×</button>
+  <h2>How to use this site</h2>
+
+  <h3>1. Start a transcription</h3>
+  <p>On the front page, name the piece and this version of it, then either
+  paste a public link (YouTube, a Google Drive share link, or a direct file
+  link) or upload a sound/video file. Processing starts immediately in the
+  background and takes from minutes up to ~10&times; the length of the
+  recording. <b>Reload the project page</b> to see new results; a checklist
+  shows what is finished.</p>
+
+  <h3>2. Versions and pipelines</h3>
+  <svg viewBox="0 0 340 70" width="340">
+    <rect x="5" y="5" width="90" height="24" rx="5" fill="#444"/>
+    <text x="50" y="21" fill="#fff" text-anchor="middle" font-size="12">backing track</text>
+    <rect x="100" y="5" width="90" height="24" rx="5" fill="#eee" stroke="#999"/>
+    <text x="145" y="21" text-anchor="middle" font-size="12">album take</text>
+    <rect x="5" y="38" width="330" height="26" rx="4" fill="#fafafa" stroke="#ccc"/>
+    <text x="15" y="55" font-size="12">players &middot; downloads &middot; scores of the selected version</text>
+  </svg>
+  <p>Each <b>version</b> of the piece (e.g. the backing track and the album
+  recording) has its own tab. Inside it, two independent transcription
+  <b>pipelines</b> are compared: <b>adtof</b> (a neural network reading the
+  drum mix; most reliable) and <b>mdx23c</b> (splits the kit into six
+  per-drum tracks first; can tell ride from crash but over-detects).</p>
+
+  <h3>3. Checking by ear: the sonification</h3>
+  <svg viewBox="0 0 340 60" width="340">
+    <polyline points="5,30 25,18 45,42 65,25 85,35 105,20 125,40 145,28 165,32 185,22 205,38 225,30"
+              fill="none" stroke="#888"/>
+    <g fill="#c40000"><circle cx="45" cy="12" r="4"/><circle cx="105" cy="12" r="4"/>
+    <circle cx="165" cy="12" r="4"/><circle cx="225" cy="12" r="4"/></g>
+    <text x="240" y="16" font-size="11" fill="#c40000">blips = transcribed hits</text>
+    <text x="240" y="34" font-size="11" fill="#555">wave = original music</text>
+  </svg>
+  <p>The <b>sonification</b> is the original recording with a synthetic blip
+  added at every transcribed hit (low thump = kick, snappy noise = snare,
+  high ticks = hi-hat/cymbals). A missing blip means a missed hit, a blip
+  with no drum under it is a false detection, a wrong-sounding blip is the
+  wrong drum.</p>
+
+  <h3>4. Following the score</h3>
+  <p>While any player is playing, the bar you are hearing is
+  <span style="color:#c40000"><b>highlighted in red</b></span> in the scores
+  of the same version.</p>
+
+  <h3>5. Downloads</h3>
+  <p><b>MusicXML</b> opens directly in MuseScore (File &rarr; Open) and is
+  always available. The ready <b>MuseScore file</b> appears when automatic
+  conversion succeeded. <b>MIDI</b> plays the transcription; the JSON files
+  hold the raw detection data.</p>
+
+  <h3>6. Giving feedback on the score</h3>
+  <p>Point at any note or rest in a score: it turns blue. Click it to record
+  what is wrong there (extra note, missing note, wrong rhythm&hellip; or
+  free text). Notes with saved feedback are tinted orange; hover to read the
+  note, click again to edit or remove it. Clicking the score's title takes
+  general feedback about the whole transcription. Feedback is stored with
+  the other result files (feedback.json).</p>
+</dialog>
 """
 
 CREATE_FORM = """
@@ -108,6 +181,7 @@ MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <title>drum-transcribe</title><style>__STYLE__</style></head>
 <body>
+__HELP__
 <h1>drum-transcribe</h1>
 <p>Give a recording; get drum sheet music plus everything needed to check it
 by ear. Processing runs in the background — reload the project page to watch
@@ -136,6 +210,7 @@ PROJECT_HTML = """<!DOCTYPE html>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 </head>
 <body>
+__HELP__
 <p><a href="/">&larr; all projects</a></p>
 <h1 id="title"></h1>
 <p>Each tab is one version of the piece. Listen to the <b>original</b>, the
@@ -358,7 +433,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             html = MAIN_HTML.replace("__CREATE_FORM__", CREATE_FORM)
-            html = html.replace("__STYLE__", STYLE).replace(
+            html = html.replace("__STYLE__", STYLE).replace("__HELP__", HELP_HTML).replace(
                 "__PROJECT_FIELD__",
                 '<label>Name of the piece</label><input type="text" name="project" required>',
             ).replace("__FORM_TITLE__", "Transcribe a new piece")
@@ -366,6 +441,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         elif path.startswith("/p/"):
             html = PROJECT_HTML.replace("__CREATE_FORM__", CREATE_FORM)
             html = (html.replace("__STYLE__", STYLE)
+                    .replace("__HELP__", HELP_HTML)
                     .replace("__PROJECT_FIELD__", "")
                     .replace("__FORM_TITLE__", "Add a version")
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
