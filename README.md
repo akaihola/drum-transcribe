@@ -5,10 +5,10 @@ intermediate result is saved so mistakes can be found, heard, and fixed.
 
 ## What it does, step by step
 
-1. **Isolate the drums.** A neural network (Demucs) separates the drum kit
+1. **Isolate the drums.** A neural network ([Demucs][demucs]) separates the drum kit
    from the rest of the music, producing a "drums stem" — the same recording
    with only the drums audible.
-2. **Find the beat.** Another model (beat_this) marks every beat and every
+2. **Find the beat.** Another model ([beat_this][beat-this]) marks every beat and every
    bar line (downbeat) in time, like a conductor tapping along. The model
    sometimes stumbles for a stretch — doubling the tempo or hearing a bar
    line on every beat — so if it produced bars of unequal length, the bar
@@ -17,24 +17,26 @@ intermediate result is saved so mistakes can be found, heard, and fixed.
    change meter.)
 3. **Detect the hits.** Each drum hit is located and named: kick, snare,
    tom, hi-hat, cymbal. Two alternative methods are available — see
-   *Pipeline variants* below.
+   [*Pipeline variants*][pipeline-variants] below.
 4. **Estimate loudness.** Each hit's strength becomes a MIDI velocity, so
    quiet "ghost notes" survive into the notation.
 5. **Snap to the grid.** Hits are placed on the beat grid (16ths, 32nds, or
    triplets, chosen per beat). How far each hit had to move is recorded —
    large moves are a warning sign.
-6. **Write the score.** The result is saved as MusicXML and, when MuseScore
-   is available, as a ready MuseScore file (`score.mscz`).
+6. **Write the score.** The result is saved as MusicXML and, when
+   [MuseScore][musescore] is available, as a ready MuseScore file
+   (`score.mscz`).
 
 ## Pipeline variants
 
 Results of different methods are kept side by side, never mixed:
 
-- **adtof** — a neural network trained on real drum recordings reads the
+- **adtof** — a neural network ([ADTOF][adtof]) trained on real drum recordings reads the
   drums stem directly. Most accurate hit detection, but hears only 5
   categories (ride and crash cymbals are one "cymbal").
 - **mdx23c** — the drums stem is first split further into six per-drum
-  recordings (kick / snare / toms / hi-hat / ride / crash); hits are then
+  recordings (kick / snare / toms / hi-hat / ride / crash) by the MDX23C
+  DrumSep model (run with [audio-separator][audio-separator]); hits are then
   detected in each one separately. Distinguishes ride from crash, but
   hears too many hits (leakage between the six recordings).
 - **fused** — the best of both: adtof decides *when and what* was hit,
@@ -129,6 +131,9 @@ uv run drum-transcribe run song.mp3 --variant mdx23c
 uv run drum-transcribe run song.mp3 --variant fused
 ```
 
+(The commands use [uv][uv], a free tool that downloads everything the
+project needs the first time it runs.)
+
 Results land in `output/<project>/<version>/<variant>/`; the source
 recording, beat grid and drums stem are shared per version. Everything runs
 on a normal CPU; a 3-minute song takes a few minutes with adtof, while
@@ -140,7 +145,7 @@ into a couple of minutes and costs less than a cent per song. In the web
 app, just tick "process on a rented cloud GPU" when starting a
 transcription; the results appear in the same places and look exactly the
 same. Setting up the GPU machinery is a developer task — see
-`docs/gpu-workers.md`.
+[`docs/gpu-workers.md`][gpu-workers].
 
 ## Honest limitations
 
@@ -148,9 +153,21 @@ Even the best available models mishear some things: toms are the weakest
 category, hi-hat vs. ride gets confused, and flams, chokes, and open/closed
 hi-hat are not detected at all. Every score needs a human check — that is
 what the review website and the sonification are for. Details and the full
-tool survey: `docs/adt-landscape.md`.
+tool survey: [`docs/adt-landscape.md`][adt-landscape].
 
-The ADTOF model weights are licensed for non-commercial use.
+The [ADTOF][adtof] model weights are licensed for non-commercial use.
 
-Developer/agent documentation starts at `AGENTS.md`; deeper topics live
-under `docs/`.
+Developer/agent documentation starts at [`AGENTS.md`][agents]; deeper topics
+live under [`docs/`][docs].
+
+[adtof]: https://github.com/xavriley/ADTOF-pytorch
+[adt-landscape]: docs/adt-landscape.md
+[agents]: AGENTS.md
+[audio-separator]: https://github.com/nomadkaraoke/python-audio-separator
+[beat-this]: https://github.com/CPJKU/beat_this
+[demucs]: https://github.com/adefossez/demucs
+[docs]: docs/
+[gpu-workers]: docs/gpu-workers.md
+[musescore]: https://musescore.org/
+[pipeline-variants]: #pipeline-variants
+[uv]: https://docs.astral.sh/uv/
