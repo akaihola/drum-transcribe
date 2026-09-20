@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.pyc
+.cache/
+audio/
+output/
+separated/
+vendor/
+
+# editor/agent artifacts, not part of the project
+.claude/
+.idea
+.vscode
+.mcp.json
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.profile
+.ripgreprc
+.zprofile
+.zshrc
