@@ -111,6 +111,20 @@ uv run vastai destroy instance <ID>     # ALWAYS destroy when done —
                                         # stopped instances still bill storage
 ```
 
+Lessons from the first test run (2026-09-20, $0.04 total):
+
+- `--onstart <file>` upload silently did NOT deliver the script (only
+  Vast's stub arrived), which is why the worker script is baked into the
+  image and launched with `--onstart-cmd`.
+- `--env` values reach the container correctly, presigned URLs included.
+  But if you ever copy env into a shell file manually, quote the values —
+  presigned URLs contain `&`.
+- Fallback when onstart misbehaves: `vastai attach ssh <ID> "$(cat
+  ~/.ssh/id_ed25519.pub)"`, then ssh in (`vastai ssh-url <ID>`), env is in
+  `/proc/1/environ`, run `bash /app/deploy/vast-worker.sh` by hand.
+- GPU timings: both variants of a 4-min song ≈ 5 min total; mdx23c alone
+  ≈ 1 min (vs ~40 min on the laptop CPU).
+
 Batching = same instance, run the worker once per song before
 destroying. Spot pause/outbid is safe: every stage is cached and uploads
 happen per variant; just relaunch elsewhere.
