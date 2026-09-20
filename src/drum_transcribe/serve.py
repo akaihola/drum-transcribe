@@ -39,6 +39,7 @@ INDEX_HTML = """<!DOCTYPE html>
   .stats { font-size: .8rem; color: #555; }
   .score-block h3 { background: #eee; padding: .3rem .6rem; }
   .score-block svg { max-width: 100%; height: auto; }
+  g.measure.now * { fill: #c40000; stroke: #c40000; }
   table { border-collapse: collapse; font-size: .8rem; }
   td, th { border: 1px solid #ccc; padding: 2px 8px; text-align: right; }
   details { margin: .5rem 0; }
@@ -65,6 +66,7 @@ async function build() {
   const app = document.getElementById("app");
   let html = "";
   for (const song of index.songs) {
+    html += `<section data-song="${song.name}">`;
     html += `<h2>${song.name}</h2><div class="players">`;
     html += player("original", song.source);
     if (song.drums) html += player("drums stem (Demucs)", song.drums);
@@ -85,16 +87,46 @@ async function build() {
         html += `<div class="score-block"><h3>${song.name} — ${v.name}</h3>
                  <div class="score" data-url="${v.files["score.musicxml"]}">
                  rendering…</div></div>`;
+    html += `</section>`;
   }
   app.innerHTML = html;
   renderScores();
+  followPlayback(index.songs);
+}
+
+// While any audio of a song plays, highlight the bar being heard in all of
+// that song's scores (bar start times come from the beat grid).
+async function followPlayback(songs) {
+  const barTimes = {};  // song name -> [{t, bar}]
+  for (const s of songs) {
+    const grid = await fetch(s.beats).then(r => r.json());
+    let bar = 0;
+    barTimes[s.name] = grid.times.map((t, i) => {
+      if (grid.positions[i] === 1) bar++;
+      return { t, bar };
+    });
+  }
+  document.addEventListener("timeupdate", e => {
+    const section = e.target.closest("section[data-song]");
+    if (!section || e.target.paused) return;
+    const bars = barTimes[section.dataset.song];
+    let bar = 0;
+    for (const b of bars) { if (b.t <= e.target.currentTime + 0.05) bar = b.bar; else break; }
+    for (const el of section.querySelectorAll("g.measure.now")) el.classList.remove("now");
+    if (bar === 0) return;
+    for (const score of section.querySelectorAll(".score")) {
+      const m = score.querySelector(`g.measure[data-n="${bar}"]`);
+      if (m) { m.classList.add("now"); m.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    }
+  }, true);
 }
 
 function renderScores() {
   verovio.module.onRuntimeInitialized = async () => {
     const tk = new verovio.toolkit();
     tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
-                    pageWidth: 2100, footer: "none" });
+                    pageWidth: 2100, footer: "none",
+                    svgAdditionalAttribute: ["measure@n"] });
     for (const el of document.querySelectorAll(".score")) {
       const xml = await fetch(el.dataset.url).then(r => r.text());
       tk.loadData(xml);
@@ -150,6 +182,7 @@ def scan_output(root: Path) -> dict:
             {
                 "name": song_dir.name,
                 "source": f"{rel}/{sources[0].name}",
+                "beats": f"{rel}/beats.json",
                 "drums": f"{rel}/{drums[0].relative_to(song_dir)}" if drums else None,
                 "variants": variants,
             }
