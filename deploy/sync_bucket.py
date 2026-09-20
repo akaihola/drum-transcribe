@@ -20,6 +20,8 @@ def main() -> None:
     n = 0
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket):
         for obj in page.get("Contents", []):
+            if obj["Key"].startswith("sources/"):  # worker inputs, not results
+                continue
             path = dest / obj["Key"]
             path.parent.mkdir(parents=True, exist_ok=True)
             s3.download_file(bucket, obj["Key"], str(path))
