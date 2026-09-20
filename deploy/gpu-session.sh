@@ -35,6 +35,7 @@ ssh_cmd() {  # run "$@" on the session instance
     hostport=$(vast ssh-url "$(cat $STATE)") && hostport=${hostport#ssh://root@}
     ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o LogLevel=ERROR -o ConnectTimeout=10 \
+        -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
         -p "${hostport##*:}" "root@${hostport%%:*}" "$@"
 }
 

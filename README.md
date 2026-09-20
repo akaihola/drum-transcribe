@@ -77,7 +77,7 @@ version for comparison happens at the bottom of the page. Per version:
 
 - players for the **original**, the **drums stem**, and each pipeline's
   **sonification**;
-- while any player plays, the **bar being heard is highlighted in red** in
+- while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording
   plays from that bar;

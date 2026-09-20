@@ -30,55 +30,99 @@ DOWNLOADS = [
 ]
 UPLOAD_EXTS = AUDIO_EXTS | {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 
+# Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
+# at /style). Teal is reserved for "sound happens here".
+FONTS = """
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+"""
+
 STYLE = """
-  body { font-family: system-ui, sans-serif; margin: 1rem 2rem; }
-  h2 { border-bottom: 2px solid #444; padding-bottom: .2rem; margin-top: 2rem; }
-  .players { display: flex; gap: 2rem; flex-wrap: wrap; margin: .6rem 0; }
-  .players figure { margin: 0; }
-  .players figcaption { font-size: .8rem; color: #555; }
-  .variants { display: flex; gap: 2rem; flex-wrap: wrap; }
-  .variant { border: 1px solid #ccc; border-radius: 8px; padding: .8rem 1.2rem; }
+  :root {
+    --paper: #FAF9F6; --ink: #232019; --ink-quiet: #6E675C;
+    --teal: #0E7386; --teal-deep: #0A5766; --brass: #A66300;
+    --signal: #C40000; --hairline: #E2DDD2; --card: #FFFFFF;
+    --serif: "Alegreya", Georgia, serif;
+    --sans: "Alegreya Sans", system-ui, sans-serif;
+  }
+  body { font-family: var(--sans); font-size: 17px; line-height: 1.5;
+         background: var(--paper); color: var(--ink); margin: 1rem 2rem; }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; line-height: 1.15; }
+  h2 { border-top: 1px solid var(--hairline); padding-top: 1.2rem; margin-top: 1.8rem; }
+  a { color: var(--teal-deep); }
+  body > p, dialog#help p { max-width: 65ch; }
+  summary { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .players { display: flex; gap: 1rem; flex-wrap: wrap; margin: .8rem 0; }
+  figure.player { margin: 0; background: var(--card); border-radius: 8px;
+                  border: 1px solid var(--hairline); border-left: 4px solid var(--teal);
+                  padding: .6rem .8rem .7rem; }
+  figure.player figcaption { font-size: .85rem; color: var(--ink-quiet); margin-bottom: .4rem; }
+  figure.player audio { display: block; width: 17rem; }
+  figure.player audio::-webkit-media-controls-enclosure { background: var(--paper);
+                                                          border-radius: 999px; }
+  .variants { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .variant { border: 1px solid var(--hairline); border-radius: 8px; padding: .8rem 1.2rem; }
   .variant h4 { margin: 0 0 .5rem; }
   .downloads a { margin-right: .8rem; font-size: .85rem; }
-  .stats { font-size: .8rem; color: #555; }
-  .pending { color: #a60; font-style: italic; }
-  .error { color: #c00; }
-  .tabbar { margin-top: 1.2rem; border-bottom: 2px solid #444; }
-  .tabbar button { border: 1px solid #999; border-bottom: none; background: #eee;
-                   padding: .4rem 1.2rem; cursor: pointer; font-size: 1rem;
-                   border-radius: 6px 6px 0 0; margin-right: .3rem; }
-  .tabbar button.active { background: #444; color: #fff; }
+  .stats { font-size: .85rem; color: var(--ink-quiet); }
+  .pending { color: var(--brass); font-style: italic; }
+  .error { color: var(--signal); }
+  .tabbar { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1.2rem 0 .8rem; }
+  .tabbar button { font: inherit; background: none; color: var(--ink);
+                   border: 1.5px solid var(--hairline); border-radius: 999px;
+                   padding: .4rem 1.2rem; cursor: pointer; }
+  .tabbar button:hover { border-color: var(--ink-quiet); }
+  .tabbar button.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
   .tabpanel { display: none; }
   .tabpanel.active { display: block; }
   .tabpanel svg { max-width: 100%; height: auto; }
-  g.measure.now * { fill: #c40000; stroke: #c40000; }
+  .score { background: var(--card); border: 1px solid var(--hairline);
+           border-radius: 8px; padding: .5rem; }
+  g.measure.now * { fill: var(--teal); stroke: var(--teal); }
   .score svg { cursor: pointer; }
-  form.create { border: 1px solid #ccc; border-radius: 8px; padding: 1rem 1.5rem;
-                max-width: 34rem; margin: 1rem 0; }
-  form.create label { display: block; margin: .6rem 0 .2rem; font-size: .9rem; }
-  form.create input[type=text] { width: 100%; padding: .3rem; }
-  form.create button { margin-top: 1rem; padding: .4rem 1.4rem; }
+  form.create { border: 1px solid var(--hairline); background: var(--card);
+                border-radius: 8px; padding: 1rem 1.5rem; max-width: 34rem; margin: 1rem 0; }
+  form.create label { display: block; margin: .8rem 0 .25rem; font-size: .9rem; }
+  form.create input[type=text] { font: inherit; width: 100%; padding: .45rem .7rem;
+    border: 1.5px solid var(--hairline); border-radius: 8px; }
+  form.create input[type=text]:focus { border-color: var(--teal); outline: none; }
+  form.create button { margin-top: 1rem; font: inherit; font-weight: 500; cursor: pointer;
+    background: var(--teal); color: #fff; border: none; border-radius: 999px;
+    padding: .45rem 1.4rem; }
+  form.create button:hover { background: var(--teal-deep); }
   ul.projects li { margin: .3rem 0; }
-  ul.progress { list-style: none; padding: .4rem .8rem; margin: .4rem 0;
-                border-left: 3px solid #a60; font-size: .85rem; }
-  #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.2rem;
-              height: 2.2rem; border-radius: 50%; border: 1px solid #888;
-              background: #444; color: #fff; font-size: 1.2rem; cursor: pointer; }
-  dialog#help { max-width: 30rem; max-height: 80vh; overflow-y: auto;
-                border: 1px solid #888; border-radius: 8px; padding: 1rem 1.6rem; }
-  dialog#help::backdrop { background: rgba(0,0,0,.4); }
+  ul.progress { list-style: none; padding: .5rem .9rem; margin: .4rem 0;
+                border-left: 3px solid var(--brass); font-size: .9rem; }
+  #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
+              height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
+              background: var(--card); color: var(--ink); font: inherit;
+              font-size: 1.2rem; cursor: pointer;
+              box-shadow: 0 2px 8px rgba(35,32,25,.12); }
+  #help-btn:hover { border-color: var(--ink-quiet); }
+  dialog#help { max-width: 32rem; max-height: 80vh; overflow-y: auto;
+                color: var(--ink); background: var(--card);
+                border: 1px solid var(--hairline); border-radius: 8px;
+                padding: 1rem 1.6rem; box-shadow: 0 6px 24px rgba(35,32,25,.18); }
+  dialog#help::backdrop { background: rgba(35,32,25,.4); }
   dialog#help .close { float: right; border: none; background: none;
-                       font-size: 1.4rem; cursor: pointer; }
+                       font-size: 1.4rem; cursor: pointer; color: var(--ink-quiet); }
   .score g.note, .score g.rest, .score g.pgHead { cursor: pointer; }
-  .score g.fb * { fill: #c8860b; stroke: #c8860b; }
+  .score g.fb * { fill: var(--brass); stroke: var(--brass); }
   .score g.note:hover *, .score g.rest:hover *,
-  .score g.pgHead:hover * { fill: #0066cc; stroke: #0066cc; }
-  #fbmenu { position: absolute; z-index: 10; background: #fff;
-            border: 1px solid #888; border-radius: 8px; padding: .8rem 1rem;
-            box-shadow: 0 4px 16px rgba(0,0,0,.25); font-size: .9rem; }
+  .score g.pgHead:hover * { fill: var(--teal-deep); stroke: var(--teal-deep); }
+  #fbmenu { position: absolute; z-index: 10; background: var(--card);
+            border: 1px solid var(--hairline); border-radius: 8px; padding: .8rem 1rem;
+            box-shadow: 0 6px 24px rgba(35,32,25,.18); font-size: .9rem; }
   #fbmenu label { display: block; margin: .15rem 0; }
-  #fbmenu textarea { width: 100%; margin-top: .4rem; }
+  #fbmenu textarea { font: inherit; width: 100%; margin-top: .4rem;
+                     border: 1.5px solid var(--hairline); border-radius: 8px; }
   #fbmenu .row { margin-top: .6rem; display: flex; gap: .6rem; }
+  #fbmenu .row button { font: inherit; cursor: pointer; border-radius: 999px;
+                        padding: .25rem .9rem; border: 1.5px solid var(--hairline);
+                        background: none; }
+  #fbmenu .row button[data-act="save"] { background: var(--teal);
+                                         border-color: var(--teal); color: #fff; }
 """
 
 HELP_HTML = """
@@ -100,11 +144,11 @@ HELP_HTML = """
 
   <h3>2. Versions and pipelines</h3>
   <svg viewBox="0 0 340 70" width="340">
-    <rect x="5" y="5" width="90" height="24" rx="5" fill="#444"/>
-    <text x="50" y="21" fill="#fff" text-anchor="middle" font-size="12">backing track</text>
-    <rect x="100" y="5" width="90" height="24" rx="5" fill="#eee" stroke="#999"/>
+    <rect x="5" y="5" width="90" height="24" rx="12" fill="#232019"/>
+    <text x="50" y="21" fill="#FAF9F6" text-anchor="middle" font-size="12">backing track</text>
+    <rect x="100" y="5" width="90" height="24" rx="12" fill="none" stroke="#E2DDD2" stroke-width="1.5"/>
     <text x="145" y="21" text-anchor="middle" font-size="12">album take</text>
-    <rect x="5" y="38" width="330" height="26" rx="4" fill="#fafafa" stroke="#ccc"/>
+    <rect x="5" y="38" width="330" height="26" rx="4" fill="#fff" stroke="#E2DDD2"/>
     <text x="15" y="55" font-size="12">players &middot; downloads &middot; scores of the selected version</text>
   </svg>
   <p>Each <b>version</b> of the piece (e.g. the backing track and the album
@@ -132,7 +176,7 @@ HELP_HTML = """
 
   <h3>4. Following the score</h3>
   <p>While any player is playing, the bar you are hearing is
-  <span style="color:#c40000"><b>highlighted in red</b></span> in the scores
+  <span style="color:#0E7386"><b>highlighted in teal</b></span> in the scores
   of the same version.</p>
   <p>It also works the other way: <b>click an empty spot in any bar</b> (not
   on a note — that records feedback) and the recording plays from that bar.
@@ -210,7 +254,7 @@ async function submitCreate(form) {
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<title>drum-transcribe</title><style>__STYLE__</style></head>
+<title>drum-transcribe</title>__FONTS__<style>__STYLE__</style></head>
 <body>
 __HELP__
 <h1>drum-transcribe</h1>
@@ -237,7 +281,7 @@ fetch("/api/index").then(r => r.json()).then(d => {
 
 PROJECT_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<title>drum-transcribe</title><style>__STYLE__</style>
+<title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 </head>
 <body>
@@ -259,8 +303,8 @@ const VARIANTS = __VARIANTS__;
 document.getElementById("title").textContent = PROJECT;
 
 function player(label, url) {
-  return `<figure><audio controls preload="none" src="${url}"></audio>
-          <figcaption>${label}</figcaption></figure>`;
+  return `<figure class="player"><figcaption>${label}</figcaption>
+          <audio controls preload="none" src="${url}"></audio></figure>`;
 }
 
 let vrvReady;
@@ -664,6 +708,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             html = MAIN_HTML.replace("__CREATE_FORM__", CREATE_FORM)
+            html = html.replace("__FONTS__", FONTS)
             html = html.replace("__STYLE__", STYLE).replace("__HELP__", HELP_HTML).replace(
                 "__PROJECT_FIELD__",
                 '<label>Name of the piece</label><input type="text" name="project" required>',
@@ -671,7 +716,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send(html.encode(), "text/html; charset=utf-8")
         elif path.startswith("/p/"):
             html = PROJECT_HTML.replace("__CREATE_FORM__", CREATE_FORM)
-            html = (html.replace("__STYLE__", STYLE)
+            html = (html.replace("__FONTS__", FONTS)
+                    .replace("__STYLE__", STYLE)
                     .replace("__HELP__", HELP_HTML)
                     .replace("__PROJECT_FIELD__", "")
                     .replace("__FORM_TITLE__", "Add a version")

@@ -16,6 +16,9 @@
 set -euo pipefail
 cd /app   # .cache/ and .models/ resolve relative to CWD
 touch /tmp/alive
+# progress bars flood the ssh stream that feeds a CPU-throttled cloud
+# container; backpressure there can stall the whole job
+export TQDM_DISABLE=1
 
 S3_ENDPOINT=${S3_ENDPOINT:-https://s3.fr-par.scw.cloud}
 S3_BUCKET=${S3_BUCKET:-drum-transcribe-results}
