@@ -1,6 +1,9 @@
 #!/bin/bash
-# Runs inside the drum-transcribe-gpu image on a rented GPU host.
-# Processes one song version and uploads results to S3-compatible storage.
+# Runs inside the drum-transcribe-gpu image on a rented GPU host
+# (streamed from the repo over ssh by deploy/gpu-session.sh; a copy is
+# also baked into the image). Processes one song version and uploads
+# results to S3-compatible storage. Touches /tmp/alive so the idle
+# watchdog (see gpu-session.sh) knows a job is active.
 #
 # Required env (set in the Vast template / launch call):
 #   S3_ACCESS_KEY, S3_SECRET_KEY   scoped worker credentials
@@ -12,6 +15,7 @@
 #   S3_BUCKET   default drum-transcribe-results
 set -euo pipefail
 cd /app   # .cache/ and .models/ resolve relative to CWD
+touch /tmp/alive
 
 S3_ENDPOINT=${S3_ENDPOINT:-https://s3.fr-par.scw.cloud}
 S3_BUCKET=${S3_BUCKET:-drum-transcribe-results}
@@ -38,5 +42,6 @@ for variant in $VARIANTS; do
     /venv/main/bin/drum-transcribe run "$src" --variant "$variant" -o "$dest"
     # upload after each variant so an interruption loses at most one stage
     rclone copy --exclude "stems/**" "$dest" "s3:$S3_BUCKET/$SONG/$VERSION"
+    touch /tmp/alive
 done
 echo "WORKER DONE: $SONG/$VERSION ($VARIANTS)"
