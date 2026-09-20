@@ -26,7 +26,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 |---|---|
 | `cli.py` | `run` (pipeline per variant) and `serve` subcommands |
 | `separate.py` | Demucs drums stem; MDX23C 6-stem kit split |
-| `beats.py` | beat_this beat/downbeat grid (`BeatGrid`) |
+| `beats.py` | beat_this beat/downbeat grid (`BeatGrid`); `regularize()` barline repair |
 | `transcribe.py` | ADTOF onsets + stem-energy velocities; per-stem onset detection |
 | `quantize.py` | onsets → `Event` list on per-beat straight/triplet grid |
 | `score.py` | events → MusicXML drum staff (MuseScore-compatible; see below) |
@@ -37,7 +37,9 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 
 ## Data layout
 
-`output/<project>/<version>/` holds `source.*`, `beats.json`, `pipeline.log`,
+`output/<project>/<version>/` holds `source.*`, `beats_raw.json` (tracker
+output), `beats.json` (effective grid: barlines repaired unless a
+`keep-raw-bars` flag file is present), `pipeline.log`,
 `stems/htdemucs/source/drums.wav`, `stems/mdx23c/*.wav`, and per variant
 (`adtof/`, `mdx23c/`, `fused/`): `onsets.json`, `events.json`, `audition.mid`,
 `sonification.wav`, `score.musicxml`, `score.mscz?`, `feedback.json?`.

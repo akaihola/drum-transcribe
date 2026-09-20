@@ -9,7 +9,12 @@ intermediate result is saved so mistakes can be found, heard, and fixed.
    from the rest of the music, producing a "drums stem" — the same recording
    with only the drums audible.
 2. **Find the beat.** Another model (beat_this) marks every beat and every
-   bar line (downbeat) in time, like a conductor tapping along.
+   bar line (downbeat) in time, like a conductor tapping along. The model
+   sometimes stumbles for a stretch — doubling the tempo or hearing a bar
+   line on every beat — so if it produced bars of unequal length, the bar
+   lines are straightened automatically to the piece's usual bar length.
+   (A checkbox on the project page turns this off for pieces that genuinely
+   change meter.)
 3. **Detect the hits.** Each drum hit is located and named: kick, snare,
    tom, hi-hat, cymbal. Two alternative methods are available — see
    *Pipeline variants* below.
@@ -68,6 +73,10 @@ version for comparison happens at the bottom of the page. Per version:
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording
   plays from that bar;
+- a **checkbox** that appears when the beat detector heard bars of unequal
+  length: by default the bar lines are straightened automatically; tick it
+  only if the piece really changes meter, and the scores are recomputed with
+  the bar lines exactly as detected;
 - **download links**: MusicXML (opens directly in MuseScore), MIDI, the raw
   detection data (JSON), and a ready MuseScore file when conversion succeeded
   — MuseScore 4's command-line converter sometimes refuses files its own

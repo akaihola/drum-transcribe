@@ -9,8 +9,8 @@ track for a Finnish production, click-tracked, Google Drive) and `obc`
 
 | version | adtof hits | mdx23c hits | fused hits | notes |
 |---|---|---|---|---|
-| taustanauha | 834 | 1682 | 834 | all hits within 35 ms of grid |
-| obc | 1363 | 2640 | 1363 | 5 hits > 35 ms; live pit, still tight |
+| taustanauha | 834 | 1682 | 834 | 1 adtof hit > 35 ms of grid |
+| obc | 1363 | 2640 | 1363 | 3 adtof hits > 35 ms; live pit, still tight |
 
 The **fused** variant (added 2026-09-20, drum2midi's recipe) keeps adtof's
 onsets and uses the MDX23C stems only for ride/crash disambiguation and
@@ -21,6 +21,13 @@ The web app (projects, uploads/URLs, background jobs, progress, tabs,
 sonifications, score feedback, help) is feature-complete for review work.
 Play-from-bar inside MuseScore shipped 2026-09-20
 ([musescore-plugin.md](musescore-plugin.md)); awaiting first real use.
+
+**Barline repair shipped 2026-09-20**: beat_this doubled the tempo /
+sprayed downbeats in taustanauha 2:04–2:30, chopping the score into
+half-second bars (72–91). `beats.regularize()` now repairs this by default
+(see [architecture.md](architecture.md) stage 2); a checkbox on the project
+page keeps raw barlines for genuinely irregular pieces. Both versions were
+regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
 
 ## Known issues
 
