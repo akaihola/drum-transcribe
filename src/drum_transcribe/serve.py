@@ -56,6 +56,8 @@ STYLE = """
   form.create input[type=text] { width: 100%; padding: .3rem; }
   form.create button { margin-top: 1rem; padding: .4rem 1.4rem; }
   ul.projects li { margin: .3rem 0; }
+  ul.progress { list-style: none; padding: .4rem .8rem; margin: .4rem 0;
+                border-left: 3px solid #a60; font-size: .85rem; }
 """
 
 CREATE_FORM = """
@@ -176,6 +178,10 @@ async function build() {
     if (v.log) html += `<p class="stats"><a href="${v.log}">pipeline log</a>
       ${v.error ? '<span class="error">— processing failed, see log</span>' : ""}
       ${!v.done && !v.error ? '<span class="pending">— still processing, reload for updates</span>' : ""}</p>`;
+    if (!v.done && !v.error)
+      html += `<ul class="progress">` + v.steps.map(([label, ok]) =>
+        `<li>${ok ? "✅" : "⬜"} ${label}</li>`).join("") +
+        (v.stage ? `<li class="pending">now: ${v.stage}</li>` : "") + `</ul>`;
     html += `<div class="variants">`;
     for (const name of VARIANTS) {
       const variant = v.variants.find(x => x.name === name);
@@ -311,6 +317,12 @@ def scan_output(root: Path) -> dict:
                     "n_events": len(events),
                     "n_suspect": len(suspect),
                 })
+            stage = None
+            if log.exists():
+                markers = [ln for ln in log.read_text().splitlines()
+                           if ln.startswith(("==", "ERROR"))]
+                stage = markers[-1].strip("= ") if markers else None
+            done = {v["name"] for v in variants}
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
@@ -318,7 +330,18 @@ def scan_output(root: Path) -> dict:
                 "drums": f"{rel}/{drums[0].relative_to(vdir)}" if drums else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
                 "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
-                "done": len(variants) == len(VARIANTS),
+                "done": done == set(VARIANTS),
+                "stage": stage,
+                # ordered progress checklist shown while processing
+                "steps": [
+                    ["source audio fetched", bool(sources)],
+                    ["drums isolated (Demucs)", bool(drums)],
+                    ["beat grid tracked", (vdir / "beats.json").exists()],
+                    ["adtof transcription", "adtof" in done],
+                    ["kit split into 6 stems (slow)",
+                     any((vdir / "stems" / "mdx23c").glob("*")) if (vdir / "stems" / "mdx23c").is_dir() else False],
+                    ["mdx23c transcription", "mdx23c" in done],
+                ],
                 "variants": variants,
             })
         if versions:
