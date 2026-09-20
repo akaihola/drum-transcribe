@@ -17,9 +17,11 @@ answer, opens a small window to edit and Save the server address into the
 same ini; the shortcut fast path stays window-free. Verified end-to-end in
 the headless GUI (see below): all four paths — no selection, Save→ini,
 selection→POST, dead server→warning.
-Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
-project pages poll `GET /api/seek` every 1 s and seek the active version
-tab's audio (polling chosen over SSE — zero connection management).
+Server side: `POST /api/seek {bar}` bumps a `{seq, bar, playing}` state —
+the server flips `playing` when the same bar repeats, so all open pages
+apply the same play/pause decision ([webapp.md](webapp.md)); project pages
+poll `GET /api/seek` every 1 s (polling chosen over SSE — zero connection
+management).
 
 ## Target environment
 

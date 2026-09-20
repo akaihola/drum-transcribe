@@ -511,24 +511,24 @@ document.addEventListener("click", e => {
   }
 }, true);
 
-// The MuseScore plugin POSTs /api/seek {bar}; poll it and play from that bar
-// in the active version tab. A repeat of the previous bar while audio is
-// playing toggles: pause instead of seeking again.
-let seekSeq = null, seekBar = 0;
+// The MuseScore plugin POSTs /api/seek {bar}; poll it and apply the state.
+// The server owns the play/pause toggle (repeated bar = pause), so every
+// open page acts the same way — a page must never decide from its own
+// audio state, or two open pages hand playback back and forth.
+let seekSeq = null;
 setInterval(async () => {
   try {
     const s = await fetch("/api/seek").then(r => r.json());
     if (seekSeq !== null && s.seq !== seekSeq) {
-      const playing =
-        [...document.querySelectorAll("audio")].filter(a => !a.paused);
-      if (playing.length && s.bar === seekBar) playing.forEach(a => a.pause());
+      if (!s.playing)
+        document.querySelectorAll("audio").forEach(a => a.pause());
       else {
         const section =
           document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
         if (section) seekToBar(section, s.bar);
       }
     }
-    seekSeq = s.seq; seekBar = s.bar;
+    seekSeq = s.seq;
   } catch (e) { /* server briefly down */ }
 }, 1000);
 
@@ -633,7 +633,12 @@ def scan_output(root: Path) -> dict:
 
 
 # Latest play-from-bar request (from the MuseScore plugin); pages poll it.
-SEEK = {"seq": 0, "bar": 0}
+# Play/pause-from-bar state. The server decides the toggle: repeating the
+# same bar flips `playing`, a new bar always means play. Pages just apply
+# the state — if each open page decided from its own local audio instead,
+# two open pages with different states would hand playback back and forth
+# on every "pause" press (observed 2026-09-20).
+SEEK = {"seq": 0, "bar": 0, "playing": False}
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -724,7 +729,10 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self._set_raw_bars(data)
                 self._send_json(200, {"ok": True})
             elif path == "/api/seek":
-                SEEK.update(seq=SEEK["seq"] + 1, bar=int(data["bar"]))
+                bar = int(data["bar"])
+                SEEK.update(seq=SEEK["seq"] + 1, bar=bar,
+                            playing=not SEEK["playing"] if bar == SEEK["bar"]
+                            else True)
                 self._send_json(200, SEEK)
             else:
                 self.send_error(404)

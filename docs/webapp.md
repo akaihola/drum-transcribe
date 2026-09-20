@@ -18,8 +18,8 @@ without it browsers heuristically cache and render stale scores), and
 | `PUT /api/upload?project&version&filename` | raw file body (no multipart) → job |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
-| `POST /api/seek` | `{bar}` from the MuseScore plugin → bump the `SEEK` seq |
-| `GET /api/seek` | current `{seq, bar}`; pages poll it every 1 s |
+| `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
+| `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /files/**` | static from the output root |
 
 `scan_output` also derives per-version: `done`, `error` (log tail contains
@@ -57,10 +57,14 @@ unknown containers) → run `python -m drum_transcribe.cli run` per variant
   > first in section. `preload="none"` means seek must wait for
   `loadedmetadata`.
 - MuseScore play-from-bar: the page polls `GET /api/seek` every 1 s and on a
-  new `seq` calls `seekToBar` on the active version tab's section. Toggle:
-  if audio is playing and the bar equals the previous request's bar, it
-  pauses instead (same shortcut plays and pauses in MuseScore). Browsers
-  block script playback until the user has clicked play once per page load.
+  new `seq` applies the server's state: `playing` false → pause all audio,
+  true → `seekToBar` on the active version tab. The **server** owns the
+  play/pause toggle (POSTing the same bar twice flips `playing`); pages must
+  never decide from their own audio state — when two pages are open with
+  different states, local decisions make them hand playback back and forth
+  on every pause press (bug found 2026-09-20). Browsers block script
+  playback until the user has clicked play once per page load. Stale pages
+  keep the old JS until reloaded.
   See [musescore-plugin.md](musescore-plugin.md).
 - Tabs are generic: `.tabs > .tabbar button[data-target]` +
   `.tabs > .tabpanel#id`; `:scope >` selectors keep nested tabs (versions ⊃
