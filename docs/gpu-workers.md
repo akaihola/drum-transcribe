@@ -59,6 +59,11 @@ docker build -t ghcr.io/akaihola/drum-transcribe-gpu:latest <context>
 docker push ghcr.io/akaihola/drum-transcribe-gpu:latest   # user is logged in to ghcr.io
 ```
 
+Push from a fast-uplink machine (e.g. `agent@gogo`, 600 Mbit fiber) —
+the atom laptop uploads at ~11 Mbit/s, turning an 8 GB push into ~2 h.
+The build context is ~1 MB plus the checkpoint caches; the base image
+and checkpoints are public downloads any host can fetch.
+
 ## 2. The worker
 
 `deploy/vast-worker.sh`, run inside the container on the GPU host.
