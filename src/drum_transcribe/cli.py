@@ -1,21 +1,37 @@
 """Pipeline CLI: audio in, drum notation out, with inspectable intermediates.
 
-    drum-transcribe run song.mp3 -o output/song
+    drum-transcribe run song.mp3 --variant adtof
+    drum-transcribe run song.mp3 --variant mdx23c
+    drum-transcribe serve output
 
-writes into the output directory:
-    stems/<model>/<song>/drums.wav   separated drums stem
-    beats.json                       beat/downbeat grid
-    onsets.json                      detected hits with confidence + velocity
-    events.json                      quantized events (bar/beat fractions)
-    audition.mid                     quantized MIDI at real-time positions
-    score.musicxml                   drum staff for MuseScore etc.
+Output layout (one directory per song, one subdirectory per pipeline variant,
+so results from different pipelines never mix):
+
+    output/<song>/source.<ext>                 copy of the input recording
+    output/<song>/beats.json                   beat/downbeat grid (shared)
+    output/<song>/stems/htdemucs/.../drums.wav separated drums (shared)
+    output/<song>/stems/mdx23c/*.flac          per-drum stems (mdx23c variant)
+    output/<song>/<variant>/onsets.json        detected hits
+    output/<song>/<variant>/events.json        quantized events
+    output/<song>/<variant>/audition.mid       quantized MIDI
+    output/<song>/<variant>/sonification.wav   original + synthetic blips
+    output/<song>/<variant>/score.musicxml     drum staff (MuseScore-ready)
+    output/<song>/<variant>/score.mscz         MuseScore file (if converter found)
 """
 
 from __future__ import annotations
 
 import argparse
+import re
+import shutil
 import sys
 from pathlib import Path
+
+VARIANTS = ("adtof", "mdx23c")
+
+
+def slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,23 +40,17 @@ def main(argv: list[str] | None = None) -> int:
 
     run = sub.add_parser("run", help="run the full pipeline")
     run.add_argument("audio", type=Path)
-    run.add_argument("-o", "--outdir", type=Path, default=None)
+    run.add_argument("--variant", choices=VARIANTS, default="adtof",
+                     help="adtof: ADTOF neural 5-class transcription; "
+                          "mdx23c: 6-stem drum separation + per-stem onsets")
+    run.add_argument("-o", "--outdir", type=Path, default=None,
+                     help="song output dir (default: output/<song-name>)")
     run.add_argument("--title", default=None, help="score title")
-    run.add_argument(
-        "--no-separate",
-        action="store_true",
-        help="transcribe the input directly (already a drums-only recording)",
-    )
-    run.add_argument(
-        "--from-stage",
-        choices=["separate", "beats", "transcribe", "quantize", "score"],
-        default="separate",
-        help="resume from this stage, reusing earlier artifacts in outdir",
-    )
+    run.add_argument("--force", action="store_true",
+                     help="recompute everything, ignoring cached artifacts")
 
-    srv = sub.add_parser("serve", help="review UI web server for a pipeline output dir")
-    srv.add_argument("outdir", type=Path)
-    srv.add_argument("--audio", type=Path, default=None, help="original recording")
+    srv = sub.add_parser("serve", help="review/compare web UI for pipeline outputs")
+    srv.add_argument("root", type=Path, nargs="?", default=Path("output"))
     srv.add_argument("--host", default="0.0.0.0")
     srv.add_argument("--port", type=int, default=8765)
 
@@ -49,76 +59,81 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from .serve import serve
 
-        serve(args.outdir, original=args.audio, host=args.host, port=args.port)
+        serve(args.root, host=args.host, port=args.port)
         return 0
 
-    audio: Path = args.audio
-    outdir: Path = args.outdir or Path("output") / audio.stem
-    outdir.mkdir(parents=True, exist_ok=True)
-    stages = ["separate", "beats", "transcribe", "quantize", "score"]
-    start = stages.index(args.from_stage)
+    return run_pipeline(args)
 
-    def stage_enabled(name: str) -> bool:
-        return stages.index(name) >= start
 
+def run_pipeline(args: argparse.Namespace) -> int:
     from .audition import write_audition_midi
     from .beats import BeatGrid, track_beats
-    from .quantize import load_events, quantize, save_events
+    from .export import to_mscz
+    from .quantize import quantize, save_events
     from .score import write_musicxml
-    from .separate import separate_drums
+    from .separate import separate_drums, separate_kit_mdx23c
+    from .sonify import write_sonification
     from .transcribe import (
         detect_onsets,
+        detect_onsets_from_stems,
         estimate_velocities,
-        load_onsets,
         save_onsets,
     )
 
-    beats_json = outdir / "beats.json"
-    onsets_json = outdir / "onsets.json"
-    events_json = outdir / "events.json"
+    audio: Path = args.audio
+    song_dir: Path = args.outdir or Path("output") / slugify(audio.stem)
+    vdir = song_dir / args.variant
+    vdir.mkdir(parents=True, exist_ok=True)
 
-    if args.no_separate:
-        drums_stem = audio
-    else:
-        print("== separating drums stem (Demucs) ==", flush=True)
-        drums_stem = separate_drums(audio, outdir)
-        print(f"   {drums_stem}")
+    source = song_dir / f"source{audio.suffix}"
+    if not source.exists():
+        shutil.copy2(audio, source)
 
-    if stage_enabled("beats") or not beats_json.exists():
-        print("== tracking beats/downbeats (beat_this) ==", flush=True)
-        grid = track_beats(audio)
-        grid.save(beats_json)
-    else:
+    print(f"song: {song_dir.name}  variant: {args.variant}", flush=True)
+
+    print("== separating drums stem (Demucs htdemucs) ==", flush=True)
+    drums_stem = separate_drums(source, song_dir)
+    print(f"   {drums_stem}")
+
+    beats_json = song_dir / "beats.json"
+    if beats_json.exists() and not args.force:
         grid = BeatGrid.load(beats_json)
+    else:
+        print("== tracking beats/downbeats (beat_this) ==", flush=True)
+        grid = track_beats(source)
+        grid.save(beats_json)
     print(f"   {len(grid.times)} beats, meter {grid.meter}/4")
 
-    if stage_enabled("transcribe") or not onsets_json.exists():
+    if args.variant == "mdx23c":
+        print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
+        stems = separate_kit_mdx23c(
+            drums_stem, song_dir, model_dir=song_dir.parent / ".models"
+        )
+        print("== detecting per-stem onsets ==", flush=True)
+        onsets = detect_onsets_from_stems(stems)
+    else:
         print("== detecting drum hits (ADTOF) ==", flush=True)
         onsets, _act = detect_onsets(drums_stem)
         estimate_velocities(onsets, drums_stem)
-        save_onsets(onsets, onsets_json)
-    else:
-        onsets = load_onsets(onsets_json)
+    save_onsets(onsets, vdir / "onsets.json")
     print(f"   {len(onsets)} onsets")
 
-    if stage_enabled("quantize") or not events_json.exists():
-        print("== quantizing to grid ==", flush=True)
-        events = quantize(onsets, grid)
-        save_events(events, grid.meter, events_json)
-    else:
-        events, _meter = load_events(events_json)
+    print("== quantizing to grid ==", flush=True)
+    events = quantize(onsets, grid)
+    save_events(events, grid.meter, vdir / "events.json")
     big_err = [e for e in events if abs(e.error_ms) > 35]
     print(f"   {len(events)} events; {len(big_err)} with >35 ms quantization error")
 
     print("== writing outputs ==", flush=True)
-    from .sonify import write_sonification
-
-    write_audition_midi(events, outdir / "audition.mid")
-    write_sonification(events, audio, outdir / "sonification.wav")
-    title = args.title or audio.stem
-    write_musicxml(events, grid.meter, outdir / "score.musicxml", title=title)
-    for name in ("audition.mid", "sonification.wav", "score.musicxml"):
-        print(f"   {outdir / name}")
+    write_audition_midi(events, vdir / "audition.mid")
+    write_sonification(events, source, vdir / "sonification.wav")
+    title = args.title or f"{audio.stem} [{args.variant}]"
+    write_musicxml(events, grid.meter, vdir / "score.musicxml", title=title)
+    mscz = to_mscz(vdir / "score.musicxml", vdir / "score.mscz")
+    for p in sorted(vdir.iterdir()):
+        print(f"   {p}")
+    if mscz is None:
+        print("   (no MuseScore CLI found; score.mscz not written)")
     return 0
 
 
