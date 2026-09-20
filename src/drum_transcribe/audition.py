@@ -4,7 +4,15 @@ from pathlib import Path
 
 from .quantize import Event
 
-GM_NOTES = {"kick": 36, "snare": 38, "tom": 47, "hihat": 42, "cymbal": 49}
+GM_NOTES = {
+    "kick": 36,
+    "snare": 38,
+    "tom": 47,
+    "hihat": 42,
+    "ride": 51,
+    "crash": 49,
+    "cymbal": 49,
+}
 
 
 def write_audition_midi(events: list[Event], path: Path) -> Path:

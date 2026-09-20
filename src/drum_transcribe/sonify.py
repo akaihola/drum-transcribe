@@ -33,6 +33,8 @@ SOUNDS = {
     "snare": _blip(240, 0.12, noise=0.7),
     "tom": _blip(140, 0.15),
     "hihat": _blip(6000, 0.05, noise=0.9, hp=True),
+    "ride": _blip(5200, 0.30, noise=0.4, hp=True),
+    "crash": _blip(4000, 0.45, noise=0.9, hp=True),
     "cymbal": _blip(4500, 0.25, noise=0.8, hp=True),
 }
 

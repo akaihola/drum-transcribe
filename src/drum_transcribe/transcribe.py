@@ -36,6 +36,10 @@ def load_onsets(path: Path) -> list[Onset]:
 
 def detect_onsets(audio: Path, device: str = "cpu") -> tuple[list[Onset], np.ndarray]:
     """Run ADTOF on `audio`; return onsets (velocity unset =100) and raw activations."""
+    # transcribe_to_midi is annotated -> Path, but with return_activations=True
+    # it actually returns the raw activation array.
+    from typing import cast
+
     from adtof_pytorch import (
         FRAME_RNN_THRESHOLDS,
         LABELS_5,
@@ -43,8 +47,9 @@ def detect_onsets(audio: Path, device: str = "cpu") -> tuple[list[Onset], np.nda
         transcribe_to_midi,
     )
 
-    activations = transcribe_to_midi(
-        audio, "/dev/null", return_activations=True, device=device
+    activations = cast(
+        "np.ndarray",
+        transcribe_to_midi(audio, "/dev/null", return_activations=True, device=device),
     )
     picker = PeakPicker(thresholds=FRAME_RNN_THRESHOLDS, fps=100)
     peaks = picker.pick(activations, labels=LABELS_5)[0]
@@ -58,6 +63,37 @@ def detect_onsets(audio: Path, device: str = "cpu") -> tuple[list[Onset], np.nda
             onsets.append(Onset(t, CLASSES[label], round(conf, 3), 100))
     onsets.sort(key=lambda o: o.time)
     return onsets, act
+
+
+def detect_onsets_from_stems(stems: dict[str, Path]) -> list[Onset]:
+    """Per-drum onset detection on MDX23C stems (kick/snare/tom/hihat/ride/crash).
+
+    Confidence is the onset envelope peak relative to the stem's loudest onset;
+    velocity comes from the same peak on a dB scale (95th percentile -> 110).
+    """
+    import librosa
+
+    onsets = []
+    for instrument, stem in stems.items():
+        y, sr = librosa.load(str(stem), sr=22050, mono=True)
+        hop = 256
+        env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+        if env.max() <= 0:
+            continue
+        frames = librosa.onset.onset_detect(
+            onset_envelope=env, sr=sr, hop_length=hop, backtrack=False,
+            delta=0.05 * float(env.max()), wait=2,
+        )
+        peaks = env[frames]
+        ref = float(np.percentile(peaks, 95)) or 1.0
+        for frame, peak in zip(frames, peaks):
+            t = float(frame * hop / sr)
+            db = 10 * np.log10(max(float(peak), 1e-12) / ref)
+            velocity = int(np.clip(round(110 + db * 2.5), 1, 127))
+            confidence = round(float(peak) / float(env.max()), 3)
+            onsets.append(Onset(t, instrument, confidence, velocity))
+    onsets.sort(key=lambda o: o.time)
+    return onsets
 
 
 def estimate_velocities(onsets: list[Onset], drums_stem: Path) -> None:
