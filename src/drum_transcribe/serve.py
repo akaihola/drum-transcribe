@@ -103,10 +103,12 @@ HELP_HTML = """
     <text x="15" y="55" font-size="12">players &middot; downloads &middot; scores of the selected version</text>
   </svg>
   <p>Each <b>version</b> of the piece (e.g. the backing track and the album
-  recording) has its own tab. Inside it, two independent transcription
+  recording) has its own tab. Inside it, independent transcription
   <b>pipelines</b> are compared: <b>adtof</b> (a neural network reading the
-  drum mix; most reliable) and <b>mdx23c</b> (splits the kit into six
-  per-drum tracks first; can tell ride from crash but over-detects).</p>
+  drum mix; most reliable), <b>mdx23c</b> (splits the kit into six
+  per-drum tracks first; can tell ride from crash but over-detects), and
+  <b>fused</b> (adtof's hits, plus the per-drum tracks to tell ride from
+  crash and judge how hard each hit was — the best of both).</p>
 
   <h3>3. Checking by ear: the sonification</h3>
   <svg viewBox="0 0 340 60" width="340">

@@ -140,3 +140,37 @@ def estimate_velocities(onsets: list[Onset], drums_stem: Path) -> None:
         for o, e in pairs:
             db = 10 * np.log10(max(e, 1e-12) / ref)  # <= ~0 for most hits
             o.velocity = int(np.clip(round(110 + db * 2.5), 1, 127))
+
+
+def refine_with_stems(onsets: list[Onset], stems: dict[str, Path]) -> None:
+    """Fuse ADTOF onsets with MDX23C per-drum stems (the drum2midi recipe):
+    split ADTOF's merged "cymbal" class into ride vs crash by whichever stem
+    is louder at the hit, and set velocities from the matching stem's onset
+    envelope (95th percentile -> 110, dB below that scales down).
+    """
+    import librosa
+
+    hop = 256
+    envs: dict[str, np.ndarray] = {}
+    for instrument, stem in stems.items():
+        y, sr = librosa.load(str(stem), sr=22050, mono=True)
+        envs[instrument] = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+
+    def peak(instrument: str, time: float) -> float:
+        env = envs[instrument]
+        center = round(time * 22050 / hop)
+        lo, hi = max(0, center - 2), min(len(env), center + 7)  # ~70 ms past onset
+        return float(env[lo:hi].max()) if hi > lo else 0.0
+
+    energies: dict[str, list[tuple[Onset, float]]] = {}
+    for o in onsets:
+        if o.instrument == "cymbal":
+            o.instrument = (
+                "ride" if peak("ride", o.time) >= peak("crash", o.time) else "crash"
+            )
+        energies.setdefault(o.instrument, []).append((o, peak(o.instrument, o.time)))
+    for pairs in energies.values():
+        ref = float(np.percentile([e for _, e in pairs], 95)) or 1.0
+        for o, e in pairs:
+            db = 10 * np.log10(max(e, 1e-12) / ref)
+            o.velocity = int(np.clip(round(110 + db * 2.5), 1, 127))

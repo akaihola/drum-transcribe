@@ -19,6 +19,10 @@ musical simplification; every intermediate inspectable and re-runnable.
      normalized envelope (delta 0.05). Distinguishes ride/crash but
      over-detects; cymbal-family hits only count for the loudest of
      hihat/ride/crash at that frame (stems bleed).
+   - **fused**: ADTOF onsets + MDX23C stems (drum2midi's recipe). The
+     merged "cymbal" class becomes ride or crash by whichever stem is
+     louder at the hit; velocities come from the matching stem's onset
+     envelope instead of frequency bands of the mixed drums stem.
 4. **Quantize** (`quantize.py`): each beat independently picks the
    subdivision (2/4/3/6/8 slots) minimizing total onset error, so straight
    and triplet feels coexist. `Event` keeps bar, beat offset as an exact

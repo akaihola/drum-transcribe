@@ -7,10 +7,15 @@ from Wicked) with two versions — `taustanauha` (3:12 vocals-removed backing
 track for a Finnish production, click-tracked, Google Drive) and `obc`
 (7:38 Original Broadway Cast recording, YouTube). Both × both variants:
 
-| version | adtof hits | mdx23c hits | notes |
-|---|---|---|---|
-| taustanauha | 834 | 1682 | all hits within 35 ms of grid |
-| obc | 1363 | 2640 | 5 hits > 35 ms; live pit, still tight |
+| version | adtof hits | mdx23c hits | fused hits | notes |
+|---|---|---|---|---|
+| taustanauha | 834 | 1682 | 834 | all hits within 35 ms of grid |
+| obc | 1363 | 2640 | 1363 | 5 hits > 35 ms; live pit, still tight |
+
+The **fused** variant (added 2026-09-20, drum2midi's recipe) keeps adtof's
+onsets and uses the MDX23C stems only for ride/crash disambiguation and
+per-drum velocities; on taustanauha it split adtof's 40 "cymbal" hits into
+27 ride + 13 crash.
 
 The web app (projects, uploads/URLs, background jobs, progress, tabs,
 sonifications, score feedback, help) is feature-complete for review work.
@@ -38,8 +43,6 @@ sonifications, score feedback, help) is feature-complete for review work.
   Open questions: how feedback annotations map back to specific hits
   (feedback keys currently break on regeneration — see Known issues), and
   which direction gives the most value for the least complexity.
-- Fuse variants: adtof onsets + MDX23C stems for ride/crash disambiguation
-  and better velocities (what drum2midi's paper does).
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
 - PDF export (Verovio can render server-side) if printed parts are wanted.

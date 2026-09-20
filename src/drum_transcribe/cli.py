@@ -27,7 +27,7 @@ import shutil
 import sys
 from pathlib import Path
 
-VARIANTS = ("adtof", "mdx23c")
+VARIANTS = ("adtof", "mdx23c", "fused")
 
 
 def slugify(text: str) -> str:
@@ -42,7 +42,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("audio", type=Path)
     run.add_argument("--variant", choices=VARIANTS, default="adtof",
                      help="adtof: ADTOF neural 5-class transcription; "
-                          "mdx23c: 6-stem drum separation + per-stem onsets")
+                          "mdx23c: 6-stem drum separation + per-stem onsets; "
+                          "fused: ADTOF onsets refined with MDX23C stems "
+                          "(ride/crash split, per-drum velocities)")
     run.add_argument("-o", "--outdir", type=Path, default=None,
                      help="song output dir (default: output/<song-name>)")
     run.add_argument("--title", default=None, help="score title")
@@ -77,6 +79,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
         detect_onsets,
         detect_onsets_from_stems,
         estimate_velocities,
+        refine_with_stems,
         save_onsets,
     )
 
@@ -109,6 +112,13 @@ def run_pipeline(args: argparse.Namespace) -> int:
         stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
         print("== detecting per-stem onsets ==", flush=True)
         onsets = detect_onsets_from_stems(stems)
+    elif args.variant == "fused":
+        print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
+        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
+        print("== detecting drum hits (ADTOF) ==", flush=True)
+        onsets, _act = detect_onsets(drums_stem)
+        print("== refining with per-drum stems (ride/crash, velocities) ==", flush=True)
+        refine_with_stems(onsets, stems)
     else:
         print("== detecting drum hits (ADTOF) ==", flush=True)
         onsets, _act = detect_onsets(drums_stem)

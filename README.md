@@ -30,7 +30,11 @@ Results of different methods are kept side by side, never mixed:
   categories (ride and crash cymbals are one "cymbal").
 - **mdx23c** — the drums stem is first split further into six per-drum
   recordings (kick / snare / toms / hi-hat / ride / crash); hits are then
-  detected in each one separately. Distinguishes ride from crash.
+  detected in each one separately. Distinguishes ride from crash, but
+  hears too many hits (leakage between the six recordings).
+- **fused** — the best of both: adtof decides *when and what* was hit,
+  and the six per-drum recordings are used only to tell ride from crash
+  and to judge how hard each hit was.
 
 ## What is the sonification?
 
@@ -83,6 +87,7 @@ version for comparison happens at the bottom of the page. Per version:
 uv sync                                          # once, installs everything
 uv run drum-transcribe run song.mp3              # adtof variant (default)
 uv run drum-transcribe run song.mp3 --variant mdx23c
+uv run drum-transcribe run song.mp3 --variant fused
 ```
 
 Results land in `output/<project>/<version>/<variant>/`; the source

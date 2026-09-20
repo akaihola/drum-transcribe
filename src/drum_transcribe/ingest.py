@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
-VARIANTS = ("adtof", "mdx23c")
+VARIANTS = ("adtof", "mdx23c", "fused")
 
 
 def start_version_job(version_dir: Path, url: str | None = None,

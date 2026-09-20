@@ -10,7 +10,7 @@ frequent commits).
 
 ```bash
 uv sync                                   # CC sandbox: CC=$(readlink -f $(which gcc)) uv sync
-uv run drum-transcribe run SONG.mp3 --variant adtof|mdx23c -o output/PROJECT/VERSION
+uv run drum-transcribe run SONG.mp3 --variant adtof|mdx23c|fused -o output/PROJECT/VERSION
 uv run drum-transcribe serve output --port 8765   # must run OUTSIDE the CC sandbox (see below)
 ```
 
@@ -39,7 +39,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 
 `output/<project>/<version>/` holds `source.*`, `beats.json`, `pipeline.log`,
 `stems/htdemucs/source/drums.wav`, `stems/mdx23c/*.wav`, and per variant
-(`adtof/`, `mdx23c/`): `onsets.json`, `events.json`, `audition.mid`,
+(`adtof/`, `mdx23c/`, `fused/`): `onsets.json`, `events.json`, `audition.mid`,
 `sonification.wav`, `score.musicxml`, `score.mscz?`, `feedback.json?`.
 Model caches: `.cache/` (torch, HF) and `.models/` (MDX23C), both gitignored.
 
