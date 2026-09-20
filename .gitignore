@@ -21,3 +21,4 @@ vendor/
 .zprofile
 .zshrc
 :memory:.ses
+.models/

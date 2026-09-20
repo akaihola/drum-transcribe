@@ -106,9 +106,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     if args.variant == "mdx23c":
         print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
-        stems = separate_kit_mdx23c(
-            drums_stem, song_dir, model_dir=song_dir.parent / ".models"
-        )
+        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
         print("== detecting per-stem onsets ==", flush=True)
         onsets = detect_onsets_from_stems(stems)
     else:
