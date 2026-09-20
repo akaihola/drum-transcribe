@@ -511,16 +511,19 @@ document.addEventListener("click", e => {
   }
 }, true);
 
-// The MuseScore plugin POSTs /api/seek {bar}; poll it and play from that bar
-// in the active version tab.
+// The MuseScore plugins POST /api/seek {bar}; poll it and play from that bar
+// in the active version tab. Bar 0 (bars are 1-based) means pause.
 let seekSeq = null;
 setInterval(async () => {
   try {
     const s = await fetch("/api/seek").then(r => r.json());
     if (seekSeq !== null && s.seq !== seekSeq) {
-      const section =
-        document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
-      if (section) seekToBar(section, s.bar);
+      if (!s.bar) document.querySelectorAll("audio").forEach(a => a.pause());
+      else {
+        const section =
+          document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
+        if (section) seekToBar(section, s.bar);
+      }
     }
     seekSeq = s.seq;
   } catch (e) { /* server briefly down */ }

@@ -2,10 +2,11 @@
 
 Goal: while refining a score in MuseScore Studio, select a bar and press a
 shortcut → the original recording plays from that bar. **Built 2026-09-20**:
-the plugin lives at [musescore/PlayFromBar.qml](../musescore/PlayFromBar.qml)
-and is installed on this laptop at `~/Asiakirjat/MuseScore4/Plugins/` (the
-XDG Documents dir is Finnish here). Enable under Home → Plugins and assign a
-shortcut. Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
+[musescore/PlayFromBar.qml](../musescore/PlayFromBar.qml), plus
+[musescore/PausePlayback.qml](../musescore/PausePlayback.qml) (POSTs bar 0 =
+pause) for stopping playback. Both are installed on this laptop at
+`~/Asiakirjat/MuseScore4/Plugins/` (the XDG Documents dir is Finnish here).
+Enable under Home → Plugins and assign shortcuts. Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
 project pages poll `GET /api/seek` every 1 s and seek the active version
 tab's audio (polling chosen over SSE — zero connection management).
 

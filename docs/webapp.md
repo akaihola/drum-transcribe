@@ -18,7 +18,7 @@ without it browsers heuristically cache and render stale scores), and
 | `PUT /api/upload?project&version&filename` | raw file body (no multipart) → job |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
-| `POST /api/seek` | `{bar}` from the MuseScore plugin → bump the `SEEK` seq |
+| `POST /api/seek` | `{bar}` from the MuseScore plugins → bump the `SEEK` seq; bar 0 = pause |
 | `GET /api/seek` | current `{seq, bar}`; pages poll it every 1 s |
 | `GET /files/**` | static from the output root |
 
@@ -57,7 +57,8 @@ unknown containers) → run `python -m drum_transcribe.cli run` per variant
   > first in section. `preload="none"` means seek must wait for
   `loadedmetadata`.
 - MuseScore play-from-bar: the page polls `GET /api/seek` every 1 s and on a
-  new `seq` calls `seekToBar` on the active version tab's section. Browsers
+  new `seq` calls `seekToBar` on the active version tab's section, or pauses
+  every player when `bar` is 0 (the PausePlayback plugin). Browsers
   block script playback until the user has clicked play once per page load.
   See [musescore-plugin.md](musescore-plugin.md).
 - Tabs are generic: `.tabs > .tabbar button[data-target]` +

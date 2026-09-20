@@ -100,9 +100,13 @@ the recording jumps to that bar in the browser tab where you have the piece's
 project page open. (The browser needs one manual press of play after each
 page reload before it lets the plugin start playback.)
 
-One-time setup: the plugin (`musescore/PlayFromBar.qml`, already copied to
-MuseScore's plugin folder on this laptop) must be enabled in MuseScore under
-Home → Plugins → "Play from bar", and given a shortcut via its ⚙ settings.
+A second plugin, **"Pause recording"**, pauses the playback the same way —
+handy when the recording is playing in another room's browser.
+
+One-time setup: the plugins (`musescore/PlayFromBar.qml` and
+`musescore/PausePlayback.qml`, already copied to MuseScore's plugin folder
+on this laptop) must be enabled in MuseScore under Home → Plugins, and each
+given a shortcut via its ⚙ settings.
 
 ## Running a transcription from the command line
 
