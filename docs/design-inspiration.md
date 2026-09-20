@@ -82,12 +82,13 @@ options come later.
 1. **Flat, calm, friendly.** White or near-white background, dark
    notation/text, one accent color (used for "now playing" and primary
    buttons). Rounded corners, no visual noise. (Ableton, Soundslice)
-2. **The song's timeline is the centerpiece** — waveform on top, drum
-   hits/notation below, both synced to one moving playhead. Clicking
-   anywhere in either one seeks the audio. (Soundslice, Moises)
-3. **Correcting = clicking a grid.** Rows per drum with a distinct color
-   each, columns per beat; click to add/remove a hit, and hear the result
-   immediately. (Song Maker, Groove Pizza)
+2. **The score is the centerpiece.** The engraved notation gets the room;
+   playback controls stay compact and always within reach. The score and
+   the audio are one thing: a highlight follows playback, clicking a bar
+   plays from there. (Soundslice)
+3. **Correcting happens on the notation itself** — click a note to flag or
+   comment on it, right where you see the problem, with the change visible
+   immediately. (Soundslice's editor, rather than a separate grid view)
 4. **Big controls, few of them.** Play/pause, loop a section, slow down.
    Everything else behind a small menu. (Moises, Chordify)
 5. **Instant sound on interaction.** Any edit or click gives immediate
