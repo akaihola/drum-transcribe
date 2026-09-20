@@ -65,7 +65,7 @@ STYLE = """
   .variant { border: 1px solid var(--hairline); border-radius: 8px; padding: .8rem 1.2rem; }
   .variant h4 { margin: 0 0 .5rem; }
   .downloads a { margin-right: .8rem; font-size: .85rem; }
-  .stats { font-size: .85rem; color: var(--ink-quiet); }
+  .stats { font-size: .85rem; color: var(--ink-quiet); max-width: 75ch; }
   .pending { color: var(--brass); font-style: italic; }
   .error { color: var(--signal); }
   .tabbar { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1.2rem 0 .8rem; }

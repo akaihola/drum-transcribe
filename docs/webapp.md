@@ -55,6 +55,11 @@ and the presign step fall back to plain `python3`/`vastai`). See
 
 ## Front-end notes
 
+- Visual tokens and component rules: [style-guide.md](style-guide.md);
+  the living specimen is served at `/style`. Teal = "sound happens here"
+  (now-playing bar, active tab, primary button); brass = in progress /
+  saved feedback; red = suspect hits and errors.
+
 - Scores rendered client-side by Verovio (CDN, WASM). Race trap: resolve a
   ready-promise from `verovio.module.calledRun` OR `onRuntimeInitialized`.
 - `svgAdditionalAttribute: ["measure@n"]` tags each SVG measure with its
