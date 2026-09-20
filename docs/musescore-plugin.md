@@ -10,7 +10,14 @@ web page toggles: a repeated bar while audio plays means pause). The server
 address is read from `drum-transcribe.ini` next to the plugin via a
 runtime-created `Settings` (QtCore, falling back to `Qt.labs.settings` —
 `Qt.createQmlObject` so a missing module can't break plugin load; pattern
-from hoshi005's AudioSync). Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
+from hoshi005's AudioSync; on 4.7 QtCore Settings is unavailable and the
+fallback is what actually runs). **Settings window added 2026-09-20** ("Option
+2"): running the plugin with nothing selected, or when the server doesn't
+answer, opens a small window to edit and Save the server address into the
+same ini; the shortcut fast path stays window-free. Verified end-to-end in
+the headless GUI (see below): all four paths — no selection, Save→ini,
+selection→POST, dead server→warning.
+Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
 project pages poll `GET /api/seek` every 1 s and seek the active version
 tab's audio (polling chosen over SSE — zero connection management).
 
@@ -87,6 +94,20 @@ starts from the current selection). API reference: repo headers
 mostly applicable), community hub "Plugins for 4.x"
 <https://musescore.org/en/node/337468>. In-app Plugin Creator
 (Ctrl+Shift+P) for live testing.
+
+Facts from building the settings window (2026-09-20):
+
+- A `Window {}` declared inside the plugin item **never shows via
+  `visible = true`** — Qt defers the assignment because the plugin item
+  itself is never shown. Call `settingsWindow.show()` instead; that maps it
+  immediately (verified: `visible` stays `false` after assignment, `true`
+  after `show()`).
+- Plugin QML is **cached for the whole MuseScore session** — after editing
+  the .qml you must restart MuseScore (or use the Plugin Creator), or the
+  old code keeps running.
+- `console.log` from plugins appears in neither stdout nor MuseScore's log
+  files. To debug, POST debug strings via `XMLHttpRequest` to a local stub
+  server and read its log.
 
 Dead ends — confirmed broken/removed in MS4, do not retry:
 
@@ -179,7 +200,22 @@ deterministic — `xdotool key ctrl+Home` selects the first element,
 click) and confirm with `curl localhost:8765/api/seek`. Close with
 `xdotool key ctrl+q` (exits 0), then kill Xvfb. Caveat: a test trigger
 bumps the live server's seek counter, so any open project page will
-seek/toggle once.
+seek/toggle once. To avoid that, point the test ini at a local stub
+server that answers 200 to POST and logs bodies.
+
+More gotchas learned 2026-09-20:
+
+- **The isolated instance reads plugins from `$M/Documents/MuseScore4/
+  Plugins`, not `$M/Asiakirjat/…`** — user-dirs.dirs is not copied, so Qt
+  falls back to the English Documents dir. Install the plugin (and its
+  ini) there, or copy `~/.config/user-dirs.dirs` too.
+- The plugin menu item is **disabled while no score is open** (Home tab).
+- Dismiss the update dialog and the "restore session?" dialog by
+  coordinates from a screenshot; the recents list points at real-home
+  files, so open only the score passed on the command line (a copy).
+- QML submenus don't open reliably from a fast click; click the top-level
+  menu, then *hover* the submenu entry ~2 s, screenshot to confirm it
+  expanded, then click the item.
 
 ## Alternative kept in the back pocket ("Route 3")
 
