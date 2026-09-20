@@ -43,8 +43,9 @@ The new-version form's "process on a rented cloud GPU" checkbox sets
 `gpu`: the source is still fetched locally (so all link types and uploads
 work), then uploaded to the results bucket, presigned (boto3 via
 `uv run --with boto3`, credentials from `.secrets.worker-s3.json`), and
-handed to `deploy/run-on-gpu.sh` — rent, process all variants, sync into
-the same `output/<song>/<version>/`, destroy. The script's `== … ==`
+handed to `deploy/run-on-gpu.sh` — rent (or reuse an open
+`gpu-session.sh` instance), process all variants, sync into
+the same `output/<song>/<version>/`, destroy unless the session owns it. The script's `== … ==`
 stage lines go to `pipeline.log`, so the page's stage indicator works;
 the artifact checklist fills only when results sync back at the end
 (and `stems/` are not synced, so no drums-stem player). See

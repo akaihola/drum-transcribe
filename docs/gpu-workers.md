@@ -99,6 +99,28 @@ to `output/`, destroy:
 deploy/run-on-gpu.sh <SOURCE_URL> <SONG> <VERSION> ["adtof mdx23c"]
 ```
 
+When several songs (or retries of one song) are coming, open a
+keep-alive session instead — the instance stays warm between jobs,
+skipping the 1–10 min image pull, and any `run-on-gpu.sh` call (e.g.
+from the web app) reuses it while it's open:
+
+```bash
+deploy/gpu-session.sh start [IDLE_MINUTES]     # rent; idle timeout, default 30
+deploy/gpu-session.sh run <SOURCE_URL> <SONG> <VERSION> ["adtof mdx23c"]
+deploy/gpu-session.sh status                   # instance id, or exit 1
+deploy/gpu-session.sh stop                     # destroy
+```
+
+Safety net: the instance runs a watchdog (`--onstart-cmd`) that
+destroys the instance *itself* after IDLE_MINUTES without job activity,
+using the per-instance `CONTAINER_API_KEY` Vast injects into every
+container (it can start/stop/destroy only that instance). So a crashed
+or disconnected laptop can't leave the instance billing indefinitely —
+worst case is the idle timeout, ~$0.05 at default settings. Jobs are
+delivered over ssh, and `deploy/vast-worker.sh` is streamed from the
+repo (not the baked copy), so worker changes need no image rebuild; the
+worker touches `/tmp/alive` per variant to feed the watchdog.
+
 The web app's new-version form has a "process on a rented cloud GPU"
 checkbox that drives this same script (see
 [webapp.md](webapp.md#ingestion-jobs-ingestpy)), passing all three
@@ -139,8 +161,8 @@ Lessons from the first test run (2026-09-20, $0.04 total):
 - GPU timings: both variants of a 4-min song ≈ 5 min total; mdx23c alone
   ≈ 1 min (vs ~40 min on the laptop CPU).
 
-Batching = same instance, run the worker once per song before
-destroying. Spot pause/outbid is safe: every stage is cached and uploads
+Batching = a keep-alive session (`gpu-session.sh start`, then one `run`
+per song). Spot pause/outbid is safe: every stage is cached and uploads
 happen per variant; just relaunch elsewhere.
 
 ## 5. Costs (2026-09 figures)
