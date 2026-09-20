@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def run_pipeline(args: argparse.Namespace) -> int:
     from .audition import write_audition_midi
-    from .beats import BeatGrid, track_beats
+    from .beats import BeatGrid, regularize, track_beats
     from .export import to_mscz
     from .quantize import quantize, save_events
     from .score import write_musicxml
@@ -79,6 +79,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
         detect_onsets,
         detect_onsets_from_stems,
         estimate_velocities,
+        load_onsets,
         refine_with_stems,
         save_onsets,
     )
@@ -98,16 +99,29 @@ def run_pipeline(args: argparse.Namespace) -> int:
     drums_stem = separate_drums(source, song_dir)
     print(f"   {drums_stem}")
 
+    # beats_raw.json caches the tracker output; beats.json is the effective
+    # grid used everywhere: barlines repaired by default, raw if the user
+    # asserted (via the web UI's keep-raw-bars flag) that unequal bars are real.
+    beats_raw = song_dir / "beats_raw.json"
     beats_json = song_dir / "beats.json"
-    if beats_json.exists() and not args.force:
-        grid = BeatGrid.load(beats_json)
+    if not beats_raw.exists() and beats_json.exists():
+        shutil.copy2(beats_json, beats_raw)  # pre-repair output: beats.json was raw
+    if beats_raw.exists() and not args.force:
+        raw = BeatGrid.load(beats_raw)
     else:
         print("== tracking beats/downbeats (beat_this) ==", flush=True)
-        grid = track_beats(source)
-        grid.save(beats_json)
-    print(f"   {len(grid.times)} beats, meter {grid.meter}/4")
+        raw = track_beats(source)
+        raw.save(beats_raw)
+    keep_raw = (song_dir / "keep-raw-bars").exists()
+    grid = raw if keep_raw else regularize(raw)
+    grid.save(beats_json)
+    print(f"   {len(grid.times)} beats, meter {grid.meter}/4"
+          + (" (raw barlines kept)" if keep_raw else ""))
 
-    if args.variant == "mdx23c":
+    onsets_json = vdir / "onsets.json"
+    if onsets_json.exists() and not args.force:
+        onsets = load_onsets(onsets_json)
+    elif args.variant == "mdx23c":
         print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
         stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
         print("== detecting per-stem onsets ==", flush=True)
