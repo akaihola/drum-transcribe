@@ -19,6 +19,11 @@ dependencies = [
     "yt-dlp>=2025.1.1",
 ]
 
+[dependency-groups]
+# ops tooling for renting GPU workers; not needed by the pipeline itself,
+# so it stays out of the GPU image (`uv pip install .` skips groups)
+dev = ["vastai"]
+
 [project.scripts]
 drum-transcribe = "drum_transcribe.cli:main"
 
