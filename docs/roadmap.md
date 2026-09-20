@@ -29,8 +29,15 @@ sonifications, score feedback, help) is feature-complete for review work.
 
 ## Agreed / floated next steps
 
-- Use collected `feedback.json` to correct scores (regenerate MusicXML with
-  human fixes applied) and/or tune detector thresholds per song.
+- **Feedback-driven correction** (needs refinement before starting): use
+  collected `feedback.json` to auto-correct scores and/or tune pipeline
+  parameters. Two possible directions, scope still undecided:
+  - regenerate MusicXML with the human fixes applied (per-note correction);
+  - use the corrections as ground truth to tune detector thresholds per
+    song (systematic improvement).
+  Open questions: how feedback annotations map back to specific hits
+  (feedback keys currently break on regeneration — see Known issues), and
+  which direction gives the most value for the least complexity.
 - Fuse variants: adtof onsets + MDX23C stems for ride/crash disambiguation
   and better velocities (what drum2midi's paper does).
 - Make the port 8765 firewall opening permanent (the user does this).
