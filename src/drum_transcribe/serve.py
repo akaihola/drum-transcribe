@@ -480,34 +480,51 @@ async function followPlayback(versions) {
   }, true);
 }
 
-// Click a bar in a score: the version's audio plays from that bar — the
-// player currently playing, else the last one used, else the original.
+// Seek a version's audio to a bar and play — the player currently playing,
+// else the last one used, else the original.
+function seekToBar(section, bar) {
+  const hit = (barTimes[section.dataset.song] || []).find(b => b.bar === bar);
+  const audios = [...section.querySelectorAll("audio")];
+  const audio = audios.find(a => !a.paused) ||
+                lastAudio[section.dataset.song] || audios[0];
+  if (!hit || !audio) return;
+  const t = Math.max(0, hit.t - 0.1);
+  if (audio.readyState) { audio.currentTime = t; audio.play(); }
+  else {  // preload="none": metadata must arrive before seeking works
+    audio.addEventListener("loadedmetadata",
+      () => { audio.currentTime = t; }, { once: true });
+    audio.play();
+  }
+}
+
+// Click a bar in a score: play from that bar.
 document.addEventListener("click", e => {
   if (document.getElementById("fbmenu")) return;  // click just dismisses menu
   const score = e.target.closest(".score");
   if (!score || e.target.closest("g.note, g.rest, g.pgHead")) return;
   const section = score.closest("section[data-song]");
-  const bars = barTimes[section.dataset.song];
-  if (!bars) return;
   for (const m of score.querySelectorAll("g.measure[data-n]")) {
     const r = m.getBoundingClientRect();
-    if (e.clientX < r.left || e.clientX > r.right ||
-        e.clientY < r.top || e.clientY > r.bottom) continue;
-    const hit = bars.find(b => b.bar === +m.dataset.n);
-    const audios = [...section.querySelectorAll("audio")];
-    const audio = audios.find(a => !a.paused) ||
-                  lastAudio[section.dataset.song] || audios[0];
-    if (!hit || !audio) return;
-    const t = Math.max(0, hit.t - 0.1);
-    if (audio.readyState) { audio.currentTime = t; audio.play(); }
-    else {  // preload="none": metadata must arrive before seeking works
-      audio.addEventListener("loadedmetadata",
-        () => { audio.currentTime = t; }, { once: true });
-      audio.play();
-    }
-    return;
+    if (e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.top && e.clientY <= r.bottom)
+      return seekToBar(section, +m.dataset.n);
   }
 }, true);
+
+// The MuseScore plugin POSTs /api/seek {bar}; poll it and play from that bar
+// in the active version tab.
+let seekSeq = null;
+setInterval(async () => {
+  try {
+    const s = await fetch("/api/seek").then(r => r.json());
+    if (seekSeq !== null && s.seq !== seekSeq) {
+      const section =
+        document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
+      if (section) seekToBar(section, s.bar);
+    }
+    seekSeq = s.seq;
+  } catch (e) { /* server briefly down */ }
+}, 1000);
 
 document.addEventListener("click", e => {
   if (!e.target.matches(".tabbar button")) return;
@@ -609,6 +626,10 @@ def scan_output(root: Path) -> dict:
     return {"projects": projects}
 
 
+# Latest play-from-bar request (from the MuseScore plugin); pages poll it.
+SEEK = {"seq": 0, "bar": 0}
+
+
 class AppHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, root: Path, **kwargs):
         self.root = root
@@ -634,6 +655,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send(html.encode(), "text/html; charset=utf-8")
         elif path == "/api/index":
             self._send(json.dumps(scan_output(self.root)).encode(), "application/json")
+        elif path == "/api/seek":
+            self._send(json.dumps(SEEK).encode(), "application/json")
         elif path.startswith("/files/"):
             self.path = self.path[len("/files"):]
             self._send_file()
@@ -687,6 +710,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             elif path == "/api/rawbars":
                 self._set_raw_bars(data)
                 self._send_json(200, {"ok": True})
+            elif path == "/api/seek":
+                SEEK.update(seq=SEEK["seq"] + 1, bar=int(data["bar"]))
+                self._send_json(200, SEEK)
             else:
                 self.send_error(404)
         except (ValueError, KeyError) as e:
