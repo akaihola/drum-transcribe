@@ -1,15 +1,24 @@
-"""Review web server: score + A/B audio + QA table, reachable over the network.
+"""Review web server: compare pipeline variants per song, over the network.
 
-Serves the pipeline output directory. The score (MusicXML) is rendered in the
-browser by Verovio (loaded from CDN); audio players expose the original mix,
-the separated drums stem, and the sonification for by-ear verification.
+Serves the whole output/ tree. For every song it shows the original, the
+separated drums stem, and per-variant sonifications, scores (rendered
+in-browser by Verovio) and download links (MusicXML, MuseScore, MIDI, JSON).
 """
 
 from __future__ import annotations
 
+import json
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+DOWNLOADS = [
+    ("score.mscz", "MuseScore file"),
+    ("score.musicxml", "MusicXML"),
+    ("audition.mid", "MIDI"),
+    ("events.json", "events (JSON)"),
+    ("onsets.json", "raw hits (JSON)"),
+]
 
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -19,116 +28,164 @@ INDEX_HTML = """<!DOCTYPE html>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 <style>
   body { font-family: system-ui, sans-serif; margin: 1rem 2rem; }
-  .players { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  h2 { border-bottom: 2px solid #444; padding-bottom: .2rem; margin-top: 2.5rem; }
+  .players { display: flex; gap: 2rem; flex-wrap: wrap; margin: .6rem 0; }
   .players figure { margin: 0; }
   .players figcaption { font-size: .8rem; color: #555; }
-  #score svg { max-width: 100%; height: auto; }
+  .variants { display: flex; gap: 2rem; flex-wrap: wrap; }
+  .variant { border: 1px solid #ccc; border-radius: 8px; padding: .8rem 1.2rem; }
+  .variant h4 { margin: 0 0 .5rem; }
+  .downloads a { margin-right: .8rem; font-size: .85rem; }
+  .stats { font-size: .8rem; color: #555; }
+  .score-block h3 { background: #eee; padding: .3rem .6rem; }
+  .score-block svg { max-width: 100%; height: auto; }
   table { border-collapse: collapse; font-size: .8rem; }
   td, th { border: 1px solid #ccc; padding: 2px 8px; text-align: right; }
-  tr.sus { background: #ffe0e0; }
-  details { margin: 1rem 0; }
+  details { margin: .5rem 0; }
 </style>
 </head>
 <body>
 <h1>drum-transcribe review</h1>
-<div class="players" id="players"></div>
-<div id="score">rendering score…</div>
-<details><summary>Suspect events (low confidence or large quantization error)</summary>
-<table id="qa"><tr><th>bar</th><th>beat</th><th>instrument</th><th>velocity</th>
-<th>confidence</th><th>error ms</th></tr></table>
-</details>
+<p>For each song: listen to the <b>original</b>, the <b>drums stem</b> the
+computer isolated, and each pipeline's <b>sonification</b> (the original plus
+a synthetic blip for every transcribed hit &mdash; mistakes are easy to hear).
+Scores for all pipelines are rendered below; download links give the
+MuseScore/MusicXML/MIDI files.</p>
+<div id="app">loading…</div>
 <script>
-const AUDIO = [
-  ["original", "original"],
-  ["drums stem", "drums"],
-  ["sonification (blips = transcription)", "sonification"],
-];
-for (const [label, route] of AUDIO) {
-  const fig = document.createElement("figure");
-  fig.innerHTML = `<audio controls preload="none" src="/${route}"></audio>
-                   <figcaption>${label}</figcaption>`;
-  document.getElementById("players").appendChild(fig);
+const DOWNLOADS = __DOWNLOADS__;
+
+function player(label, url) {
+  return `<figure><audio controls preload="none" src="${url}"></audio>
+          <figcaption>${label}</figcaption></figure>`;
 }
 
-fetch("/files/events.json").then(r => r.json()).then(d => {
-  const tbl = document.getElementById("qa");
-  for (const e of d.events) {
-    if (e.confidence >= 0.5 && Math.abs(e.error_ms) <= 30) continue;
-    const tr = document.createElement("tr");
-    tr.className = "sus";
-    const beat = e.beat[1] === 1 ? e.beat[0] + 1 : `${e.beat[0]}/${e.beat[1]} + 1`;
-    tr.innerHTML = `<td>${e.bar}</td><td>${beat}</td><td>${e.instrument}</td>
-      <td>${e.velocity}</td><td>${e.confidence}</td><td>${e.error_ms}</td>`;
-    tbl.appendChild(tr);
+async function build() {
+  const index = await fetch("/api/index").then(r => r.json());
+  const app = document.getElementById("app");
+  let html = "";
+  for (const song of index.songs) {
+    html += `<h2>${song.name}</h2><div class="players">`;
+    html += player("original", song.source);
+    if (song.drums) html += player("drums stem (Demucs)", song.drums);
+    html += `</div><div class="variants">`;
+    for (const v of song.variants) {
+      html += `<div class="variant"><h4>${v.name}</h4>`;
+      if (v.files["sonification.wav"])
+        html += player("sonification", v.files["sonification.wav"]);
+      html += `<div class="stats">${v.n_events} hits, ${v.n_suspect} suspect</div>`;
+      html += `<div class="downloads">`;
+      for (const [file, label] of DOWNLOADS)
+        if (v.files[file]) html += `<a href="${v.files[file]}" download>${label}</a>`;
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+    for (const v of song.variants)
+      if (v.files["score.musicxml"])
+        html += `<div class="score-block"><h3>${song.name} — ${v.name}</h3>
+                 <div class="score" data-url="${v.files["score.musicxml"]}">
+                 rendering…</div></div>`;
   }
-});
+  app.innerHTML = html;
+  renderScores();
+}
 
-document.addEventListener("DOMContentLoaded", () => {
+function renderScores() {
   verovio.module.onRuntimeInitialized = async () => {
     const tk = new verovio.toolkit();
     tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
                     pageWidth: 2100, footer: "none" });
-    const xml = await fetch("/files/score.musicxml").then(r => r.text());
-    tk.loadData(xml);
-    let svg = "";
-    for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
-    document.getElementById("score").innerHTML = svg;
+    for (const el of document.querySelectorAll(".score")) {
+      const xml = await fetch(el.dataset.url).then(r => r.text());
+      tk.loadData(xml);
+      let svg = "";
+      for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
+      el.innerHTML = svg;
+    }
   };
-});
+}
+
+document.addEventListener("DOMContentLoaded", build);
 </script>
 </body>
 </html>
 """
 
 
+def scan_output(root: Path) -> dict:
+    """Build the JSON index of songs and variants under the output root."""
+    songs = []
+    for song_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        if song_dir.name.startswith("."):
+            continue
+        sources = sorted(song_dir.glob("source.*"))
+        if not sources:
+            continue
+        rel = f"/files/{song_dir.name}"
+        drums = sorted(song_dir.glob("stems/htdemucs/*/drums.wav"))
+        variants = []
+        for vdir in sorted(p for p in song_dir.iterdir() if p.is_dir()):
+            events_file = vdir / "events.json"
+            if not events_file.exists():
+                continue
+            events = json.loads(events_file.read_text())["events"]
+            suspect = [
+                e for e in events
+                if e["confidence"] < 0.5 or abs(e["error_ms"]) > 30
+            ]
+            files = {
+                f.name: f"{rel}/{vdir.name}/{f.name}"
+                for f in vdir.iterdir()
+                if f.is_file()
+            }
+            variants.append(
+                {
+                    "name": vdir.name,
+                    "files": files,
+                    "n_events": len(events),
+                    "n_suspect": len(suspect),
+                }
+            )
+        songs.append(
+            {
+                "name": song_dir.name,
+                "source": f"{rel}/{sources[0].name}",
+                "drums": f"{rel}/{drums[0].relative_to(song_dir)}" if drums else None,
+                "variants": variants,
+            }
+        )
+    return {"songs": songs}
+
+
 class ReviewHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, outdir: Path, original: Path | None,
-                 drums: Path | None, **kwargs):
-        self.outdir = outdir
-        self.original = original
-        self.drums = drums
-        super().__init__(*args, directory=str(outdir), **kwargs)
+    def __init__(self, *args, root: Path, **kwargs):
+        self.root = root
+        super().__init__(*args, directory=str(root), **kwargs)
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            body = INDEX_HTML.encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        elif self.path == "/original" and self.original:
-            self._send_file(self.original)
-        elif self.path == "/drums" and self.drums:
-            self._send_file(self.drums)
-        elif self.path == "/sonification":
-            self._send_file(self.outdir / "sonification.wav")
+            html = INDEX_HTML.replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
+            self._send(html.encode(), "text/html; charset=utf-8")
+        elif self.path == "/api/index":
+            self._send(
+                json.dumps(scan_output(self.root)).encode(), "application/json"
+            )
         elif self.path.startswith("/files/"):
             self.path = self.path[len("/files") :]
             super().do_GET()
         else:
             self.send_error(404)
 
-    def _send_file(self, path: Path):
-        if not path.exists():
-            self.send_error(404, f"{path.name} not found")
-            return
-        ctype = self.guess_type(str(path))
-        with open(path, "rb") as f:
-            data = f.read()
+    def _send(self, body: bytes, ctype: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(data)
+        self.wfile.write(body)
 
 
-def serve(outdir: Path, original: Path | None = None, drums: Path | None = None,
-          host: str = "0.0.0.0", port: int = 8765) -> None:
-    if drums is None:
-        candidates = list(outdir.glob("stems/*/*/drums.wav"))
-        drums = candidates[0] if candidates else None
-    handler = partial(ReviewHandler, outdir=outdir, original=original, drums=drums)
+def serve(root: Path, host: str = "0.0.0.0", port: int = 8765) -> None:
+    handler = partial(ReviewHandler, root=root)
     httpd = ThreadingHTTPServer((host, port), handler)
-    print(f"review UI: http://{host}:{port}/ (serving {outdir})")
+    print(f"review UI: http://{host}:{port}/ (serving {root})", flush=True)
     httpd.serve_forever()
