@@ -678,6 +678,9 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
+        elif path == "/style":
+            guide = Path(__file__).parents[2] / "docs" / "style-guide.html"
+            self._send(guide.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/index":
             self._send(json.dumps(scan_output(self.root)).encode(), "application/json")
         elif path == "/api/seek":
