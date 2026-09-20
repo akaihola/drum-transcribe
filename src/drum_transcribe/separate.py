@@ -37,9 +37,14 @@ def separate_kit_mdx23c(drums_stem: Path, outdir: Path, model_dir: Path) -> dict
     Returns {instrument: stem path}. Roughly 10x slower than real time on CPU.
     """
     stem_dir = outdir / "stems" / "mdx23c"
+    cached = {
+        name: found[0]
+        for name in MDX23C_STEMS.values()
+        if (found := sorted(stem_dir.glob(f"{name}.*")))
+    }
+    if len(cached) == len(MDX23C_STEMS):
+        return cached
     result = {name: stem_dir / f"{name}.flac" for name in MDX23C_STEMS.values()}
-    if all(p.exists() for p in result.values()):
-        return result
 
     from audio_separator.separator import Separator
 

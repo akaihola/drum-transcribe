@@ -65,29 +65,44 @@ def detect_onsets(audio: Path, device: str = "cpu") -> tuple[list[Onset], np.nda
     return onsets, act
 
 
+CYMBALS = ("hihat", "ride", "crash")
+
+
 def detect_onsets_from_stems(stems: dict[str, Path]) -> list[Onset]:
     """Per-drum onset detection on MDX23C stems (kick/snare/tom/hihat/ride/crash).
 
-    Confidence is the onset envelope peak relative to the stem's loudest onset;
-    velocity comes from the same peak on a dB scale (95th percentile -> 110).
+    The cymbal stems bleed into each other, so a hihat/ride/crash onset only
+    counts for the stem that is loudest at that moment. Confidence is the
+    envelope peak relative to the stem's loudest onset; velocity comes from
+    the same peak on a dB scale (95th percentile -> 110).
     """
     import librosa
 
-    onsets = []
+    hop = 256
+    envs: dict[str, np.ndarray] = {}
     for instrument, stem in stems.items():
         y, sr = librosa.load(str(stem), sr=22050, mono=True)
-        hop = 256
-        env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+        envs[instrument] = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+
+    onsets = []
+    for instrument, env in envs.items():
         if env.max() <= 0:
             continue
         frames = librosa.onset.onset_detect(
-            onset_envelope=env, sr=sr, hop_length=hop, backtrack=False,
-            delta=0.05 * float(env.max()), wait=2,
+            onset_envelope=env / env.max(), sr=22050, hop_length=hop,
+            backtrack=False, delta=0.05, wait=2,
         )
+        if instrument in CYMBALS:
+            frames = [
+                f for f in frames
+                if all(env[f] >= envs[other][f] for other in CYMBALS if other != instrument)
+            ]
+        if len(frames) == 0:
+            continue
         peaks = env[frames]
         ref = float(np.percentile(peaks, 95)) or 1.0
         for frame, peak in zip(frames, peaks):
-            t = float(frame * hop / sr)
+            t = float(frame * hop / 22050)
             db = 10 * np.log10(max(float(peak), 1e-12) / ref)
             velocity = int(np.clip(round(110 + db * 2.5), 1, 127))
             confidence = round(float(peak) / float(env.max()), 3)

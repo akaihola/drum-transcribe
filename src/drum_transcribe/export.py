@@ -1,8 +1,13 @@
 """Convert MusicXML to a MuseScore file (.mscz) with the MuseScore CLI.
 
-Looks for `mscore`/`musescore` on PATH and falls back to NixOS `comma`
-(`, mscore`), which fetches the program on demand. Best-effort: returns None
-if no converter is available.
+Best-effort: MuseScore 4's headless importer aborts (silent exit 40) on
+warnings its GUI lets the user ignore, so conversion can fail even for
+schema-valid, fully voice-filled scores. MusicXML stays the primary
+deliverable; MuseScore opens it directly.
+
+NixOS note: `, mscore` is avoided on purpose — two nixpkgs packages provide
+`mscore` (musescore and the musescore-evolution fork) and comma picks
+unpredictably, which made conversion results irreproducible.
 """
 
 from __future__ import annotations
@@ -18,17 +23,17 @@ def to_mscz(musicxml: Path, mscz: Path) -> Path | None:
     for exe in ("mscore", "musescore", "mscore4portable"):
         if shutil.which(exe):
             candidates.append([exe])
-    if shutil.which(","):
-        candidates += [[",", "mscore"], [",", "musescore"]]
+    if shutil.which("nix"):
+        candidates.append(["nix", "run", "nixpkgs#musescore", "--"])
     env = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
     for cmd in candidates:
         try:
-            result = subprocess.run(
-                [*cmd, "-o", str(mscz), str(musicxml)],
+            subprocess.run(
+                [*cmd, str(musicxml), "-o", str(mscz)],
                 env=env, capture_output=True, timeout=600, check=False,
             )
         except (subprocess.TimeoutExpired, OSError):
             continue
-        if result.returncode == 0 and mscz.exists():
+        if mscz.exists():
             return mscz
     return None
