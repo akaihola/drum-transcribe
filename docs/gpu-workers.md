@@ -119,7 +119,28 @@ or disconnected laptop can't leave the instance billing indefinitely —
 worst case is the idle timeout, ~$0.05 at default settings. Jobs are
 delivered over ssh, and `deploy/vast-worker.sh` is streamed from the
 repo (not the baked copy), so worker changes need no image rebuild; the
-worker touches `/tmp/alive` per variant to feed the watchdog.
+worker touches `/tmp/alive` per variant to feed the watchdog. One gap:
+the watchdog starts only after the image pull, so a host stuck pulling
+is guarded by the caller's ssh-wait timeout (~22 min), not the watchdog.
+
+Spot-market hardening, each rule paid for by a real failure (2026-09-20):
+
+- **ssh directly to the host's mapped port 22** (`public_ipaddr` +
+  `ports["22/tcp"]`), never through `ssh*.vast.ai` — the proxy drops
+  long-lived connections mid-job. Proxy is fallback only.
+- **Filter offers by `verified=true cuda_max_good>=12.8`** (the image's
+  CUDA), and still **assert `torch.cuda.is_available()` over ssh after
+  start** — one "verified reliable" host had a driver that couldn't run
+  CUDA 12.8 (error 804) and torch silently fell back to CPU.
+- **Pick randomly among the 5 cheapest offers and retry `start` up to
+  3×** (`run-on-gpu.sh`) — cheapest-first kept re-renting the same host
+  that never finished pulling the image.
+- **Bid 1.25× over the floor** — 1.15× got outbid between image load
+  and container start (instance sits in `created`/`stopped`; destroy
+  and re-rent rather than wait for the GPU to free up).
+- **No progress bars over the job stream** (`TQDM_DISABLE=1` in the
+  worker): tqdm floods the ssh stream, and a slow log consumer (the
+  CPU-throttled cloud container) can stall the job via backpressure.
 
 The web app's new-version form has a "process on a rented cloud GPU"
 checkbox that drives this same script (see
@@ -131,7 +152,7 @@ Manual steps, when debugging or doing something the wrapper doesn't:
 ```bash
 # find offers: 1×3090, reliable, fast downlink (fast image pull)
 uv run vastai search offers \
-  'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true' \
+  'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.8' \
   --type=bid -o 'dph_total'
 
 # launch one song (worker env; see deploy/vast-worker.sh header)
