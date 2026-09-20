@@ -18,20 +18,36 @@ STAFF = {
 }
 GHOST_VELOCITY = 45  # snare hits at or below this get a parenthesized notehead
 
-# Displayed note lengths are snapped down to conventional values (straight
-# vs. triplet family by grid position); arbitrary gap fractions like 5/6
-# produce tuplets (e.g. 6:5) that MuseScore refuses to import.
+# Quantization picks ONE subdivision per beat (straight or triplet), so
+# notation stays on that beat's grid and never crosses a beat boundary.
+# Mixing the grids inside a beat is what produced the exotic tuplets
+# (6:5, 24:17, 1/24 remainders) that MuseScore refuses to import.
 STRAIGHT_QL = [Fraction(1), Fraction(3, 4), Fraction(1, 2), Fraction(3, 8),
                Fraction(1, 4), Fraction(1, 8), Fraction(1, 16)]
 TRIPLET_QL = [Fraction(2, 3), Fraction(1, 3), Fraction(1, 6), Fraction(1, 12)]
 
 
-def _display_ql(pos: Fraction, gap: Fraction) -> Fraction:
-    allowed = TRIPLET_QL if pos.denominator % 3 == 0 else STRAIGHT_QL
-    for ql in allowed:
-        if ql <= gap:
-            return ql
-    return gap  # tiny straight->triplet transition gap; keep it exact
+def _beat_families(events: list[Event]) -> dict[int, bool]:
+    """Which beats of a bar are on the triplet grid (by event positions)."""
+    fams: dict[int, bool] = {}
+    for e in events:
+        beat = int(e.beat)
+        fams[beat] = fams.get(beat, False) or e.beat.denominator % 3 == 0
+    return fams
+
+
+def _fit_ql(at: Fraction, until: Fraction, fams: dict[int, bool]) -> Fraction:
+    """Largest conventional length from `at`, capped at the beat boundary."""
+    limit = min(until, Fraction(int(at) + 1)) - at
+    allowed = TRIPLET_QL if fams.get(int(at), False) else STRAIGHT_QL
+    return next((d for d in allowed if d <= limit), limit)
+
+
+def _rest_steps(a: Fraction, b: Fraction, fams: dict[int, bool]):
+    while a < b:
+        step = _fit_ql(a, b, fams)
+        yield a, step
+        a += step
 
 
 def events_to_score(events: list[Event], meter: int, title: str = ""):
@@ -56,6 +72,7 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
             m.insert(0, clef.PercussionClef())
             m.insert(0, m21meter.TimeSignature(f"{meter}/4"))
         bar_events = by_bar.get(bar_no, [])
+        fams = _beat_families(bar_events)
         for voice_no in (1, 2):
             voice = stream.Voice(id=str(voice_no))
             # group simultaneous hits into chords
@@ -63,12 +80,26 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
             for e in bar_events:
                 if STAFF[e.instrument][2] == voice_no:
                     slots.setdefault(e.beat, []).append(e)
-            positions = sorted(slots)
+            # Hits closer than 1/12 beat (adjacent straight vs. triplet grid
+            # slots) are one chord to a reader; keeping them apart produces
+            # unreadable fragments (12:7 tuplets, 128th rests) that MuseScore
+            # also rejects.
+            positions = []
+            for pos in sorted(slots):
+                if positions and pos - positions[-1] < Fraction(1, 12):
+                    slots[positions[-1]].extend(slots.pop(pos))
+                else:
+                    positions.append(pos)
+            cursor = Fraction(0)
             for i, pos in enumerate(positions):
                 nxt = positions[i + 1] if i + 1 < len(positions) else Fraction(meter)
-                ql = _display_ql(pos, Fraction(nxt - pos))
+                ql = _fit_ql(pos, nxt, fams)
                 notes = []
-                for e in slots[pos]:
+                by_instrument: dict[str, Event] = {}
+                for e in slots[pos]:  # merged duplicates: keep the louder hit
+                    if (prev := by_instrument.get(e.instrument)) is None or e.velocity > prev.velocity:
+                        by_instrument[e.instrument] = e
+                for e in by_instrument.values():
                     display, head, _v = STAFF[e.instrument]
                     n = note.Unpitched(displayName=display)
                     n.notehead = head
@@ -78,9 +109,13 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
                     notes.append(n)
                 obj = notes[0] if len(notes) == 1 else percussion.PercussionChord(notes)
                 obj.duration = duration.Duration(ql)
-                voice.insert(float(pos), obj)
+                for at, step in _rest_steps(cursor, pos, fams):
+                    voice.insert(at, note.Rest(quarterLength=step))
+                voice.insert(pos, obj)
+                cursor = pos + ql
             if voice.notes:
-                voice.makeRests(refStreamOrTimeRange=[0.0, float(meter)], fillGaps=True, inPlace=True)
+                for at, step in _rest_steps(cursor, Fraction(meter), fams):
+                    voice.insert(at, note.Rest(quarterLength=step))
                 m.insert(0, voice)
         if not m.voices:
             m.insert(0, note.Rest(quarterLength=meter))
@@ -95,6 +130,10 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
 
 def write_musicxml(events: list[Event], meter: int, path: Path, title: str = "") -> Path:
     score = events_to_score(events, meter, title)
+    # makeNotation adds the explicit tuplet brackets MuseScore needs to
+    # import mixed triplet runs. It only behaves because events_to_score
+    # emits nothing but conventional, beat-aligned durations — fed anything
+    # else it invents fragments (12:7 tuplets, 128th rests) MuseScore rejects.
     score = score.makeNotation(inPlace=False)
     score.write("musicxml", fp=str(path))
     return path
