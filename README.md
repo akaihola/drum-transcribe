@@ -128,9 +128,11 @@ mdx23c is much slower (roughly 10× the song length).
 
 For the slow mdx23c processing there is a shortcut: the same pipeline can
 run on a rented cloud graphics card, which turns half an hour of waiting
-into a couple of minutes and costs less than a cent per song. Setting that
-up is a developer task — see `docs/gpu-workers.md` — but once running, the
-results appear in the same places and look exactly the same.
+into a couple of minutes and costs less than a cent per song. In the web
+app, just tick "process on a rented cloud GPU" when starting a
+transcription; the results appear in the same places and look exactly the
+same. Setting up the GPU machinery is a developer task — see
+`docs/gpu-workers.md`.
 
 ## Honest limitations
 

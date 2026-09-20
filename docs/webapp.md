@@ -14,8 +14,8 @@ without it browsers heuristically cache and render stale scores), and
 | `GET /` | main page: project list + create form |
 | `GET /p/<project>` | project page: version tabs, players, scores, feedback |
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
-| `POST /api/create` | `{project, version, url}` → slugify, start background job |
-| `PUT /api/upload?project&version&filename` | raw file body (no multipart) → job |
+| `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job |
+| `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
@@ -38,6 +38,17 @@ Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
 unknown containers) → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`.
+
+The new-version form's "process on a rented cloud GPU" checkbox sets
+`gpu`: the source is still fetched locally (so all link types and uploads
+work), then uploaded to the results bucket, presigned (boto3 via
+`uv run --with boto3`, credentials from `.secrets.worker-s3.json`), and
+handed to `deploy/run-on-gpu.sh` — rent, process all variants, sync into
+the same `output/<song>/<version>/`, destroy. The script's `== … ==`
+stage lines go to `pipeline.log`, so the page's stage indicator works;
+the artifact checklist fills only when results sync back at the end
+(and `stems/` are not synced, so no drums-stem player). See
+[gpu-workers.md](gpu-workers.md).
 
 ## Front-end notes
 
