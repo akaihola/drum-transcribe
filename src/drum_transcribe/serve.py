@@ -99,17 +99,20 @@ async function build() {
 async function followPlayback(songs) {
   const barTimes = {};  // song name -> [{t, bar}]
   for (const s of songs) {
-    const grid = await fetch(s.beats).then(r => r.json());
-    let bar = 0;
-    barTimes[s.name] = grid.times.map((t, i) => {
-      if (grid.positions[i] === 1) bar++;
-      return { t, bar };
-    });
+    try {
+      const grid = await fetch(s.beats).then(r => r.json());
+      let bar = 0;
+      barTimes[s.name] = grid.times.map((t, i) => {
+        if (grid.positions[i] === 1) bar++;
+        return { t, bar };
+      });
+    } catch (e) { /* song still being processed; no grid yet */ }
   }
   document.addEventListener("timeupdate", e => {
     const section = e.target.closest("section[data-song]");
     if (!section || e.target.paused) return;
     const bars = barTimes[section.dataset.song];
+    if (!bars) return;
     let bar = 0;
     for (const b of bars) { if (b.t <= e.target.currentTime + 0.05) bar = b.bar; else break; }
     for (const el of section.querySelectorAll("g.measure.now")) el.classList.remove("now");
@@ -121,23 +124,31 @@ async function followPlayback(songs) {
   }, true);
 }
 
-function renderScores() {
-  verovio.module.onRuntimeInitialized = async () => {
-    const tk = new verovio.toolkit();
-    tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
-                    pageWidth: 2100, footer: "none",
-                    svgAdditionalAttribute: ["measure@n"] });
-    for (const el of document.querySelectorAll(".score")) {
-      const xml = await fetch(el.dataset.url).then(r => r.text());
-      tk.loadData(xml);
-      let svg = "";
-      for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
-      el.innerHTML = svg;
-    }
-  };
+// Resolve whether the WASM runtime is already up or still loading.
+let vrvReady;
+
+async function renderScores() {
+  await vrvReady;
+  const tk = new verovio.toolkit();
+  tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
+                  pageWidth: 2100, footer: "none",
+                  svgAdditionalAttribute: ["measure@n"] });
+  for (const el of document.querySelectorAll(".score")) {
+    const xml = await fetch(el.dataset.url).then(r => r.text());
+    tk.loadData(xml);
+    let svg = "";
+    for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
+    el.innerHTML = svg;
+  }
 }
 
-document.addEventListener("DOMContentLoaded", build);
+document.addEventListener("DOMContentLoaded", () => {
+  vrvReady = new Promise(resolve => {
+    if (verovio.module.calledRun) resolve();
+    else verovio.module.onRuntimeInitialized = resolve;
+  });
+  build();
+});
 </script>
 </body>
 </html>
