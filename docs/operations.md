@@ -37,7 +37,11 @@ unsandboxed server.
 - `uv sync` inside the sandbox: `CC=$(readlink -f $(which gcc))` — the
   default `cc` is an sccache wrapper that can't start its server there.
 - MuseScore conversion: see [notation-musescore.md](notation-musescore.md);
-  never use `, mscore` (ambiguous package).
+  never use `, mscore` (ambiguous package). The CLI command comes from
+  `MUSESCORE_CMD` (default `musescore`); until MuseScore is installed
+  properly it is set to `, musescore` in the systemd drop-in
+  `~/.config/systemd/user/drum-transcribe.service.d/musescore.conf`
+  (export the same var for manual pipeline runs).
 - GPU: none locally; user has rental accounts and has pre-approved renting
   one when a workload genuinely needs it (batch/mdx23c-heavy work).
 - Timings on this 16-core CPU: Demucs ≈ 0.4× song length, ADTOF seconds,

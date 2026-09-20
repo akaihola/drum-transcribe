@@ -141,7 +141,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
     for p in sorted(vdir.iterdir()):
         print(f"   {p}")
     if mscz is None:
-        print("   (no MuseScore CLI found; score.mscz not written)")
+        print("   (MuseScore conversion failed; score.mscz not written; "
+              "MUSESCORE_CMD sets the command, default 'musescore')")
     return 0
 
 
