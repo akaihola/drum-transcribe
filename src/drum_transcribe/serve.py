@@ -93,7 +93,10 @@ HELP_HTML = """
   link) or upload a sound/video file. Processing starts immediately in the
   background and takes from minutes up to ~10&times; the length of the
   recording. <b>Reload the project page</b> to see new results; a checklist
-  shows what is finished.</p>
+  shows what is finished. Ticking <b>process on a rented cloud GPU</b> rents
+  a fast machine for the job (all results in ~5&ndash;15 minutes, costs about
+  a cent); progress then appears in the pipeline log, and the result files
+  show up all at once when it finishes.</p>
 
   <h3>2. Versions and pipelines</h3>
   <svg viewBox="0 0 340 70" width="340">
@@ -167,6 +170,8 @@ CREATE_FORM = """
   <input type="text" name="url" placeholder="https://...">
   <label>… or upload a sound/video file</label>
   <input type="file" name="file" accept="audio/*,video/*">
+  <label><input type="checkbox" name="gpu">
+    Process on a rented cloud GPU (faster, costs ~1 cent)</label>
   <button>Start transcription</button>
   <span class="pending" id="create-status"></span>
 </form>
@@ -177,6 +182,7 @@ async function submitCreate(form) {
   const version = form.version.value;
   const file = form.file.files[0];
   const url = form.url.value.trim();
+  const gpu = form.gpu.checked;
   if (!file && !url) { alert("Give a link or choose a file."); return false; }
   try {
     let resp;
@@ -184,13 +190,14 @@ async function submitCreate(form) {
       status.textContent = "uploading…";
       resp = await fetch(`/api/upload?project=${encodeURIComponent(project)}` +
                          `&version=${encodeURIComponent(version)}` +
-                         `&filename=${encodeURIComponent(file.name)}`,
+                         `&filename=${encodeURIComponent(file.name)}` +
+                         (gpu ? "&gpu=1" : ""),
                          { method: "PUT", body: file });
     } else {
       status.textContent = "starting…";
       resp = await fetch("/api/create", { method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, version, url }) });
+        body: JSON.stringify({ project, version, url, gpu }) });
     }
     const d = await resp.json();
     if (!resp.ok) throw new Error(d.error || resp.statusText);
@@ -721,7 +728,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             if path == "/api/create":
                 url = data["url"].strip()
                 version_dir = self._new_version_dir(data["project"], data["version"])
-                start_version_job(version_dir, url=url)
+                start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
                 self._send_json(200, {"project": version_dir.parent.name})
             elif path == "/api/feedback":
                 self._send_json(200, self._save_feedback(data))
@@ -798,7 +805,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     break
                 f.write(chunk)
                 remaining -= len(chunk)
-        start_version_job(version_dir, upload=upload)
+        start_version_job(version_dir, upload=upload, gpu=q.get("gpu") == "1")
         self._send_json(200, {"project": version_dir.parent.name})
 
     def _new_version_dir(self, project: str, version: str) -> Path:
