@@ -12,9 +12,26 @@ STAFF = {
     "snare": ("C5", "normal", 1),
     "tom": ("E5", "normal", 1),
     "hihat": ("G5", "x", 1),
-    "cymbal": ("A5", "x", 1),
+    "ride": ("F5", "x", 1),
+    "crash": ("A5", "x", 1),
+    "cymbal": ("A5", "x", 1),  # ADTOF's merged ride+crash class
 }
 GHOST_VELOCITY = 45  # snare hits at or below this get a parenthesized notehead
+
+# Displayed note lengths are snapped down to conventional values (straight
+# vs. triplet family by grid position); arbitrary gap fractions like 5/6
+# produce tuplets (e.g. 6:5) that MuseScore refuses to import.
+STRAIGHT_QL = [Fraction(1), Fraction(3, 4), Fraction(1, 2), Fraction(3, 8),
+               Fraction(1, 4), Fraction(1, 8), Fraction(1, 16)]
+TRIPLET_QL = [Fraction(2, 3), Fraction(1, 3), Fraction(1, 6), Fraction(1, 12)]
+
+
+def _display_ql(pos: Fraction, gap: Fraction) -> Fraction:
+    allowed = TRIPLET_QL if pos.denominator % 3 == 0 else STRAIGHT_QL
+    for ql in allowed:
+        if ql <= gap:
+            return ql
+    return gap  # tiny straight->triplet transition gap; keep it exact
 
 
 def events_to_score(events: list[Event], meter: int, title: str = ""):
@@ -49,7 +66,7 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
             positions = sorted(slots)
             for i, pos in enumerate(positions):
                 nxt = positions[i + 1] if i + 1 < len(positions) else Fraction(meter)
-                ql = min(Fraction(nxt - pos), Fraction(1))
+                ql = _display_ql(pos, Fraction(nxt - pos))
                 notes = []
                 for e in slots[pos]:
                     display, head, _v = STAFF[e.instrument]
