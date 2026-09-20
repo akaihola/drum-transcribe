@@ -53,16 +53,24 @@ A read-only copy of the review web app runs in Scaleway's cloud so it can be
 viewed from anywhere without the laptop being on:
 
 - URL: https://drumtranscribe1eb07827-webapp.functions.fnc.fr-par.scw.cloud
-- What it is: the same web pages as the local server, but with a snapshot of
-  one song version (`dancing-through-life/taustanauha`, both variants) baked
-  into the container image. Uploading songs or starting new processing does
-  NOT work there — the image has no ML dependencies.
-- How it's built: `deploy/Dockerfile` — a slim Python image with only the web
-  app code plus the sample results (~180 MB). Stage a build context with
-  `pyproject.toml`, `src/`, and the chosen `output/<song>/<version>` subset
-  (drop `stems/`), then:
+- What it is: the same web pages as the local server, serving whatever is in
+  the `drum-transcribe-results` bucket (see [gpu-workers.md](gpu-workers.md)).
+  Uploading songs or starting new processing does NOT work there — the image
+  has no ML dependencies.
+- Data: at every container start, `deploy/sync_bucket.py` downloads the whole
+  bucket into `/app/output` before the server starts (boto3; credentials come
+  from container env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY` — the worker's
+  restricted key, set as secret env vars on the container, never baked into
+  the image; `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` are plain env vars).
+  The container scales to zero when idle, so each cold start re-syncs
+  (~100 MB → the first request after an idle period takes extra seconds).
+  New results appear after the next cold start (or a `redeploy`) — no image
+  rebuild needed for data.
+- How it's built (code changes only): `deploy/Dockerfile` — a slim Python
+  image with just the web app code. Stage a build context with
+  `pyproject.toml`, `src/`, and `deploy/`, then:
   ```bash
-  docker build -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test <context>
+  docker build -f deploy/Dockerfile -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test <context>
   docker login rg.fr-par.scw.cloud -u nologin -p <scw-secret-key>
   docker push rg.fr-par.scw.cloud/drum-transcribe/webapp:test
   , scw container container redeploy <container-id> --profile drum-transcribe
@@ -71,11 +79,6 @@ viewed from anywhere without the laptop being on:
   namespace `drum-transcribe`, containers namespace `drum-transcribe`,
   container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
   500 mvCPU, scales to zero when idle — costs nothing while unused).
-- Both code and the data snapshot only update when the image is rebuilt
-  and pushed and the container redeployed (steps above). Planned
-  improvement: sync data from the `drum-transcribe-results` bucket at
-  container startup instead of baking it in (see
-  [gpu-workers.md](gpu-workers.md) for the bucket).
 
 ## GPU workers
 
