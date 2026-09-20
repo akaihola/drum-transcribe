@@ -635,6 +635,13 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.root = root
         super().__init__(*args, directory=str(root), **kwargs)
 
+    def end_headers(self):
+        # Pipeline re-runs replace result files in place; force the browser to
+        # revalidate (cheap 304s via Last-Modified) so a reload never renders
+        # stale artifacts from the heuristic cache.
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):

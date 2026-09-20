@@ -2,7 +2,10 @@
 
 Stdlib-only `ThreadingHTTPServer`; HTML/JS lives in template strings inside
 `serve.py`. No state besides the `output/` tree — every page render rescans
-the filesystem, which is what makes "reload to see progress" work.
+the filesystem, which is what makes "reload to see progress" work. All
+responses carry `Cache-Control: no-cache` (re-runs replace files in place;
+without it browsers heuristically cache and render stale scores), and
+`/files/**` supports byte ranges (Chromium won't seek audio otherwise).
 
 ## Routes
 

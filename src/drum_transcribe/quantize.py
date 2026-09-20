@@ -52,8 +52,13 @@ def load_events(path: Path) -> tuple[list[Event], int]:
     return events, d["meter"]
 
 
-def _extend_grid(grid: BeatGrid, until: float) -> tuple[np.ndarray, np.ndarray]:
-    """Pad the beat grid at both ends so every onset falls inside it."""
+def _extend_grid(grid: BeatGrid, until: float) -> tuple[np.ndarray, np.ndarray, int]:
+    """Pad the beat grid at both ends so every onset falls inside it.
+
+    Returns the number of beats prepended too: any position-1 beat among them
+    is an artifact of the padding arithmetic, and counting it as a downbeat
+    would shift every bar number by one against the stored grid (which the
+    web app counts bars from)."""
     times = grid.times.astype(float).tolist()
     positions = grid.positions.astype(int).tolist()
     ibi = float(np.median(np.diff(grid.times)))
@@ -61,16 +66,18 @@ def _extend_grid(grid: BeatGrid, until: float) -> tuple[np.ndarray, np.ndarray]:
     while times[-1] < until + ibi:
         times.append(times[-1] + ibi)
         positions.append(positions[-1] % meter + 1)
+    n_front = 0
     while times[0] > 0:
         times.insert(0, times[0] - ibi)
         positions.insert(0, (positions[0] - 2) % meter + 1)
-    return np.asarray(times), np.asarray(positions)
+        n_front += 1
+    return np.asarray(times), np.asarray(positions), n_front
 
 
 def quantize(onsets: list[Onset], grid: BeatGrid) -> list[Event]:
     if not onsets:
         return []
-    times, positions = _extend_grid(grid, max(o.time for o in onsets))
+    times, positions, n_front = _extend_grid(grid, max(o.time for o in onsets))
     meter = grid.meter
 
     # Group onsets by the beat interval they fall into.
@@ -83,6 +90,7 @@ def quantize(onsets: list[Onset], grid: BeatGrid) -> list[Event]:
     # Bar numbering: count downbeats at or before each beat index.
     # Beats before the first downbeat (a pickup) get bar 0.
     is_downbeat = positions == 1
+    is_downbeat[:n_front] = False
     bar_no = np.cumsum(is_downbeat)
 
     events = []
