@@ -12,7 +12,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if ! deploy/gpu-session.sh status >/dev/null 2>&1; then
-    deploy/gpu-session.sh start
+    # one retry: a spot host can turn out broken (bad pull, dead GPU)
+    deploy/gpu-session.sh start || deploy/gpu-session.sh start
     trap 'deploy/gpu-session.sh stop' EXIT
 fi
 deploy/gpu-session.sh run "$@"

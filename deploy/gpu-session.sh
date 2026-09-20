@@ -47,9 +47,10 @@ start)
     rm -f $STATE
 
     echo "== searching spot offers =="
+    # cuda_max_good: host driver must support the image's CUDA 12.8;
     # random among the 3 cheapest so a retry escapes a flaky host
     OFFER=$(vast search offers \
-        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true' \
+        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.8' \
         --type=bid -o 'dph_total' --raw | python3 -c "
 import json,random,sys
 o = random.choice(json.load(sys.stdin)[:3])
@@ -75,6 +76,10 @@ print(o['id'], round(o['min_bid']*1.15, 3))")
             || { echo "instance disappeared (spot outbid?)"; exit 1; }
         [ "$i" = 90 ] && { echo "timed out waiting for ssh"; exit 1; }
     done
+    # a host can look fine yet have a broken driver (torch then silently
+    # runs on CPU); fail fast so the caller can retry on another host
+    ssh_cmd '/venv/main/bin/python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)"' \
+        || { echo "GPU unusable on this host (driver?)"; exit 1; }
     trap - EXIT
     echo "== session ready: instance $ID =="
     ;;
