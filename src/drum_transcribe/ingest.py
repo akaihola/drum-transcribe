@@ -11,14 +11,16 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from textwrap import dedent
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
 VARIANTS = ("adtof", "mdx23c", "fused")
 
 
 def start_version_job(version_dir: Path, url: str | None = None,
-                      upload: Path | None = None) -> None:
-    threading.Thread(target=_job, args=(version_dir, url, upload), daemon=True).start()
+                      upload: Path | None = None, gpu: bool = False) -> None:
+    threading.Thread(target=_job, args=(version_dir, url, upload, gpu),
+                     daemon=True).start()
 
 
 def _log(version_dir: Path, message: str) -> None:
@@ -48,15 +50,58 @@ def _run_variant(version_dir: Path, source: Path, variant: str) -> None:
         )
 
 
-def _job(version_dir: Path, url: str | None, upload: Path | None) -> None:
+def _job(version_dir: Path, url: str | None, upload: Path | None,
+         gpu: bool = False) -> None:
     version_dir.mkdir(parents=True, exist_ok=True)
     try:
         source = _fetch(version_dir, url, upload)
-        for variant in VARIANTS:
-            _run_variant(version_dir, source, variant)
+        if gpu:
+            _run_on_gpu(version_dir, source)
+        else:
+            for variant in VARIANTS:
+                _run_variant(version_dir, source, variant)
         _log(version_dir, "== all pipelines finished ==")
     except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
         _log(version_dir, f"ERROR: {e!r}")
+
+
+REPO = Path(__file__).resolve().parents[2]
+
+_PRESIGN_PY = dedent("""\
+    import json, sys, boto3
+    c = json.load(open(".secrets.worker-s3.json"))
+    s3 = boto3.client("s3", endpoint_url=c["endpoint"], region_name=c["region"],
+                      aws_access_key_id=c["access_key"],
+                      aws_secret_access_key=c["secret_key"])
+    path, key = sys.argv[1:3]
+    s3.upload_file(path, c["bucket"], key)
+    print(s3.generate_presigned_url(
+        "get_object", Params={"Bucket": c["bucket"], "Key": key},
+        ExpiresIn=24 * 3600))
+    """)
+
+
+def _run_on_gpu(version_dir: Path, source: Path) -> None:
+    """Process on a rented cloud GPU via deploy/run-on-gpu.sh.
+
+    The fetched source is uploaded to the results bucket and handed to the
+    worker as a presigned URL; run-on-gpu.sh rents the instance, waits, syncs
+    results into output/<song>/<version>/ and destroys the instance.
+    """
+    song, version = version_dir.parent.name, version_dir.name
+    _log(version_dir, "== uploading source for the GPU worker ==")
+    presigned = subprocess.run(
+        ["uv", "run", "--with", "boto3", "python", "-",
+         str(source), f"{song}/{version}/{source.name}"],
+        input=_PRESIGN_PY, capture_output=True, text=True, check=True, cwd=REPO,
+    ).stdout.strip()
+    _log(version_dir, "== processing on a rented cloud GPU ==")
+    with open(version_dir / "pipeline.log", "a") as logf:
+        subprocess.run(
+            [str(REPO / "deploy" / "run-on-gpu.sh"),
+             presigned, song, version, " ".join(VARIANTS)],
+            stdout=logf, stderr=logf, check=True, cwd=REPO,
+        )
 
 
 def start_rerun_job(version_dir: Path) -> None:

@@ -99,6 +99,11 @@ to `output/`, destroy:
 deploy/run-on-gpu.sh <SOURCE_URL> <SONG> <VERSION> ["adtof mdx23c"]
 ```
 
+The web app's new-version form has a "process on a rented cloud GPU"
+checkbox that drives this same script (see
+[webapp.md](webapp.md#ingestion-jobs-ingestpy)), passing all three
+variants including `fused`.
+
 Manual steps, when debugging or doing something the wrapper doesn't:
 
 ```bash
