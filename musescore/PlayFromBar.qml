@@ -19,13 +19,13 @@ import MuseScore 3.0
 
 MuseScore {
     id: root
-    version: "2.1"
+    version: "2.2"
     title: "Play/pause from bar"
     description: "Plays the original recording from the selected bar (again to pause) via the drum-transcribe web app"
     categoryCode: "playback"
 
     // Fallback when drum-transcribe.ini is missing or unreadable.
-    property string serverUrl: "http://localhost:8765"
+    property string serverUrl: "https://plokkaus.vempai.men"
     property var cfg: null
 
     function loadConfig() {

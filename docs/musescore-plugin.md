@@ -14,7 +14,9 @@ from hoshi005's AudioSync; on 4.7 QtCore Settings is unavailable and the
 fallback is what actually runs). **Settings window added 2026-09-20** ("Option
 2"): running the plugin with nothing selected, or when the server doesn't
 answer, opens a small window to edit and Save the server address into the
-same ini; the shortcut fast path stays window-free. Verified end-to-end in
+same ini; the shortcut fast path stays window-free. When no ini exists the
+default server is the cloud webapp https://plokkaus.vempai.men (no trailing
+slash — the plugin appends `/api/seek`). Verified end-to-end in
 the headless GUI (see below): all four paths — no selection, Save→ini,
 selection→POST, dead server→warning.
 Server side: `POST /api/seek {bar}` bumps a `{seq, bar, playing}` state —
