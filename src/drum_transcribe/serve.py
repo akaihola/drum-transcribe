@@ -66,14 +66,16 @@ STYLE = """
   .grouplbl { display: block; font-weight: 500; color: var(--ink-quiet);
               margin: 1.4rem 0 .4rem; }
   .flow { position: relative; display: grid; margin: .8rem 0 0;
-          grid-template-columns: max-content max-content minmax(0, max-content);
-          gap: 1rem 4.5rem; align-items: center; }
+          grid-template-columns: max-content minmax(0, max-content);
+          gap: 1rem 5.5rem; align-items: center; }
+  .srcs { display: flex; flex-direction: column; gap: 3.2rem; }
   svg.arrows { position: absolute; inset: 0; overflow: visible;
                pointer-events: none; color: var(--ink-quiet); }
   .sonis { display: flex; flex-direction: column; gap: .8rem; }
   .sonis > .grouplbl { margin: 0; }
   .soni { min-width: 26rem; }
-  .soni audio { width: 100%; }
+  .soni .dimmable { display: flex; align-items: center; gap: .3rem 1rem; flex-wrap: wrap; }
+  .soni audio { flex: 1 1 15rem; width: auto; min-width: 15rem; }
   .sonihead { display: flex; gap: .8rem; align-items: baseline; margin-bottom: .35rem; }
   .waiting .dimmable { opacity: .4; pointer-events: none; }
   .spin { display: inline-block; width: .95em; height: .95em; vertical-align: -.12em;
@@ -81,7 +83,7 @@ STYLE = """
           border-radius: 50%; animation: spin 1.1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 4s; } }
-  .docs { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .5rem; }
+  .docs { display: flex; gap: .7rem; flex-wrap: wrap; }
   a.doc { width: 3.9rem; text-align: center; font-size: .68rem; line-height: 1.25;
           color: var(--ink-quiet); text-decoration: none; word-break: break-all; }
   a.doc svg { width: 1.9rem; height: 2.4rem; display: block; margin: 0 auto .15rem; }
@@ -123,7 +125,7 @@ STYLE = """
   form.create button:hover { background: var(--teal-deep); }
   ul.projects li { margin: .3rem 0; }
   .scorehead { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-               margin-top: 1.6rem; }
+               margin: 1.6rem 0 1.1rem; }
   .scorehead .grouplbl { margin: 0; }
   .meter { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
   .meter .mopt { padding: .3rem .55rem; }
@@ -133,6 +135,9 @@ STYLE = """
            font-size: .85rem; border: 1.5px solid var(--hairline);
            background: none; color: var(--ink-quiet); cursor: pointer; }
   .minfo:hover { border-color: var(--ink-quiet); }
+  .minfo.sm { width: 1.3rem; height: 1.3rem; font-size: .7rem; padding: 0;
+              margin-left: .15rem; vertical-align: .1em; font-style: italic;
+              font-family: var(--serif); }
   .popcard { background: var(--card); border: 1px solid var(--hairline);
              border-radius: 8px; box-shadow: 0 6px 24px rgba(35,32,25,.18);
              padding: .8rem 1rem; font-size: .9rem; max-width: 26rem; }
@@ -373,11 +378,26 @@ const IC_DRUM = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="current
   <ellipse cx="12" cy="12" rx="8.5" ry="3"/>
   <path d="M3.5 12v5.5c0 1.8 3.8 3.2 8.5 3.2s8.5-1.4 8.5-3.2V12"/></svg>`;
 
+const INFO = {
+  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched.",
+  drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
+  sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
+  adtof: "A neural network trained to read a full drum mix straight into notes. The most reliable pipeline, and the first to finish.",
+  mdx23c: "First splits the drums into six per-drum tracks (kick, snare, toms, hi-hat, ride, crash), then detects hits in each track separately. Can tell ride from crash, but tends to over-detect.",
+  fused: "adtof's hits, checked against the six per-drum tracks to tell ride from crash and to judge how hard each hit was — the best of both pipelines.",
+};
+
+function infoBtn(vname, key) {
+  return `<button class="minfo sm" popovertarget="i--${vname}--${key}"
+    title="what is this?">i</button>
+    <div popover id="i--${vname}--${key}" class="popcard">${INFO[key]}</div>`;
+}
+
 // One source/derived audio node in the flow diagram; dimmed with a spinner
 // until its file exists.
-function node(cls, icon, label, url, spinTitle) {
+function node(cls, icon, label, info, url, spinTitle) {
   return `<figure class="player node ${cls} ${url ? "" : "waiting"}">
-    <figcaption>${icon}<b>${label}</b>
+    <figcaption>${icon}<b>${label}</b>${info}
       ${url ? "" : `<span class="spin" title="${spinTitle}"></span>`}</figcaption>
     <audio class="dimmable" controls preload="none" ${url ? `src="${url}"` : ""}></audio>
   </figure>`;
@@ -400,16 +420,36 @@ function dragFile(e, name, url) {
     `application/octet-stream:${name}:${location.origin}${url}`);
 }
 
+// Recognizable marks per file type: MuseScore's four-petal star, the
+// MusicXML note-in-brackets, the MIDI 5-pin DIN plug, JSON braces.
+const FILE_LOGOS = {
+  mscz: `<g fill="currentColor">
+    <path d="M16 9.5c1.9 1.9 1.9 4.6 0 6.5-1.9-1.9-1.9-4.6 0-6.5z"/>
+    <path d="M22.5 16c-1.9 1.9-4.6 1.9-6.5 0 1.9-1.9 4.6-1.9 6.5 0z"/>
+    <path d="M16 22.5c-1.9-1.9-1.9-4.6 0-6.5 1.9 1.9 1.9 4.6 0 6.5z"/>
+    <path d="M9.5 16c1.9-1.9 4.6-1.9 6.5 0-1.9 1.9-4.6 1.9-6.5 0z"/></g>`,
+  musicxml: `<g fill="none" stroke="currentColor" stroke-width="1.4"
+      stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 12l-3.5 4L10 20M22 12l3.5 4L22 20"/>
+    <path d="M16.8 18.5V11l2.8 1.6"/></g>
+    <ellipse cx="15" cy="18.7" rx="2" ry="1.5" fill="currentColor"/>`,
+  mid: `<circle cx="16" cy="16" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <g fill="currentColor"><circle cx="11.6" cy="17.6" r="1.1"/>
+    <circle cx="13.4" cy="13.5" r="1.1"/><circle cx="16" cy="12" r="1.1"/>
+    <circle cx="18.6" cy="13.5" r="1.1"/><circle cx="20.4" cy="17.6" r="1.1"/></g>`,
+  json: `<text x="16" y="20" text-anchor="middle" font-size="10"
+    fill="currentColor">{ }</text>`,
+};
+
 function docIcon(file, label, url) {
   const ext = file.split(".").pop();
-  const glyph = ext === "json" ? "{ }" : "\\u266a";
   return `<a class="doc" href="${url}" download
     title="${label} — click to download, or drag into a folder"
     ondragstart="dragFile(event, '${file}', '${url}')">
     <svg viewBox="0 0 32 40"><path d="M2 1h19l9 9v29H2z" fill="var(--card)"
       stroke="currentColor" stroke-width="1.5"/>
       <path d="M21 1v9h9" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      <text x="16" y="21" text-anchor="middle" font-size="9" fill="currentColor">${glyph}</text>
+      ${FILE_LOGOS[ext] || FILE_LOGOS.json}
       <text x="16" y="34" text-anchor="middle" font-size="7.5" font-weight="700"
         fill="currentColor">${ext === "musicxml" ? "XML" : ext.toUpperCase()}</text></svg>
     <span>${file}</span></a>`;
@@ -418,7 +458,7 @@ function docIcon(file, label, url) {
 function soniRow(v, name) {
   const variant = v.variants.find(x => x.name === name);
   const url = variant && variant.files["sonification.wav"];
-  let inner = `<div class="sonihead"><b>${name}</b>` +
+  let inner = `<div class="sonihead"><b>${name}</b>${infoBtn(v.name, name)}` +
     (variant ? `<span class="stats">${variant.n_events} hits, ${variant.n_suspect} suspect</span>` : "") +
     (url ? "" : `<span class="spin" title="${explain(v, name)}"></span>`) + `</div>`;
   inner += `<div class="dimmable">
@@ -427,7 +467,7 @@ function soniRow(v, name) {
     inner += `<div class="docs">` + DOWNLOADS.map(([file, label]) =>
       variant.files[file] ? docIcon(file, label, variant.files[file]) : "").join("") + `</div>`;
   inner += `</div>`;
-  return `<div class="player soni ${url ? "" : "waiting"}">${inner}</div>`;
+  return `<div class="player soni ${url ? "" : "waiting"}" data-name="${name}">${inner}</div>`;
 }
 
 // Three miniature bars on a one-line staff; sigs = [[num, den], ...] with
@@ -491,6 +531,8 @@ function drawArrows(panel) {
   const rel = el => {
     const r = el.getBoundingClientRect();
     return { left: r.left - base.left, right: r.right - base.left,
+             top: r.top - base.top, bottom: r.bottom - base.top,
+             cx: r.left - base.left + r.width / 2,
              cy: r.top - base.top + r.height / 2 };
   };
   const bend = (a, b) => {
@@ -502,13 +544,19 @@ function drawArrows(panel) {
   const d = rel(flow.querySelector(".node-drums"));
   const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
                       stroke-width="1.5" marker-end="url(#arr)"/>`;
+  const label = (x, y, anchor, t) => `<text x="${x}" y="${y}"
+    text-anchor="${anchor}" font-size="12" fill="currentColor">${t}</text>`;
   let inner = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
     markerWidth="6.5" markerHeight="6.5" orient="auto">
     <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>`;
-  inner += arrow(bend(s, d));
-  inner += `<text x="${(s.right + d.left) / 2}" y="${(s.cy + d.cy) / 2 - 8}"
-    text-anchor="middle" font-size="13" fill="currentColor">Demucs</text>`;
-  for (const row of flow.querySelectorAll(".soni")) inner += arrow(bend(d, rel(row)));
+  inner += arrow(`M ${s.cx} ${s.bottom + 5} L ${s.cx} ${d.top - 7}`);
+  inner += label(s.cx + 9, (s.bottom + d.top) / 2 + 4, "start", "Demucs");
+  const MODEL = { adtof: "adtof", mdx23c: "mdx23c", fused: "adtof + mdx23c" };
+  for (const row of flow.querySelectorAll(".soni")) {
+    const r = rel(row);
+    inner += arrow(bend(d, r));
+    inner += label(r.left - 12, r.cy - 8, "end", MODEL[row.dataset.name] || "");
+  }
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "arrows");
   svg.innerHTML = inner;
@@ -546,13 +594,12 @@ async function build() {
     if (v.error)
       html += `<p class="error">Processing failed — the pipeline log
         (gear button, top right) tells what went wrong.</p>`;
-    html += `<div class="flow">` +
-      node("node-src", IC_WAVE, "original", v.source,
+    html += `<div class="flow"><div class="srcs">` +
+      node("node-src", IC_WAVE, "original", infoBtn(v.name, "original"), v.source,
            "still working: fetching the recording") +
-      node("node-drums", IC_DRUM, "drums stem", v.drums,
+      node("node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"), v.drums,
            "still working: Demucs is isolating the drums from the rest of the band") +
-      `<div class="sonis"><span class="grouplbl"
-        title="the original recording plus a blip for every transcribed hit">Sonifications</span>` +
+      `</div><div class="sonis"><span class="grouplbl">Sonifications${infoBtn(v.name, "sonis")}</span>` +
       VARIANTS.map(name => soniRow(v, name)).join("") + `</div></div>`;
     const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
       .filter(x => x && x.files["score.musicxml"]);

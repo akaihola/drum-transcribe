@@ -92,10 +92,12 @@ and the presign step fall back to plain `python3`/`vastai`). See
   server-rendered `#addform` node. Meter-switch buttons (`.mopt`) share the
   tabbar styling but have no `data-target`, so the tab handler skips them.
 - The project page is a flow diagram per version: original —Demucs→ drums
-  stem → one card per pipeline (sonification + document-icon downloads;
-  icons are drag-out downloadable via `DownloadURL`). Arrows are an SVG
-  overlay drawn from live element positions (`drawArrows`) — redrawn on tab
-  switches and resizes because hidden panels have no layout. Anything not
+  stem (stacked vertically) → one card per pipeline (sonification + file-type
+  logo icons beside the player; drag-out downloadable via `DownloadURL`).
+  Arrows are an SVG overlay drawn from live element positions (`drawArrows`),
+  labeled with the model that produced each derivation — redrawn on tab
+  switches and resizes because hidden panels have no layout. Every title has
+  an `i` popover (`INFO`/`infoBtn`) explaining the artifact. Anything not
   ready is dimmed (`.waiting .dimmable`) with a spinner whose `title`
   explains the step; pipeline logs are in the `#gear-btn` popover.
 
