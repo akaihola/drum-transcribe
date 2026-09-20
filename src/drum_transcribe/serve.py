@@ -37,8 +37,14 @@ INDEX_HTML = """<!DOCTYPE html>
   .variant h4 { margin: 0 0 .5rem; }
   .downloads a { margin-right: .8rem; font-size: .85rem; }
   .stats { font-size: .8rem; color: #555; }
-  .score-block h3 { background: #eee; padding: .3rem .6rem; }
-  .score-block svg { max-width: 100%; height: auto; }
+  .tabbar { margin-top: 1.2rem; border-bottom: 2px solid #444; }
+  .tabbar button { border: 1px solid #999; border-bottom: none; background: #eee;
+                   padding: .4rem 1.2rem; cursor: pointer; font-size: 1rem;
+                   border-radius: 6px 6px 0 0; margin-right: .3rem; }
+  .tabbar button.active { background: #444; color: #fff; }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
+  .tabpanel svg { max-width: 100%; height: auto; }
   g.measure.now * { fill: #c40000; stroke: #c40000; }
   table { border-collapse: collapse; font-size: .8rem; }
   td, th { border: 1px solid #ccc; padding: 2px 8px; text-align: right; }
@@ -82,11 +88,16 @@ async function build() {
       html += `</div></div>`;
     }
     html += `</div>`;
-    for (const v of song.variants)
-      if (v.files["score.musicxml"])
-        html += `<div class="score-block"><h3>${song.name} — ${v.name}</h3>
-                 <div class="score" data-url="${v.files["score.musicxml"]}">
-                 rendering…</div></div>`;
+    const scored = song.variants.filter(v => v.files["score.musicxml"]);
+    if (scored.length) {
+      html += `<div class="tabs"><div class="tabbar">` + scored.map((v, i) =>
+        `<button class="${i ? "" : "active"}" data-target="${song.name}--${v.name}">
+         ${v.name}</button>`).join("") + `</div>`;
+      html += scored.map((v, i) =>
+        `<div class="tabpanel ${i ? "" : "active"}" id="${song.name}--${v.name}">
+         <div class="score" data-url="${v.files["score.musicxml"]}">rendering…</div>
+         </div>`).join("") + `</div>`;
+    }
     html += `</section>`;
   }
   app.innerHTML = html;
@@ -141,6 +152,15 @@ async function renderScores() {
     el.innerHTML = svg;
   }
 }
+
+document.addEventListener("click", e => {
+  if (!e.target.matches(".tabbar button")) return;
+  const tabs = e.target.closest(".tabs");
+  for (const b of tabs.querySelectorAll(".tabbar button"))
+    b.classList.toggle("active", b === e.target);
+  for (const p of tabs.querySelectorAll(".tabpanel"))
+    p.classList.toggle("active", p.id === e.target.dataset.target);
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   vrvReady = new Promise(resolve => {
