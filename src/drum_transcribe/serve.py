@@ -51,6 +51,7 @@ STYLE = """
   .tabpanel.active { display: block; }
   .tabpanel svg { max-width: 100%; height: auto; }
   g.measure.now * { fill: #c40000; stroke: #c40000; }
+  .score svg { cursor: pointer; }
   form.create { border: 1px solid #ccc; border-radius: 8px; padding: 1rem 1.5rem;
                 max-width: 34rem; margin: 1rem 0; }
   form.create label { display: block; margin: .6rem 0 .2rem; font-size: .9rem; }
@@ -129,6 +130,10 @@ HELP_HTML = """
   <p>While any player is playing, the bar you are hearing is
   <span style="color:#c40000"><b>highlighted in red</b></span> in the scores
   of the same version.</p>
+  <p>It also works the other way: <b>click an empty spot in any bar</b> (not
+  on a note — that records feedback) and the recording plays from that bar.
+  It uses whichever player is already playing, or the one you listened to
+  last, or the original.</p>
 
   <h3>5. Downloads</h3>
   <p><b>MusicXML</b> opens directly in MuseScore (File &rarr; Open) and is
@@ -418,8 +423,10 @@ document.addEventListener("click", e => {
 });
 
 // While a version's audio plays, highlight the bar being heard in its scores.
+const barTimes = {};   // version name -> [{t, bar}]
+const lastAudio = {};  // version name -> the <audio> the user last played
+
 async function followPlayback(versions) {
-  const barTimes = {};
   for (const v of versions) {
     try {
       const grid = await fetch(v.beats).then(r => r.json());
@@ -444,7 +451,40 @@ async function followPlayback(versions) {
       if (m) m.classList.add("now");
     }
   }, true);
+  document.addEventListener("play", e => {
+    const section = e.target.closest("section[data-song]");
+    if (section) lastAudio[section.dataset.song] = e.target;
+  }, true);
 }
+
+// Click a bar in a score: the version's audio plays from that bar — the
+// player currently playing, else the last one used, else the original.
+document.addEventListener("click", e => {
+  if (document.getElementById("fbmenu")) return;  // click just dismisses menu
+  const score = e.target.closest(".score");
+  if (!score || e.target.closest("g.note, g.rest, g.pgHead")) return;
+  const section = score.closest("section[data-song]");
+  const bars = barTimes[section.dataset.song];
+  if (!bars) return;
+  for (const m of score.querySelectorAll("g.measure[data-n]")) {
+    const r = m.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right ||
+        e.clientY < r.top || e.clientY > r.bottom) continue;
+    const hit = bars.find(b => b.bar === +m.dataset.n);
+    const audios = [...section.querySelectorAll("audio")];
+    const audio = audios.find(a => !a.paused) ||
+                  lastAudio[section.dataset.song] || audios[0];
+    if (!hit || !audio) return;
+    const t = Math.max(0, hit.t - 0.1);
+    if (audio.readyState) { audio.currentTime = t; audio.play(); }
+    else {  // preload="none": metadata must arrive before seeking works
+      audio.addEventListener("loadedmetadata",
+        () => { audio.currentTime = t; }, { once: true });
+      audio.play();
+    }
+    return;
+  }
+}, true);
 
 document.addEventListener("click", e => {
   if (!e.target.matches(".tabbar button")) return;

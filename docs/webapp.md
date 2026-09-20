@@ -38,6 +38,12 @@ unknown containers) → run `python -m drum_transcribe.cli run` per variant
   `section[data-song]`; bar times computed from `beats.json` (bar counter
   increments on `positions[i]==1`). Highlight only — auto-scroll was removed
   on user request.
+- Click-to-play: clicking an empty spot in a bar seeks the version's audio
+  to that bar and plays. Measures are hit-tested by `getBoundingClientRect`
+  at click time (hidden tabs have no layout, so rects can't be precomputed);
+  note/rest clicks keep opening the feedback menu instead. Player choice:
+  currently playing > last played (`play` events, capture) > first in
+  section. `preload="none"` means seek must wait for `loadedmetadata`.
 - Tabs are generic: `.tabs > .tabbar button[data-target]` +
   `.tabs > .tabpanel#id`; `:scope >` selectors keep nested tabs (versions ⊃
   score variants) independent.
