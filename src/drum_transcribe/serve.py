@@ -119,7 +119,7 @@ async function followPlayback(songs) {
     if (bar === 0) return;
     for (const score of section.querySelectorAll(".score")) {
       const m = score.querySelector(`g.measure[data-n="${bar}"]`);
-      if (m) { m.classList.add("now"); m.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+      if (m) m.classList.add("now");
     }
   }, true);
 }
