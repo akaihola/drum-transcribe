@@ -24,7 +24,7 @@ sonifications, score feedback, help) is feature-complete for review work.
 
 - **mdx23c over-detects** (~2× adtof): stem bleed + a generic librosa onset
   detector. Untuned; the cymbal-dominance rule is the only filter so far.
-- **.mscz conversion fails** for 3 of 4 scores (MuseScore CLI importer
+- **.mscz conversion fails** for 4 of 6 scores (MuseScore CLI importer
   quirk; MusicXML itself opens fine in the MuseScore GUI).
 - ADT model limits (inherent): no open/closed hi-hat, flams, chokes; toms
   weakest class; adtof can't tell ride from crash.
