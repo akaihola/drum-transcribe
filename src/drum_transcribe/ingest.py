@@ -65,7 +65,25 @@ def _job(version_dir: Path, url: str | None, upload: Path | None,
         _log(version_dir, f"ERROR: {e!r}")
 
 
-REPO = Path(__file__).resolve().parents[2]
+def _repo() -> Path:
+    """Repo root with deploy/ and .secrets.worker-s3.json.
+
+    A source checkout when running from one; the CWD in the cloud container,
+    where the package is pip-installed and /app carries deploy/ + secrets.
+    """
+    src = Path(__file__).resolve().parents[2]
+    return src if (src / "deploy").is_dir() else Path.cwd()
+
+
+def _boto3_python() -> list[str]:
+    """Command prefix for a python that has boto3 (stdin script follows)."""
+    try:
+        import boto3  # noqa: F401  # ty: ignore[unresolved-import]
+
+        return [sys.executable, "-"]
+    except ImportError:
+        return ["uv", "run", "--with", "boto3", "python", "-"]
+
 
 _PRESIGN_PY = dedent("""\
     import json, sys, boto3
@@ -89,18 +107,18 @@ def _run_on_gpu(version_dir: Path, source: Path) -> None:
     results into output/<song>/<version>/ and destroys the instance.
     """
     song, version = version_dir.parent.name, version_dir.name
+    repo = _repo()
     _log(version_dir, "== uploading source for the GPU worker ==")
     presigned = subprocess.run(
-        ["uv", "run", "--with", "boto3", "python", "-",
-         str(source), f"{song}/{version}/{source.name}"],
-        input=_PRESIGN_PY, capture_output=True, text=True, check=True, cwd=REPO,
+        [*_boto3_python(), str(source), f"{song}/{version}/{source.name}"],
+        input=_PRESIGN_PY, capture_output=True, text=True, check=True, cwd=repo,
     ).stdout.strip()
     _log(version_dir, "== processing on a rented cloud GPU ==")
     with open(version_dir / "pipeline.log", "a") as logf:
         subprocess.run(
-            [str(REPO / "deploy" / "run-on-gpu.sh"),
+            [str(repo / "deploy" / "run-on-gpu.sh"),
              presigned, song, version, " ".join(VARIANTS)],
-            stdout=logf, stderr=logf, check=True, cwd=REPO,
+            stdout=logf, stderr=logf, check=True, cwd=repo,
         )
 
 

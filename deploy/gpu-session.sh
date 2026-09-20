@@ -20,7 +20,14 @@ cd "$(dirname "$0")/.."
 IMAGE=ghcr.io/akaihola/drum-transcribe-gpu:latest
 STATE=.gpu-instance
 
-vast() { uv run vastai "$@"; }
+# laptop: tools via uv; cloud container: vastai + boto3 installed directly
+if command -v uv >/dev/null; then
+    vast() { uv run vastai "$@"; }
+    PYB=(uv run --with boto3 python)
+else
+    vast() { vastai "$@"; }
+    PYB=(python3)
+fi
 s3() { python3 -c "import json;print(json.load(open('.secrets.worker-s3.json'))['$1'])"; }
 alive() { [ -e $STATE ] && vast show instance "$(cat $STATE)" --raw 2>/dev/null | grep -q '"actual_status"'; }
 ssh_cmd() {  # run "$@" on the session instance
@@ -55,7 +62,7 @@ print(o['id'], round(o['min_bid']*1.15, 3))")
         | python3 -c "import json,sys;print(json.load(sys.stdin)['new_contract'])")
     echo "$ID" > $STATE
 # shellcheck disable=SC2064  # expand $ID now on purpose
-    trap "echo '== start failed, destroying instance $ID =='; echo y | uv run vastai destroy instance $ID; rm -f $STATE" EXIT
+    trap "echo '== start failed, destroying instance $ID =='; echo y | vast destroy instance $ID; rm -f $STATE" EXIT
     vast attach ssh "$ID" "$(cat ~/.ssh/id_ed25519.pub)" >/dev/null
 
     echo "== waiting for ssh (image pull ~1-10 min) =="
@@ -80,7 +87,7 @@ run)
         < deploy/vast-worker.sh
 
     echo "== syncing results from bucket =="
-    uv run --with boto3 python - "$SONG/$VERSION" <<'PY'
+    "${PYB[@]}" - "$SONG/$VERSION" <<'PY'
 import json, sys, boto3
 from pathlib import Path
 c = json.load(open('.secrets.worker-s3.json'))
