@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # One-command GPU processing of a song on a Vast.ai spot instance.
 # Reuses an open gpu-session.sh session if one is alive (and leaves it
 # running); otherwise rents an instance for this job and destroys it.

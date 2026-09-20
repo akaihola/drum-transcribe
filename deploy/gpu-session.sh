@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Keep-alive GPU session on a Vast.ai spot instance: rent once, run any
 # number of jobs over ssh, destroy on stop.
 #

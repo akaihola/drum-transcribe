@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Runs inside the drum-transcribe-gpu image on a rented GPU host
 # (streamed from the repo over ssh by deploy/gpu-session.sh; a copy is
 # also baked into the image). Processes one song version and uploads
