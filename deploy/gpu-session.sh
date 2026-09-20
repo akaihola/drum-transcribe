@@ -54,7 +54,7 @@ start)
         --type=bid -o 'dph_total' --raw | python3 -c "
 import json,random,sys
 o = random.choice(json.load(sys.stdin)[:3])
-print(o['id'], round(o['min_bid']*1.15, 3))")
+print(o['id'], round(o['min_bid']*1.25, 3))")
     read -r OFFER_ID BID <<<"$OFFER"
     echo "   offer $OFFER_ID, bid \$$BID/h"
 
