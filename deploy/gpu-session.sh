@@ -66,11 +66,13 @@ print(o['id'], round(o['min_bid']*1.15, 3))")
     trap "echo '== start failed, destroying instance $ID =='; echo y | vast destroy instance $ID; rm -f $STATE" EXIT
     vast attach ssh "$ID" "$(cat ~/.ssh/id_ed25519.pub)" >/dev/null
 
-    echo "== waiting for ssh (image pull ~1-10 min) =="
-    for i in $(seq 1 60); do
+    echo "== waiting for ssh (image pull ~1-10 min, slow hosts longer) =="
+    for i in $(seq 1 90); do
         sleep 15
         ssh_cmd true 2>/dev/null && break
-        [ "$i" = 60 ] && { echo "timed out waiting for ssh"; exit 1; }
+        vast show instance "$ID" --raw 2>/dev/null | grep -q '"actual_status"' \
+            || { echo "instance disappeared (spot outbid?)"; exit 1; }
+        [ "$i" = 90 ] && { echo "timed out waiting for ssh"; exit 1; }
     done
     trap - EXIT
     echo "== session ready: instance $ID =="
