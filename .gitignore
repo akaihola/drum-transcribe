@@ -20,3 +20,4 @@ vendor/
 .ripgreprc
 .zprofile
 .zshrc
+:memory:.ses

@@ -5,7 +5,7 @@ description = "Audio -> drum sheet music pipeline: Demucs + ADTOF + beat_this + 
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "adtof-pytorch",
-    "audio-separator>=0.30",
+    "audio-separator[cpu]>=0.30",
     "beat-this",
     "demucs>=4.1",
     "librosa>=0.10",
