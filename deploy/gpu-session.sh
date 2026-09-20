@@ -31,12 +31,23 @@ fi
 s3() { python3 -c "import json;print(json.load(open('.secrets.worker-s3.json'))['$1'])"; }
 alive() { [ -e $STATE ] && vast show instance "$(cat $STATE)" --raw 2>/dev/null | grep -q '"actual_status"'; }
 ssh_cmd() {  # run "$@" on the session instance
-    local hostport
-    hostport=$(vast ssh-url "$(cat $STATE)") && hostport=${hostport#ssh://root@}
+    # direct host ssh; the ssh*.vast.ai proxy drops long-lived connections
+    # mid-job, killing the streamed worker
+    local id host port
+    id=$(cat $STATE)
+    read -r host port <<<"$(vast show instance "$id" --raw 2>/dev/null | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+p=(d.get('ports') or {}).get('22/tcp')
+print(d.get('public_ipaddr') or '', p[0]['HostPort'] if p else '')" 2>/dev/null)"
+    if [ -z "${host:-}" ] || [ -z "${port:-}" ]; then
+        local hp; hp=$(vast ssh-url "$id") && hp=${hp#ssh://root@}
+        host=${hp%%:*} port=${hp##*:}
+    fi
     ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -o LogLevel=ERROR -o ConnectTimeout=10 \
         -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
-        -p "${hostport##*:}" "root@${hostport%%:*}" "$@"
+        -p "$port" "root@$host" "$@"
 }
 
 case ${1:?usage: gpu-session.sh start|run|status|stop} in
