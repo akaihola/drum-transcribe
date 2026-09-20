@@ -71,3 +71,9 @@ viewed from anywhere without the laptop being on:
   namespace `drum-transcribe`, containers namespace `drum-transcribe`,
   container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
   500 mvCPU, scales to zero when idle — costs nothing while unused).
+
+## GPU workers
+
+Heavy processing (especially mdx23c) can run on rented cloud GPUs for
+under a cent per song: see [gpu-workers.md](gpu-workers.md) for the
+image, worker script, storage bucket, and Vast.ai workflow.

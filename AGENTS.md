@@ -49,6 +49,7 @@ Model caches: `.cache/` (torch, HF) and `.models/` (MDX23C), both gitignored.
 - [docs/notation-musescore.md](docs/notation-musescore.md) — **read before touching score.py**; hard-won MuseScore import constraints
 - [docs/webapp.md](docs/webapp.md) — pages, API endpoints, feedback storage format
 - [docs/musescore-plugin.md](docs/musescore-plugin.md) — play-from-bar MuseScore plugin design (unbuilt)
-- [docs/operations.md](docs/operations.md) — running on atom: sandbox, firewall, systemd, caches
+- [docs/operations.md](docs/operations.md) — running on atom: sandbox, firewall, systemd, caches; cloud web app copy
+- [docs/gpu-workers.md](docs/gpu-workers.md) — processing songs on rented cloud GPUs (image, worker, bucket, Vast.ai)
 - [docs/roadmap.md](docs/roadmap.md) — current state, known issues, agreed next steps
 - [docs/adt-landscape.md](docs/adt-landscape.md) — 2026 tool survey the stack was chosen from

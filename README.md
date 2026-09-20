@@ -95,6 +95,12 @@ recording, beat grid and drums stem are shared per version. Everything runs
 on a normal CPU; a 3-minute song takes a few minutes with adtof, while
 mdx23c is much slower (roughly 10× the song length).
 
+For the slow mdx23c processing there is a shortcut: the same pipeline can
+run on a rented cloud graphics card, which turns half an hour of waiting
+into a couple of minutes and costs less than a cent per song. Setting that
+up is a developer task — see `docs/gpu-workers.md` — but once running, the
+results appear in the same places and look exactly the same.
+
 ## Honest limitations
 
 Even the best available models mishear some things: toms are the weakest
