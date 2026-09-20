@@ -66,6 +66,8 @@ version for comparison happens at the bottom of the page. Per version:
   **sonification**;
 - while any player plays, the **bar being heard is highlighted in red** in
   the scores;
+- **click any bar in a score** (an empty spot, not a note) and the recording
+  plays from that bar;
 - **download links**: MusicXML (opens directly in MuseScore), MIDI, the raw
   detection data (JSON), and a ready MuseScore file when conversion succeeded
   — MuseScore 4's command-line converter sometimes refuses files its own
@@ -80,6 +82,18 @@ version for comparison happens at the bottom of the page. Per version:
   Clicking the score title takes general feedback. Everything is saved in
   the variant's `feedback.json`;
 - a **"?" help button** on every page opens illustrated instructions.
+
+## Playing the recording from inside MuseScore
+
+While editing a score in MuseScore, you can hear the original recording from
+any spot: click a note in some bar and press the plugin's keyboard shortcut —
+the recording jumps to that bar in the browser tab where you have the piece's
+project page open. (The browser needs one manual press of play after each
+page reload before it lets the plugin start playback.)
+
+One-time setup: the plugin (`musescore/PlayFromBar.qml`, already copied to
+MuseScore's plugin folder on this laptop) must be enabled in MuseScore under
+Home → Plugins → "Play from bar", and given a shortcut via its ⚙ settings.
 
 ## Running a transcription from the command line
 

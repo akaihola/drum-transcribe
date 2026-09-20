@@ -1,10 +1,13 @@
-# Play-from-bar inside MuseScore — design (to be built)
+# Play-from-bar inside MuseScore
 
 Goal: while refining a score in MuseScore Studio, select a bar and press a
-shortcut → the original recording plays from that bar. Agreed 2026-09-20;
-build in a fresh session. The web-app half (click a bar in the browser →
-recording plays from there) shipped 2026-09-20 and provides the seek
-mechanism this reuses.
+shortcut → the original recording plays from that bar. **Built 2026-09-20**:
+the plugin lives at [musescore/PlayFromBar.qml](../musescore/PlayFromBar.qml)
+and is installed on this laptop at `~/Asiakirjat/MuseScore4/Plugins/` (the
+XDG Documents dir is Finnish here). Enable under Home → Plugins and assign a
+shortcut. Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
+project pages poll `GET /api/seek` every 1 s and seek the active version
+tab's audio (polling chosen over SSE — zero connection management).
 
 ## Target environment
 

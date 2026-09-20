@@ -19,6 +19,8 @@ per-drum velocities; on taustanauha it split adtof's 40 "cymbal" hits into
 
 The web app (projects, uploads/URLs, background jobs, progress, tabs,
 sonifications, score feedback, help) is feature-complete for review work.
+Play-from-bar inside MuseScore shipped 2026-09-20
+([musescore-plugin.md](musescore-plugin.md)); awaiting first real use.
 
 ## Known issues
 
@@ -43,9 +45,6 @@ sonifications, score feedback, help) is feature-complete for review work.
   Open questions: how feedback annotations map back to specific hits
   (feedback keys currently break on regeneration — see Known issues), and
   which direction gives the most value for the least complexity.
-- **Play-from-bar inside MuseScore** (agreed 2026-09-20, build in a fresh
-  session): full design, research findings and prior-art links in
-  [musescore-plugin.md](musescore-plugin.md).
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
 - PDF export (Verovio can render server-side) if printed parts are wanted.
