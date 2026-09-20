@@ -1,45 +1,82 @@
 # drum-transcribe
 
-Forensic drum-set transcription: recording in, drum sheet music out, with
-every intermediate step saved for inspection and manual correction.
+Turns a music recording into drum sheet music, automatically. Every
+intermediate result is saved so mistakes can be found, heard, and fixed.
 
-## Pipeline
+## What it does, step by step
 
-| stage | tool | artifact |
-|---|---|---|
-| 1. drum stem separation | [Demucs] (htdemucs) | `stems/htdemucs/<song>/drums.wav` |
-| 2. beat/downbeat tracking | [beat_this] | `beats.json` |
-| 3. drum hit detection | [ADTOF-pytorch] (kick/snare/tom/hihat/cymbal) | `onsets.json` |
-| 4. velocity estimation | band-limited stem energy per hit | (merged into `onsets.json`) |
-| 5. grid quantization | per-beat subdivision fit (16ths/32nds/triplets) | `events.json` |
-| 6. rendering | [music21] → MusicXML; [pretty_midi] → audition MIDI | `score.musicxml`, `audition.mid` |
+1. **Isolate the drums.** A neural network (Demucs) separates the drum kit
+   from the rest of the music, producing a "drums stem" — the same recording
+   with only the drums audible.
+2. **Find the beat.** Another model (beat_this) marks every beat and every
+   bar line (downbeat) in time, like a conductor tapping along.
+3. **Detect the hits.** Each drum hit is located and named: kick, snare,
+   tom, hi-hat, cymbal. Two alternative methods are available — see
+   *Pipeline variants* below.
+4. **Estimate loudness.** Each hit's strength becomes a MIDI velocity, so
+   quiet "ghost notes" survive into the notation.
+5. **Snap to the grid.** Hits are placed on the beat grid (16ths, 32nds, or
+   triplets, chosen per beat). How far each hit had to move is recorded —
+   large moves are a warning sign.
+6. **Write the score.** The result is saved as MusicXML and, when MuseScore
+   is available, as a ready MuseScore file (`score.mscz`).
 
-[Demucs]: https://github.com/adefossez/demucs
-[beat_this]: https://github.com/CPJKU/beat_this
-[ADTOF-pytorch]: https://github.com/xavriley/ADTOF-pytorch
-[music21]: https://github.com/cuthbertLab/music21
-[pretty_midi]: https://github.com/craffel/pretty-midi
+## Pipeline variants
 
-## Usage
+Results of different methods are kept side by side, never mixed:
+
+- **adtof** — a neural network trained on real drum recordings reads the
+  drums stem directly. Most accurate hit detection, but hears only 5
+  categories (ride and crash cymbals are one "cymbal").
+- **mdx23c** — the drums stem is first split further into six per-drum
+  recordings (kick / snare / toms / hi-hat / ride / crash); hits are then
+  detected in each one separately. Distinguishes ride from crash.
+
+## What is the sonification?
+
+`sonification.wav` is the original recording (at half volume) with a short
+synthetic **blip added at every hit the computer transcribed**: a low thump
+for kick, a noisy mid snap for snare, high ticks for hi-hat and cymbals.
+Listening to it is the fastest way to check the transcription: a missing
+blip = missed hit, a blip with no drum under it = false detection, the wrong
+blip sound = wrong drum. No musical training needed.
+
+## The review website
 
 ```bash
-uv sync
-uv run drum-transcribe run song.mp3 -o output/song --title "Song (drums)"
+uv run drum-transcribe serve
 ```
 
-Open `score.musicxml` in MuseScore Studio for cleanup; play `audition.mid`
-against the original recording to hear detection/quantization errors.
-`events.json` records per-event quantization error (ms) and model confidence
-for QA. Runs CPU-only; no GPU needed for single songs.
+Open `http://atom.crane-boa.ts.net:8765/` (or the machine's address) from any
+of your machines. For every song you get:
 
-Everything is forensic-first: no rhythmic simplification, per-beat triplet vs.
-straight subdivision choice, ghost notes kept (parenthesized snare noteheads
-below velocity 45).
+- players for the **original**, the **drums stem**, and each variant's
+  **sonification**;
+- while any player plays, the **bar being heard is highlighted in red** in
+  the scores and kept in view;
+- **download links**: MuseScore file, MusicXML, MIDI, and the raw detection
+  data (JSON);
+- all variants' **scores rendered on the page** for direct comparison.
 
-## Notes
+## Running a transcription
 
-- ADTOF model weights are CC BY-NC (non-commercial).
-- Known ADT limits (see `docs/adt-landscape.md`): toms and cymbal classes are
-  the least reliable; open/closed hi-hat, flams, and chokes are not detected.
-- The 5-class model can't tell ride from crash or open from closed hi-hat; a
-  future 6-stem separation stage (MDX23C DrumSep) could refine that.
+```bash
+uv sync                                          # once, installs everything
+uv run drum-transcribe run song.mp3              # adtof variant (default)
+uv run drum-transcribe run song.mp3 --variant mdx23c
+```
+
+Results land in `output/<song>/<variant>/`. The source recording, beat grid
+and drums stem are shared per song in `output/<song>/`. Everything runs on a
+normal CPU; a 3-minute song takes ~3 minutes with adtof, while mdx23c is
+much slower (roughly 10× the song length).
+
+## Honest limitations
+
+Even the best available models mishear some things: toms are the weakest
+category, hi-hat vs. ride gets confused, and flams, chokes, and open/closed
+hi-hat are not detected at all. Every score needs a human check — that is
+what the review website and the sonification are for. Details and the full
+tool survey: `docs/adt-landscape.md`.
+
+The ADTOF model weights are licensed for non-commercial use.
