@@ -54,8 +54,10 @@ of your machines. For every song you get:
   **sonification**;
 - while any player plays, the **bar being heard is highlighted in red** in
   the scores and kept in view;
-- **download links**: MuseScore file, MusicXML, MIDI, and the raw detection
-  data (JSON);
+- **download links**: MusicXML (opens directly in MuseScore), MIDI, the raw
+  detection data (JSON), and a ready MuseScore file when conversion succeeded
+  — MuseScore 4's command-line converter sometimes refuses files its own
+  editor opens fine, so the .mscz link can be missing;
 - all variants' **scores rendered on the page** for direct comparison.
 
 ## Running a transcription
