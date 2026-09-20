@@ -105,10 +105,12 @@ before it lets the plugin start playback.)
 One-time setup: the plugin (`musescore/PlayFromBar.qml`, already copied to
 MuseScore's plugin folder on this laptop) must be enabled in MuseScore under
 Home → Plugins → "Play/pause from bar", and given a shortcut via its ⚙
-settings. If the web app ever runs on a different machine, put its address
-in `drum-transcribe.ini` in the same plugin folder (one line:
-`serverUrl=http://<machine>:8765` under `[drumtranscribe]`) — no need to
-touch the plugin itself.
+settings. If the web app ever runs on a different machine, change the
+server address inside MuseScore: run the plugin with nothing selected
+(click an empty spot first) and a small window opens where you can type
+the new address and press Save. The same window appears by itself if the
+plugin can't reach the server. (The address is stored in
+`drum-transcribe.ini` next to the plugin, editable by hand too.)
 
 ## Running a transcription from the command line
 
