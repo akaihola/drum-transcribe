@@ -20,5 +20,6 @@ RUN sed -i 's|"adtof-pytorch"|"adtof-pytorch @ git+https://github.com/xavriley/A
 # model checkpoints baked in; pipeline resolves .cache/ and .models/ relative to CWD
 COPY .cache ./.cache
 COPY .models ./.models
+COPY deploy ./deploy
 ENV TORCH_HOME=/app/.cache/torch HF_HOME=/app/.cache/hf XDG_CACHE_HOME=/app/.cache
 ENTRYPOINT ["/venv/main/bin/drum-transcribe"]
