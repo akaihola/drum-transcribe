@@ -47,11 +47,12 @@ start)
     rm -f $STATE
 
     echo "== searching spot offers =="
+    # random among the 3 cheapest so a retry escapes a flaky host
     OFFER=$(vast search offers \
-        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true' \
+        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true' \
         --type=bid -o 'dph_total' --raw | python3 -c "
-import json,sys
-o = json.load(sys.stdin)[0]
+import json,random,sys
+o = random.choice(json.load(sys.stdin)[:3])
 print(o['id'], round(o['min_bid']*1.15, 3))")
     read -r OFFER_ID BID <<<"$OFFER"
     echo "   offer $OFFER_ID, bid \$$BID/h"

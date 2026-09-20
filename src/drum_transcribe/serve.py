@@ -53,18 +53,39 @@ STYLE = """
   body > p, dialog#help p { max-width: 65ch; }
   summary { cursor: pointer; }
   :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-  .players { display: flex; gap: 1rem; flex-wrap: wrap; margin: .8rem 0; }
-  figure.player { margin: 0; background: var(--card); border-radius: 8px;
-                  border: 1px solid var(--hairline); border-left: 4px solid var(--teal);
-                  padding: .6rem .8rem .7rem; }
-  figure.player figcaption { font-size: .85rem; color: var(--ink-quiet); margin-bottom: .4rem; }
-  figure.player audio { display: block; width: 17rem; }
-  figure.player audio::-webkit-media-controls-enclosure { background: var(--paper);
-                                                          border-radius: 999px; }
-  .variants { display: flex; gap: 1rem; flex-wrap: wrap; }
-  .variant { border: 1px solid var(--hairline); border-radius: 8px; padding: .8rem 1.2rem; }
-  .variant h4 { margin: 0 0 .5rem; }
-  .downloads a { margin-right: .8rem; font-size: .85rem; }
+  .player { margin: 0; background: var(--card); border-radius: 8px;
+            border: 1px solid var(--hairline); border-left: 4px solid var(--teal);
+            padding: .6rem .8rem .7rem; }
+  .player figcaption, .sonihead { font-size: .85rem; color: var(--ink-quiet);
+                                  margin-bottom: .4rem; }
+  .player figcaption b, .sonihead b { color: var(--ink); font-size: 1rem; }
+  .player audio { display: block; width: 16rem; }
+  .player audio::-webkit-media-controls-enclosure { background: var(--paper);
+                                                    border-radius: 999px; }
+  .ic { width: 1.25em; height: 1.25em; vertical-align: -.3em; margin-right: .25em; }
+  .grouplbl { display: block; font-weight: 500; color: var(--ink-quiet);
+              margin: 1.4rem 0 .4rem; }
+  .flow { position: relative; display: grid; margin: .8rem 0 0;
+          grid-template-columns: max-content max-content minmax(0, max-content);
+          gap: 1rem 4.5rem; align-items: center; }
+  svg.arrows { position: absolute; inset: 0; overflow: visible;
+               pointer-events: none; color: var(--ink-quiet); }
+  .sonis { display: flex; flex-direction: column; gap: .8rem; }
+  .sonis > .grouplbl { margin: 0; }
+  .soni { min-width: 26rem; }
+  .soni audio { width: 100%; }
+  .sonihead { display: flex; gap: .8rem; align-items: baseline; margin-bottom: .35rem; }
+  .waiting .dimmable { opacity: .4; pointer-events: none; }
+  .spin { display: inline-block; width: .95em; height: .95em; vertical-align: -.12em;
+          border: 2px solid var(--hairline); border-top-color: var(--brass);
+          border-radius: 50%; animation: spin 1.1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 4s; } }
+  .docs { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .5rem; }
+  a.doc { width: 3.9rem; text-align: center; font-size: .68rem; line-height: 1.25;
+          color: var(--ink-quiet); text-decoration: none; word-break: break-all; }
+  a.doc svg { width: 1.9rem; height: 2.4rem; display: block; margin: 0 auto .15rem; }
+  a.doc:hover { color: var(--teal-deep); }
   .stats { font-size: .85rem; color: var(--ink-quiet); max-width: 75ch; }
   .pending { color: var(--brass); font-style: italic; }
   .error { color: var(--signal); }
@@ -74,6 +95,15 @@ STYLE = """
                    padding: .4rem 1.2rem; cursor: pointer; }
   .tabbar button:hover { border-color: var(--ink-quiet); }
   .tabbar button.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .tabbar button.add { border-style: dashed; color: var(--ink-quiet); }
+  .tabbar button.add.active { border-style: solid; color: var(--paper); }
+  .vtabs > .tabpanel.active { border: 1px solid var(--hairline); border-radius: 12px;
+                              background: rgba(255,255,255,.55);
+                              padding: 1rem 1.4rem 1.4rem; }
+  .seg { gap: 0; margin: 0; }
+  .seg button { border-radius: 0; margin-left: -1.5px; }
+  .seg button:first-child { border-radius: 999px 0 0 999px; margin-left: 0; }
+  .seg button:last-child { border-radius: 0 999px 999px 0; }
   .tabpanel { display: none; }
   .tabpanel.active { display: block; }
   .tabpanel svg { max-width: 100%; height: auto; }
@@ -92,8 +122,35 @@ STYLE = """
     padding: .45rem 1.4rem; }
   form.create button:hover { background: var(--teal-deep); }
   ul.projects li { margin: .3rem 0; }
-  ul.progress { list-style: none; padding: .5rem .9rem; margin: .4rem 0;
-                border-left: 3px solid var(--brass); font-size: .9rem; }
+  .scorehead { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+               margin-top: 1.6rem; }
+  .scorehead .grouplbl { margin: 0; }
+  .meter { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
+  .meter .mopt { padding: .3rem .55rem; }
+  .meter .mopt svg { display: block; }
+  .meter .mopt:disabled { opacity: .4; cursor: default; }
+  .minfo { width: 1.6rem; height: 1.6rem; border-radius: 50%; font: inherit;
+           font-size: .85rem; border: 1.5px solid var(--hairline);
+           background: none; color: var(--ink-quiet); cursor: pointer; }
+  .minfo:hover { border-color: var(--ink-quiet); }
+  .popcard { background: var(--card); border: 1px solid var(--hairline);
+             border-radius: 8px; box-shadow: 0 6px 24px rgba(35,32,25,.18);
+             padding: .8rem 1rem; font-size: .9rem; max-width: 26rem; }
+  .popcard a { display: block; margin: .25rem 0; }
+  #gear-btn { position: fixed; top: 1rem; right: 4.2rem; width: 2.4rem; height: 2.4rem;
+              border-radius: 50%; border: 1.5px solid var(--hairline);
+              background: var(--card); color: var(--ink-quiet); cursor: pointer;
+              box-shadow: 0 2px 8px rgba(35,32,25,.12); }
+  #gear-btn:hover { border-color: var(--ink-quiet); }
+  #gear-btn svg { vertical-align: middle; }
+  #gearmenu { position: fixed; inset: 3.9rem 1.2rem auto auto; margin: 0; }
+  .score.placeholder { display: flex; gap: .6rem; align-items: center;
+                       color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
+  @media (max-width: 64rem) {
+    .flow { grid-template-columns: 1fr; gap: 1rem; }
+    svg.arrows { display: none; }
+    .soni { min-width: 0; }
+  }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
               background: var(--card); color: var(--ink); font: inherit;
@@ -136,8 +193,10 @@ HELP_HTML = """
   paste a public link (YouTube, a Google Drive share link, or a direct file
   link) or upload a sound/video file. Processing starts immediately in the
   background and takes from minutes up to ~10&times; the length of the
-  recording. <b>Reload the project page</b> to see new results; a checklist
-  shows what is finished. Ticking <b>process on a rented cloud GPU</b> rents
+  recording. <b>Reload the project page</b> to see new results; anything
+  still processing is dimmed, with a small spinner — point at the spinner to
+  see which step it is waiting on. (The full technical log is behind the
+  gear button, top right.) Ticking <b>process on a rented cloud GPU</b> rents
   a fast machine for the job (all results in ~5&ndash;15 minutes, costs about
   a cent); progress then appears in the pipeline log, and the result files
   show up all at once when it finishes.</p>
@@ -183,16 +242,19 @@ HELP_HTML = """
   It uses whichever player is already playing, or the one you listened to
   last, or the original.</p>
 
-  <p>If the beat detector hears bars of unequal length, the barlines are
-  straightened automatically to the piece's usual bar length, and a checkbox
-  appears above the results. Tick it only if the piece genuinely changes
-  meter — then the detected barlines are kept as they are.</p>
+  <p>Above the score, a small two-option switch shows the piece's meter:
+  <b>steady</b> (the detected time signature, barlines straightened — the
+  default) or <b>changing</b> (keep the detected barlines exactly as heard).
+  It can be switched only when the beat detector actually heard bars of
+  unequal length; the <b>?</b> next to it explains the details.</p>
 
   <h3>5. Downloads</h3>
-  <p><b>MusicXML</b> opens directly in MuseScore (File &rarr; Open) and is
-  always available. The ready <b>MuseScore file</b> appears when automatic
-  conversion succeeded. <b>MIDI</b> plays the transcription; the JSON files
-  hold the raw detection data.</p>
+  <p>Each pipeline's result files are the small document icons under its
+  sonification — click one to download it, or drag it straight into your
+  file manager. <b>MusicXML</b> opens directly in MuseScore (File &rarr;
+  Open) and is always available; the <b>MuseScore file</b> appears when
+  automatic conversion succeeded. <b>MIDI</b> plays the transcription; the
+  JSON files hold the raw detection data.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Point at any note or rest in a score: it turns blue. Click it to record
@@ -286,26 +348,174 @@ PROJECT_HTML = """<!DOCTYPE html>
 </head>
 <body>
 __HELP__
+<button id="gear-btn" title="Advanced: pipeline logs" popovertarget="gearmenu">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+       stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/>
+  <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.2 2.2M16.5 16.5l2.2 2.2M18.7 5.3l-2.2 2.2M7.5 16.5l-2.2 2.2"/></svg>
+</button>
+<div popover id="gearmenu" class="popcard"></div>
 <p><a href="/">&larr; all projects</a></p>
 <h1 id="title"></h1>
-<p>Each tab is one version of the piece. Listen to the <b>original</b>, the
-<b>drums stem</b>, and each pipeline's <b>sonification</b> (original + a blip
-per transcribed hit). While audio plays, the bar being heard is highlighted
-in the scores. Reload the page to see processing progress.</p>
 <div id="app">loading…</div>
-<details><summary>Add another version of this piece for comparison</summary>
+<div id="addform" hidden>
 __CREATE_FORM__
-</details>
+</div>
 <script>
 const PROJECT = decodeURIComponent(location.pathname.split("/").pop());
 const DOWNLOADS = __DOWNLOADS__;
 const VARIANTS = __VARIANTS__;
 document.getElementById("title").textContent = PROJECT;
 
-function player(label, url) {
-  return `<figure class="player"><figcaption>${label}</figcaption>
-          <audio controls preload="none" src="${url}"></audio></figure>`;
+const IC_WAVE = `<svg class="ic" viewBox="0 0 26 24" fill="none" stroke="currentColor"
+  stroke-width="2" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 5v14M23 10v4"/></svg>`;
+const IC_DRUM = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.6" stroke-linecap="round"><path d="M3.5 2.5 11 9M20.5 2.5 13 9"/>
+  <ellipse cx="12" cy="12" rx="8.5" ry="3"/>
+  <path d="M3.5 12v5.5c0 1.8 3.8 3.2 8.5 3.2s8.5-1.4 8.5-3.2V12"/></svg>`;
+
+// One source/derived audio node in the flow diagram; dimmed with a spinner
+// until its file exists.
+function node(cls, icon, label, url, spinTitle) {
+  return `<figure class="player node ${cls} ${url ? "" : "waiting"}">
+    <figcaption>${icon}<b>${label}</b>
+      ${url ? "" : `<span class="spin" title="${spinTitle}"></span>`}</figcaption>
+    <audio class="dimmable" controls preload="none" ${url ? `src="${url}"` : ""}></audio>
+  </figure>`;
 }
+
+// Why a pipeline's sonification is not there yet, for spinner tooltips.
+function explain(v, name) {
+  const done = Object.fromEntries(v.steps);
+  if (name === "adtof")
+    return "still working: adtof reads the drum mix with a neural network (the first results)";
+  if (name === "mdx23c")
+    return done["kit split into 6 stems (slow)"]
+      ? "still working: mdx23c reads each of the six per-drum tracks"
+      : "still working: splitting the drum recording into six per-drum tracks (kick, snare, toms, hi-hat, ride, crash) — the slowest step";
+  return "still working: fused combines adtof's hits with the six per-drum tracks (needs both)";
+}
+
+function dragFile(e, name, url) {
+  e.dataTransfer.setData("DownloadURL",
+    `application/octet-stream:${name}:${location.origin}${url}`);
+}
+
+function docIcon(file, label, url) {
+  const ext = file.split(".").pop();
+  const glyph = ext === "json" ? "{ }" : "\\u266a";
+  return `<a class="doc" href="${url}" download
+    title="${label} — click to download, or drag into a folder"
+    ondragstart="dragFile(event, '${file}', '${url}')">
+    <svg viewBox="0 0 32 40"><path d="M2 1h19l9 9v29H2z" fill="var(--card)"
+      stroke="currentColor" stroke-width="1.5"/>
+      <path d="M21 1v9h9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="16" y="21" text-anchor="middle" font-size="9" fill="currentColor">${glyph}</text>
+      <text x="16" y="34" text-anchor="middle" font-size="7.5" font-weight="700"
+        fill="currentColor">${ext === "musicxml" ? "XML" : ext.toUpperCase()}</text></svg>
+    <span>${file}</span></a>`;
+}
+
+function soniRow(v, name) {
+  const variant = v.variants.find(x => x.name === name);
+  const url = variant && variant.files["sonification.wav"];
+  let inner = `<div class="sonihead"><b>${name}</b>` +
+    (variant ? `<span class="stats">${variant.n_events} hits, ${variant.n_suspect} suspect</span>` : "") +
+    (url ? "" : `<span class="spin" title="${explain(v, name)}"></span>`) + `</div>`;
+  inner += `<div class="dimmable">
+    <audio controls preload="none" ${url ? `src="${url}"` : ""}></audio>`;
+  if (variant)
+    inner += `<div class="docs">` + DOWNLOADS.map(([file, label]) =>
+      variant.files[file] ? docIcon(file, label, variant.files[file]) : "").join("") + `</div>`;
+  inner += `</div>`;
+  return `<div class="player soni ${url ? "" : "waiting"}">${inner}</div>`;
+}
+
+// Three miniature bars on a one-line staff; sigs = [[num, den], ...] with
+// one entry (steady meter) or one per bar (changing meter).
+function meterSvg(sigs) {
+  let s = `<svg viewBox="0 0 100 28" width="100" height="28" aria-hidden="true"
+    stroke="currentColor" fill="currentColor">
+    <line x1="1" y1="14" x2="99" y2="14" stroke-width="1"/>`;
+  for (const x of [1, 33, 65, 98])
+    s += `<line x1="${x}" y1="4" x2="${x}" y2="24" stroke-width="${x === 98 ? 3 : 1}"/>`;
+  sigs.forEach(([n, d], i) => {
+    const x = [5, 37, 69][i];
+    s += `<text x="${x}" y="13" font-size="11" font-weight="700" stroke="none"
+            class="${i === 0 ? "msig-num" : ""}">${n}</text>
+          <text x="${x}" y="25" font-size="11" font-weight="700" stroke="none">${d}</text>`;
+  });
+  return s + `</svg>`;
+}
+
+function setMeter(version, raw, btn) {
+  if (btn.classList.contains("active") || btn.disabled) return;
+  for (const b of btn.closest(".mseg").querySelectorAll(".mopt"))
+    b.classList.toggle("active", b === btn);
+  setRawBars(version, raw);
+}
+
+function meterCtl(v) {
+  const tracked = v.steps.find(s => s[0] === "beat grid tracked")[1];
+  const toggleable = v.irregular || v.raw_bars;
+  return `<div class="meter ${tracked ? "" : "waiting"}" data-version="${v.name}">
+    <div class="tabbar seg mseg dimmable">
+      <button class="mopt ${v.raw_bars ? "" : "active"}"
+        title="Steady meter: barlines straightened to the piece&#39;s usual bar length"
+        onclick="setMeter('${v.name}', false, this)">${meterSvg([[4, 4]])}</button>
+      <button class="mopt ${v.raw_bars ? "active" : ""}" ${toggleable ? "" : "disabled"}
+        title="${toggleable
+          ? "Changing meter: keep the detected barlines exactly as heard"
+          : "No uneven bars were detected in this piece"}"
+        onclick="setMeter('${v.name}', true, this)">${meterSvg([[4, 4], [7, 8], [3, 4]])}</button>
+    </div>
+    <button class="minfo" popovertarget="mx--${v.name}" title="What is this?">?</button>
+    <div popover id="mx--${v.name}" class="popcard">
+      If the beat detector hears bars of unequal length, the barlines are
+      straightened automatically to the piece&#39;s usual bar length (left
+      option, showing the detected time signature). Choose the right option
+      only if the piece genuinely changes meter — the detected barlines are
+      then kept exactly as heard. Switching recomputes the scores; reload in
+      a minute. Bar numbers can shift, which orphans feedback already given.</div>
+    ${tracked ? "" : `<span class="spin" title="still working: tracking beats and barlines"></span>`}
+  </div>`;
+}
+
+// Derivation arrows: original -(Demucs)-> drums stem -> each sonification.
+// Drawn as an SVG overlay from live element positions, so it survives any
+// wrapping; redrawn on tab switches and resizes (hidden panels have no layout).
+function drawArrows(panel) {
+  const flow = panel && panel.querySelector(".flow");
+  if (!flow || !flow.clientWidth) return;
+  flow.querySelector("svg.arrows")?.remove();
+  const base = flow.getBoundingClientRect();
+  const rel = el => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left - base.left, right: r.right - base.left,
+             cy: r.top - base.top + r.height / 2 };
+  };
+  const bend = (a, b) => {
+    const dx = (b.left - a.right) / 2;
+    return `M ${a.right + 5} ${a.cy} C ${a.right + 5 + dx} ${a.cy},
+            ${b.left - 5 - dx} ${b.cy}, ${b.left - 7} ${b.cy}`;
+  };
+  const s = rel(flow.querySelector(".node-src"));
+  const d = rel(flow.querySelector(".node-drums"));
+  const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
+                      stroke-width="1.5" marker-end="url(#arr)"/>`;
+  let inner = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
+    markerWidth="6.5" markerHeight="6.5" orient="auto">
+    <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>`;
+  inner += arrow(bend(s, d));
+  inner += `<text x="${(s.right + d.left) / 2}" y="${(s.cy + d.cy) / 2 - 8}"
+    text-anchor="middle" font-size="13" fill="currentColor">Demucs</text>`;
+  for (const row of flow.querySelectorAll(".soni")) inner += arrow(bend(d, rel(row)));
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "arrows");
+  svg.innerHTML = inner;
+  flow.appendChild(svg);
+}
+window.addEventListener("resize", () =>
+  document.querySelectorAll(".vtabs > .tabpanel.active").forEach(drawArrows));
 
 let vrvReady;
 
@@ -322,67 +532,60 @@ async function build() {
   const index = await fetch("/api/index").then(r => r.json());
   const project = index.projects.find(p => p.name === PROJECT);
   const app = document.getElementById("app");
-  if (!project) { app.textContent = "project not found"; return; }
-  let html = `<div class="tabs vtabs"><div class="tabbar">` +
-    project.versions.map((v, i) =>
+  const versions = project ? project.versions : [];
+  let html = `<span class="grouplbl">Versions</span>
+    <div class="tabs vtabs"><div class="tabbar">` +
+    versions.map((v, i) =>
       `<button class="${i ? "" : "active"}" data-target="v--${v.name}">${v.name}</button>`
-    ).join("") + `</div>`;
-  for (const [i, v] of project.versions.entries()) {
+    ).join("") +
+    `<button class="add ${versions.length ? "" : "active"}"
+      data-target="v--__add">+ add a version</button></div>`;
+  for (const [i, v] of versions.entries()) {
     html += `<div class="tabpanel ${i ? "" : "active"}" id="v--${v.name}">
              <section data-song="${v.name}">`;
-    html += `<div class="players">`;
-    if (v.source) html += player("original", v.source);
-    if (v.drums) html += player("drums stem (Demucs)", v.drums);
-    html += `</div>`;
-    if (v.log) html += `<p class="stats"><a href="${v.log}">pipeline log</a>
-      ${v.error ? '<span class="error">— processing failed, see log</span>' : ""}
-      ${!v.done && !v.error ? '<span class="pending">— still processing, reload for updates</span>' : ""}</p>`;
-    if (!v.done && !v.error)
-      html += `<ul class="progress">` + v.steps.map(([label, ok]) =>
-        `<li>${ok ? "✅" : "⬜"} ${label}</li>`).join("") +
-        (v.stage ? `<li class="pending">now: ${v.stage}</li>` : "") + `</ul>`;
-    if (v.irregular)
-      html += `<p class="stats"><label><input type="checkbox"
-        ${v.raw_bars ? "checked" : ""}
-        onchange="setRawBars('${v.name}', this.checked)">
-        The beat detector heard bars of unequal length here, so the barlines
-        were straightened automatically. Tick this only if the piece really
-        changes meter (bars of different lengths), to keep the detected
-        barlines instead.</label></p>`;
-    html += `<div class="variants">`;
-    for (const name of VARIANTS) {
-      const variant = v.variants.find(x => x.name === name);
-      html += `<div class="variant"><h4>${name}</h4>`;
-      if (variant) {
-        if (variant.files["sonification.wav"])
-          html += player("sonification", variant.files["sonification.wav"]);
-        html += `<div class="stats">${variant.n_events} hits, ${variant.n_suspect} suspect</div>
-                 <div class="downloads">`;
-        for (const [file, label] of DOWNLOADS)
-          if (variant.files[file]) html += `<a href="${variant.files[file]}" download>${label}</a>`;
-        html += `</div>`;
-      } else {
-        html += `<div class="pending">not ready yet</div>`;
-      }
-      html += `</div>`;
-    }
-    html += `</div>`;
+    if (v.error)
+      html += `<p class="error">Processing failed — the pipeline log
+        (gear button, top right) tells what went wrong.</p>`;
+    html += `<div class="flow">` +
+      node("node-src", IC_WAVE, "original", v.source,
+           "still working: fetching the recording") +
+      node("node-drums", IC_DRUM, "drums stem", v.drums,
+           "still working: Demucs is isolating the drums from the rest of the band") +
+      `<div class="sonis"><span class="grouplbl"
+        title="the original recording plus a blip for every transcribed hit">Sonifications</span>` +
+      VARIANTS.map(name => soniRow(v, name)).join("") + `</div></div>`;
     const scored = v.variants.filter(x => x.files["score.musicxml"]);
-    if (scored.length) {
-      html += `<div class="tabs"><div class="tabbar">` + scored.map((x, j) =>
+    html += `<div class="tabs stabs"><div class="scorehead">
+             <span class="grouplbl">Score</span>`;
+    if (scored.length)
+      html += `<div class="tabbar seg">` + scored.map((x, j) =>
         `<button class="${j ? "" : "active"}" data-target="s--${v.name}--${x.name}">${x.name}</button>`
       ).join("") + `</div>`;
+    html += meterCtl(v) + `</div>`;
+    if (scored.length)
       html += scored.map((x, j) =>
         `<div class="tabpanel ${j ? "" : "active"}" id="s--${v.name}--${x.name}">
          <div class="score" data-url="${x.files["score.musicxml"]}">rendering…</div></div>`
-      ).join("") + `</div>`;
-    }
-    html += `</section></div>`;
+      ).join("");
+    else
+      html += `<div class="score placeholder waiting">
+        <span class="spin" title="${explain(v, "adtof")}"></span>
+        <span class="dimmable">The score appears here when the first pipeline finishes.</span></div>`;
+    html += `</div></section></div>`;
   }
-  html += `</div>`;
+  html += `<div class="tabpanel ${versions.length ? "" : "active"}" id="v--__add"></div></div>`;
   app.innerHTML = html;
+  const addform = document.getElementById("addform");
+  document.getElementById("v--__add").appendChild(addform);
+  addform.hidden = false;
+  document.getElementById("gearmenu").innerHTML =
+    versions.filter(v => v.log).map(v =>
+      `<a href="${v.log}">pipeline log — ${v.name}</a>`).join("") ||
+    "No pipeline logs yet.";
   renderScores();
-  followPlayback(project.versions);
+  followPlayback(versions);
+  requestAnimationFrame(() =>
+    drawArrows(document.querySelector(".vtabs > .tabpanel.active")));
 }
 
 async function renderScores() {
@@ -391,7 +594,7 @@ async function renderScores() {
   tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
                   pageWidth: 2100, footer: "none",
                   svgAdditionalAttribute: ["measure@n"] });
-  for (const el of document.querySelectorAll(".score")) {
+  for (const el of document.querySelectorAll(".score[data-url]")) {
     const xml = await fetch(el.dataset.url).then(r => r.text());
     tk.loadData(xml);
     let svg = "";
@@ -509,6 +712,17 @@ async function followPlayback(versions) {
         if (grid.positions[i] === 1) bar++;
         return { t, bar };
       });
+      // Detected time signature: the most common beats-per-bar count,
+      // shown as the numerator in the steady-meter option.
+      const counts = {};
+      let len = 0;
+      for (const p of grid.positions) {
+        if (p === 1 && len) { counts[len] = (counts[len] || 0) + 1; len = 0; }
+        len++;
+      }
+      const num = Object.entries(counts).sort((a, b) => a[1] - b[1]).pop()?.[0];
+      const sig = document.querySelector(`.meter[data-version="${v.name}"] .msig-num`);
+      if (num && sig) sig.textContent = num;
     } catch (e) { /* no beat grid yet */ }
   }
   document.addEventListener("timeupdate", e => {
@@ -584,12 +798,14 @@ setInterval(async () => {
 }, 1000);
 
 document.addEventListener("click", e => {
-  if (!e.target.matches(".tabbar button")) return;
-  const tabs = e.target.closest(".tabs");
-  for (const b of tabs.querySelectorAll(":scope > .tabbar button"))
-    b.classList.toggle("active", b === e.target);
+  const btn = e.target.closest(".tabbar button");
+  if (!btn || !btn.dataset.target) return;  // .mopt buttons have no target
+  for (const b of btn.closest(".tabbar").querySelectorAll("button"))
+    b.classList.toggle("active", b === btn);
+  const tabs = btn.closest(".tabs");
   for (const p of tabs.querySelectorAll(":scope > .tabpanel"))
-    p.classList.toggle("active", p.id === e.target.dataset.target);
+    p.classList.toggle("active", p.id === btn.dataset.target);
+  drawArrows(tabs.querySelector(":scope > .tabpanel.active"));
 });
 
 document.addEventListener("DOMContentLoaded", () => {
