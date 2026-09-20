@@ -25,9 +25,9 @@ without it browsers heuristically cache and render stale scores), and
 `scan_output` also derives per-version: `done`, `error` (log tail contains
 "ERROR:"), `stage` (last `== … ==` log marker), the `steps` checklist from
 artifact existence, and `irregular`/`raw_bars` — whether `regularize()`
-would change the raw beat grid (then the page shows the "uneven bars are
-real" checkbox) and whether the `keep-raw-bars` flag file is set. Flipping
-the checkbox POSTs `/api/rawbars`, which starts `start_rerun_job`: re-runs
+would change the raw beat grid (then the meter switch above the score is
+enabled) and whether the `keep-raw-bars` flag file is set. Switching the
+meter option POSTs `/api/rawbars`, which starts `start_rerun_job`: re-runs
 the pipeline for each variant that has `onsets.json`; cached stages make
 this take seconds, but note it renumbers bars, which orphans feedback keys.
 
@@ -85,9 +85,19 @@ and the presign step fall back to plain `python3`/`vastai`). See
   playback until the user has clicked play once per page load. Stale pages
   keep the old JS until reloaded.
   See [musescore-plugin.md](musescore-plugin.md).
-- Tabs are generic: `.tabs > .tabbar button[data-target]` +
-  `.tabs > .tabpanel#id`; `:scope >` selectors keep nested tabs (versions ⊃
-  score variants) independent.
+- Tabs are generic: any `.tabbar button[data-target]` toggles the
+  `.tabpanel#id` children of its closest `.tabs`; the tabbar itself may be
+  nested deeper (the score selector lives inside `.scorehead`). The version
+  tabbar ends with a "+ add a version" tab whose panel adopts the
+  server-rendered `#addform` node. Meter-switch buttons (`.mopt`) share the
+  tabbar styling but have no `data-target`, so the tab handler skips them.
+- The project page is a flow diagram per version: original —Demucs→ drums
+  stem → one card per pipeline (sonification + document-icon downloads;
+  icons are drag-out downloadable via `DownloadURL`). Arrows are an SVG
+  overlay drawn from live element positions (`drawArrows`) — redrawn on tab
+  switches and resizes because hidden panels have no layout. Anything not
+  ready is dimmed (`.waiting .dimmable`) with a spinner whose `title`
+  explains the step; pipeline logs are in the `#gear-btn` popover.
 
 ## Feedback
 

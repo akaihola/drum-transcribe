@@ -13,7 +13,7 @@ intermediate result is saved so mistakes can be found, heard, and fixed.
    sometimes stumbles for a stretch — doubling the tempo or hearing a bar
    line on every beat — so if it produced bars of unequal length, the bar
    lines are straightened automatically to the piece's usual bar length.
-   (A checkbox on the project page turns this off for pieces that genuinely
+   (A meter switch above the score turns this off for pieces that genuinely
    change meter.)
 3. **Detect the hits.** Each drum hit is located and named: kick, snare,
    tom, hi-hat, cymbal. Two alternative methods are available — see
@@ -83,17 +83,21 @@ version for comparison happens at the bottom of the page. Per version:
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording
   plays from that bar;
-- a **checkbox** that appears when the beat detector heard bars of unequal
-  length: by default the bar lines are straightened automatically; tick it
-  only if the piece really changes meter, and the scores are recomputed with
-  the bar lines exactly as detected;
-- **download links**: MusicXML (opens directly in MuseScore), MIDI, the raw
-  detection data (JSON), and a ready MuseScore file when conversion succeeded
-  — MuseScore 4's command-line converter sometimes refuses files its own
-  editor opens fine, so the .mscz link can be missing;
-- both pipelines' **scores rendered on the page** in tabs;
-- a **progress checklist** and **pipeline log** link while processing runs
-  (or if it fails);
+- a **meter switch** above the score, showing the detected time signature:
+  by default the bar lines are straightened automatically; choose the
+  changing-meter option only if the piece really changes meter, and the
+  scores are recomputed with the bar lines exactly as detected;
+- **downloadable files** as document icons under each sonification — click
+  to download or drag into your file manager: MusicXML (opens directly in
+  MuseScore), MIDI, the raw detection data (JSON), and a ready MuseScore
+  file when conversion succeeded — MuseScore 4's command-line converter
+  sometimes refuses files its own editor opens fine, so the .mscz icon can
+  be missing;
+- the pipelines' **scores rendered on the page**, chosen with the selector
+  above the score;
+- anything still processing shown **dimmed with a spinner** (hover the
+  spinner to see the step); the **pipeline log** is behind the gear button
+  (top right);
 - **feedback on the notation**: point at any note or rest (it turns blue),
   click to record what is wrong (extra note, missing note, wrong rhythm,
   wrong drum, wrong time signature, or free text). Flagged notes are tinted

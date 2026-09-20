@@ -554,7 +554,8 @@ async function build() {
       `<div class="sonis"><span class="grouplbl"
         title="the original recording plus a blip for every transcribed hit">Sonifications</span>` +
       VARIANTS.map(name => soniRow(v, name)).join("") + `</div></div>`;
-    const scored = v.variants.filter(x => x.files["score.musicxml"]);
+    const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
+      .filter(x => x && x.files["score.musicxml"]);
     html += `<div class="tabs stabs"><div class="scorehead">
              <span class="grouplbl">Score</span>`;
     if (scored.length)
