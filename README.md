@@ -99,3 +99,6 @@ what the review website and the sonification are for. Details and the full
 tool survey: `docs/adt-landscape.md`.
 
 The ADTOF model weights are licensed for non-commercial use.
+
+Developer/agent documentation starts at `AGENTS.md`; deeper topics live
+under `docs/`.

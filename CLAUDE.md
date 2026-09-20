@@ -1,3 +1,6 @@
+Read [AGENTS.md](AGENTS.md) first — code map, commands, and links to the
+per-topic docs under docs/.
+
 # Project rules
 
 - The user is a musician, not a software developer. Keep all documentation
