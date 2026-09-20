@@ -52,6 +52,14 @@ regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
   Open questions: how feedback annotations map back to specific hits
   (feedback keys currently break on regeneration — see Known issues), and
   which direction gives the most value for the least complexity.
+- **Plugin settings window** (tentative, not committed to): MuseScore has no
+  native settings UI for plugins, so the play/pause-from-bar plugin could
+  open its own small "server address" window (saving to the same
+  `drum-transcribe.ini`) when run with nothing selected or when the server
+  doesn't answer. Keeps the shortcut path window-free. Risk: QML window code
+  can't be tested outside the MuseScore GUI, and an error in it could stop
+  the plugin from loading — user pilots it, roll back on failure. See
+  [musescore-plugin.md](musescore-plugin.md).
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
 - PDF export (Verovio can render server-side) if printed parts are wanted.
