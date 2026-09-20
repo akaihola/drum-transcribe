@@ -42,3 +42,28 @@ unsandboxed server.
   one when a workload genuinely needs it (batch/mdx23c-heavy work).
 - Timings on this 16-core CPU: Demucs ≈ 0.4× song length, ADTOF seconds,
   MDX23C ≈ 10× song length.
+
+## Cloud test deployment (Scaleway Serverless Containers)
+
+A read-only copy of the review web app runs in Scaleway's cloud so it can be
+viewed from anywhere without the laptop being on:
+
+- URL: https://drumtranscribe1eb07827-webapp.functions.fnc.fr-par.scw.cloud
+- What it is: the same web pages as the local server, but with a snapshot of
+  one song version (`dancing-through-life/taustanauha`, both variants) baked
+  into the container image. Uploading songs or starting new processing does
+  NOT work there — the image has no ML dependencies.
+- How it's built: `deploy/Dockerfile` — a slim Python image with only the web
+  app code plus the sample results (~180 MB). Stage a build context with
+  `pyproject.toml`, `src/`, and the chosen `output/<song>/<version>` subset
+  (drop `stems/`), then:
+  ```bash
+  docker build -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test <context>
+  docker login rg.fr-par.scw.cloud -u nologin -p <scw-secret-key>
+  docker push rg.fr-par.scw.cloud/drum-transcribe/webapp:test
+  , scw container container redeploy <container-id> --profile drum-transcribe
+  ```
+- Scaleway resources (profile `drum-transcribe`, region fr-par): registry
+  namespace `drum-transcribe`, containers namespace `drum-transcribe`,
+  container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
+  500 mvCPU, scales to zero when idle — costs nothing while unused).
