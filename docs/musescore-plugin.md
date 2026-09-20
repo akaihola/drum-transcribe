@@ -2,11 +2,15 @@
 
 Goal: while refining a score in MuseScore Studio, select a bar and press a
 shortcut → the original recording plays from that bar. **Built 2026-09-20**:
-[musescore/PlayFromBar.qml](../musescore/PlayFromBar.qml), plus
-[musescore/PausePlayback.qml](../musescore/PausePlayback.qml) (POSTs bar 0 =
-pause) for stopping playback. Both are installed on this laptop at
-`~/Asiakirjat/MuseScore4/Plugins/` (the XDG Documents dir is Finnish here).
-Enable under Home → Plugins and assign shortcuts. Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
+[musescore/PlayFromBar.qml](../musescore/PlayFromBar.qml), installed on this
+laptop at `~/Asiakirjat/MuseScore4/Plugins/` (the XDG Documents dir is
+Finnish here). Enable under Home → Plugins and assign a shortcut. One plugin
+does both play and pause (MuseScore allows one shortcut per plugin, so the
+web page toggles: a repeated bar while audio plays means pause). The server
+address is read from `drum-transcribe.ini` next to the plugin via a
+runtime-created `Settings` (QtCore, falling back to `Qt.labs.settings` —
+`Qt.createQmlObject` so a missing module can't break plugin load; pattern
+from hoshi005's AudioSync). Server side: `POST /api/seek {bar}` bumps a `{seq, bar}` counter;
 project pages poll `GET /api/seek` every 1 s and seek the active version
 tab's audio (polling chosen over SSE — zero connection management).
 

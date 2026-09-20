@@ -96,17 +96,19 @@ version for comparison happens at the bottom of the page. Per version:
 
 While editing a score in MuseScore, you can hear the original recording from
 any spot: click a note in some bar and press the plugin's keyboard shortcut —
-the recording jumps to that bar in the browser tab where you have the piece's
-project page open. (The browser needs one manual press of play after each
-page reload before it lets the plugin start playback.)
+the recording plays from that bar in the browser tab where you have the
+piece's project page open. The same shortcut also pauses: press it again
+with the same bar selected, or select another bar to jump there while it
+plays. (The browser needs one manual press of play after each page reload
+before it lets the plugin start playback.)
 
-A second plugin, **"Pause recording"**, pauses the playback the same way —
-handy when the recording is playing in another room's browser.
-
-One-time setup: the plugins (`musescore/PlayFromBar.qml` and
-`musescore/PausePlayback.qml`, already copied to MuseScore's plugin folder
-on this laptop) must be enabled in MuseScore under Home → Plugins, and each
-given a shortcut via its ⚙ settings.
+One-time setup: the plugin (`musescore/PlayFromBar.qml`, already copied to
+MuseScore's plugin folder on this laptop) must be enabled in MuseScore under
+Home → Plugins → "Play/pause from bar", and given a shortcut via its ⚙
+settings. If the web app ever runs on a different machine, put its address
+in `drum-transcribe.ini` in the same plugin folder (one line:
+`serverUrl=http://<machine>:8765` under `[drumtranscribe]`) — no need to
+touch the plugin itself.
 
 ## Running a transcription from the command line
 

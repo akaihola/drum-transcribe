@@ -511,21 +511,24 @@ document.addEventListener("click", e => {
   }
 }, true);
 
-// The MuseScore plugins POST /api/seek {bar}; poll it and play from that bar
-// in the active version tab. Bar 0 (bars are 1-based) means pause.
-let seekSeq = null;
+// The MuseScore plugin POSTs /api/seek {bar}; poll it and play from that bar
+// in the active version tab. A repeat of the previous bar while audio is
+// playing toggles: pause instead of seeking again.
+let seekSeq = null, seekBar = 0;
 setInterval(async () => {
   try {
     const s = await fetch("/api/seek").then(r => r.json());
     if (seekSeq !== null && s.seq !== seekSeq) {
-      if (!s.bar) document.querySelectorAll("audio").forEach(a => a.pause());
+      const playing =
+        [...document.querySelectorAll("audio")].filter(a => !a.paused);
+      if (playing.length && s.bar === seekBar) playing.forEach(a => a.pause());
       else {
         const section =
           document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
         if (section) seekToBar(section, s.bar);
       }
     }
-    seekSeq = s.seq;
+    seekSeq = s.seq; seekBar = s.bar;
   } catch (e) { /* server briefly down */ }
 }, 1000);
 
