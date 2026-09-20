@@ -8,6 +8,7 @@ dependencies = [
     "audio-separator[cpu]>=0.30",
     "beat-this",
     "demucs>=4.1",
+    "gdown>=5",
     "librosa>=0.10",
     "music21>=9.1",
     "numpy",
@@ -15,6 +16,7 @@ dependencies = [
     "soundfile",
     "torch>=2.6",
     "torchaudio",
+    "yt-dlp>=2025.1.1",
 ]
 
 [project.scripts]
