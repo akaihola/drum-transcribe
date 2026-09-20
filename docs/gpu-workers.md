@@ -92,6 +92,15 @@ CLI is a dev dependency: `uv run vastai ...` (API key set via
 RTX 3090s in Europe run ~$0.09/h; a song costs well under a cent, so bid
 10–20 % over the floor and don't agonize.
 
+The whole cycle is wrapped in one command — rent, process, sync results
+to `output/`, destroy:
+
+```bash
+deploy/run-on-gpu.sh <SOURCE_URL> <SONG> <VERSION> ["adtof mdx23c"]
+```
+
+Manual steps, when debugging or doing something the wrapper doesn't:
+
 ```bash
 # find offers: 1×3090, reliable, fast downlink (fast image pull)
 uv run vastai search offers \
