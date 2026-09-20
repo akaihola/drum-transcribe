@@ -53,7 +53,7 @@ start)
         'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.8' \
         --type=bid -o 'dph_total' --raw | python3 -c "
 import json,random,sys
-o = random.choice(json.load(sys.stdin)[:3])
+o = random.choice(json.load(sys.stdin)[:5])
 print(o['id'], round(o['min_bid']*1.25, 3))")
     read -r OFFER_ID BID <<<"$OFFER"
     echo "   offer $OFFER_ID, bid \$$BID/h"

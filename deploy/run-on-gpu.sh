@@ -12,8 +12,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if ! deploy/gpu-session.sh status >/dev/null 2>&1; then
-    # one retry: a spot host can turn out broken (bad pull, dead GPU)
-    deploy/gpu-session.sh start || deploy/gpu-session.sh start
+    # spot hosts can turn out broken (bad pull, dead GPU, outbid) — keep
+    # trying fresh hosts; the health checks make each failure cheap
+    for attempt in 1 2 3; do
+        deploy/gpu-session.sh start && break
+        [ "$attempt" = 3 ] && { echo "no usable GPU host after 3 attempts"; exit 1; }
+    done
     trap 'deploy/gpu-session.sh stop' EXIT
 fi
 deploy/gpu-session.sh run "$@"
