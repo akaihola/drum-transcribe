@@ -135,6 +135,52 @@ Prior art (reference implementations):
 - Server must be reachable from the MuseScore machine (port 8765 firewall
   note in [operations.md](operations.md)).
 
+## Testing the plugin in a headless GUI (verified 2026-09-20)
+
+An agent can run the full MuseScore GUI on a private virtual display,
+see it via screenshots, and drive it with synthetic mouse/keyboard —
+end-to-end verified: selecting measure 3 and triggering the plugin from
+the Lisäosat → Toisto menu bumped the server's `/api/seek` to
+`{"bar": 3}`.
+
+```bash
+Xvfb :99 -screen 0 1600x1000x24 &          # private headless X server
+
+# Isolated profile: HOME alone is NOT enough — the login session exports
+# XDG_CONFIG_HOME etc. pointing at the real home, and Qt prefers those.
+# XDG_RUNTIME_DIR must also be private, or MuseScore's multi-instance
+# IPC routes "open this score" to the user's running instance.
+M=/tmp/claude/mshome
+mkdir -p $M/.config $M/.local/share $M/.cache $M/.local/state
+mkdir -p -m 700 $M/runtime
+cp -r ~/.config/MuseScore $M/.config/          # keeps plugin enabled
+cp -r ~/.local/share/MuseScore $M/.local/share/
+mkdir -p $M/Asiakirjat/MuseScore4/Plugins      # user-dirs name Asiakirjat
+cp ~/Asiakirjat/MuseScore4/Plugins/{PlayFromBar.qml,drum-transcribe.ini} \
+   $M/Asiakirjat/MuseScore4/Plugins/
+
+env -u WAYLAND_DISPLAY HOME=$M XDG_CONFIG_HOME=$M/.config \
+  XDG_DATA_HOME=$M/.local/share XDG_CACHE_HOME=$M/.cache \
+  XDG_STATE_HOME=$M/.local/state XDG_RUNTIME_DIR=$M/runtime \
+  DISPLAY=:99 QT_QPA_PLATFORM=xcb \
+  "$(dirname "$(readlink -f "$(command -v mscore || echo /nix/store/*musescore*/bin/mscore)")")"/mscore \
+  /path/to/copy-of-score.mscz &                # open a COPY: the real
+                                               # path may be open in the
+                                               # user's instance → IPC
+                                               # routes it there
+DISPLAY=:99 import -window root shot.png       # observe (ImageMagick)
+nix-shell -p xdotool                           # interact
+```
+
+Interaction notes: pixel-clicking noteheads is fragile; keyboard is
+deterministic — `xdotool key ctrl+Home` selects the first element,
+`ctrl+Right` advances one measure, and the status bar shows
+"…Tahti: N; Isku: M". Trigger the plugin from Lisäosat → Toisto (menu
+click) and confirm with `curl localhost:8765/api/seek`. Close with
+`xdotool key ctrl+q` (exits 0), then kill Xvfb. Caveat: a test trigger
+bumps the live server's seek counter, so any open project page will
+seek/toggle once.
+
 ## Alternative kept in the back pocket ("Route 3")
 
 Write the measured per-bar tempo map into the exported MusicXML as (hidden)
