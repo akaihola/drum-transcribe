@@ -25,6 +25,7 @@ DOWNLOADS = [
     ("audition.mid", "MIDI"),
     ("events.json", "events (JSON)"),
     ("onsets.json", "raw hits (JSON)"),
+    ("feedback.json", "feedback (JSON)"),
 ]
 UPLOAD_EXTS = AUDIO_EXTS | {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 
@@ -66,6 +67,16 @@ STYLE = """
   dialog#help::backdrop { background: rgba(0,0,0,.4); }
   dialog#help .close { float: right; border: none; background: none;
                        font-size: 1.4rem; cursor: pointer; }
+  .score g.note, .score g.rest, .score g.pgHead { cursor: pointer; }
+  .score g.fb * { fill: #c8860b; stroke: #c8860b; }
+  .score g.note:hover *, .score g.rest:hover *,
+  .score g.pgHead:hover * { fill: #0066cc; stroke: #0066cc; }
+  #fbmenu { position: absolute; z-index: 10; background: #fff;
+            border: 1px solid #888; border-radius: 8px; padding: .8rem 1rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,.25); font-size: .9rem; }
+  #fbmenu label { display: block; margin: .15rem 0; }
+  #fbmenu textarea { width: 100%; margin-top: .4rem; }
+  #fbmenu .row { margin-top: .6rem; display: flex; gap: .6rem; }
 """
 
 HELP_HTML = """
@@ -305,8 +316,104 @@ async function renderScores() {
     let svg = "";
     for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
     el.innerHTML = svg;
+    await loadFeedback(el);
   }
 }
+
+// ---- score feedback -------------------------------------------------------
+// A symbol is addressed as "<bar>:<index of note/rest within the bar>", or
+// "title" for the whole transcription; entries live in the variant's
+// feedback.json next to the other result files.
+const FB_LABELS = ["extra note", "missing note(s)", "wrong rhythm",
+                   "wrong drum", "wrong time signature"];
+const fbMaps = {};  // panel id -> feedback map
+
+function fbContext(el) {
+  const panel = el.closest('.tabpanel[id^="s--"]');
+  const [, version, variant] = panel.id.split("--");
+  return { panel, version, variant };
+}
+
+function symbolKey(sym) {
+  if (sym.classList.contains("pgHead")) return "title";
+  const measure = sym.closest("g.measure");
+  const symbols = [...measure.querySelectorAll("g.note, g.rest")];
+  return `${measure.dataset.n}:${symbols.indexOf(sym)}`;
+}
+
+function findSymbol(scoreEl, key) {
+  if (key === "title") return scoreEl.querySelector("g.pgHead");
+  const [bar, idx] = key.split(":");
+  const measure = scoreEl.querySelector(`g.measure[data-n="${bar}"]`);
+  return measure && [...measure.querySelectorAll("g.note, g.rest")][+idx];
+}
+
+async function loadFeedback(scoreEl) {
+  const { panel, version, variant } = fbContext(scoreEl);
+  const r = await fetch(`/files/${PROJECT}/${version}/${variant}/feedback.json`);
+  fbMaps[panel.id] = r.ok ? await r.json() : {};
+  annotate(scoreEl);
+}
+
+function annotate(scoreEl) {
+  const { panel } = fbContext(scoreEl);
+  for (const g of scoreEl.querySelectorAll("g.fb")) {
+    g.classList.remove("fb");
+    g.querySelector(":scope > title")?.remove();
+  }
+  for (const [key, entry] of Object.entries(fbMaps[panel.id] || {})) {
+    const sym = findSymbol(scoreEl, key);
+    if (!sym) continue;
+    sym.classList.add("fb");
+    const tip = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    tip.textContent = [...entry.labels, entry.text].filter(Boolean).join("; ");
+    sym.prepend(tip);
+  }
+}
+
+function openFbMenu(sym, x, y) {
+  document.getElementById("fbmenu")?.remove();
+  const { panel, version, variant } = fbContext(sym);
+  const key = symbolKey(sym);
+  const existing = (fbMaps[panel.id] || {})[key] || { labels: [], text: "" };
+  const menu = document.createElement("div");
+  menu.id = "fbmenu";
+  menu.innerHTML =
+    `<b>${key === "title" ? "Feedback on this transcription" : "Feedback on this symbol"}</b>` +
+    FB_LABELS.map(l => `<label><input type="checkbox" value="${l}"
+      ${existing.labels.includes(l) ? "checked" : ""}> ${l}</label>`).join("") +
+    `<textarea rows="2" placeholder="free text…">${existing.text}</textarea>
+     <div class="row"><button data-act="save">Save</button>
+     <button data-act="delete">Remove</button>
+     <button data-act="cancel">Cancel</button></div>`;
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  document.body.appendChild(menu);
+  menu.addEventListener("click", async e => {
+    const act = e.target.dataset?.act;
+    if (!act) return;
+    if (act !== "cancel") {
+      const labels = act === "delete" ? [] :
+        [...menu.querySelectorAll("input:checked")].map(i => i.value);
+      const text = act === "delete" ? "" : menu.querySelector("textarea").value;
+      const r = await fetch("/api/feedback", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project: PROJECT, version, variant, key, labels, text }) });
+      if (r.ok) {
+        fbMaps[panel.id] = await r.json();
+        annotate(panel.querySelector(".score"));
+      } else alert("saving feedback failed");
+    }
+    menu.remove();
+  });
+}
+
+document.addEventListener("click", e => {
+  if (e.target.closest("#fbmenu")) return;
+  document.getElementById("fbmenu")?.remove();
+  const sym = e.target.closest(".score g.note, .score g.rest, .score g.pgHead");
+  if (sym) openFbMenu(sym, e.pageX + 6, e.pageY + 6);
+});
 
 // While a version's audio plays, highlight the bar being heard in its scores.
 async function followPlayback(versions) {
@@ -456,19 +563,41 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/create":
-            self.send_error(404)
-            return
+        path = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", 0))
         try:
             data = json.loads(self.rfile.read(length))
-            url = data["url"].strip()
-            version_dir = self._new_version_dir(data["project"], data["version"])
+            if path == "/api/create":
+                url = data["url"].strip()
+                version_dir = self._new_version_dir(data["project"], data["version"])
+                start_version_job(version_dir, url=url)
+                self._send_json(200, {"project": version_dir.parent.name})
+            elif path == "/api/feedback":
+                self._send_json(200, self._save_feedback(data))
+            else:
+                self.send_error(404)
         except (ValueError, KeyError) as e:
             self._send_json(400, {"error": str(e)})
-            return
-        start_version_job(version_dir, url=url)
-        self._send_json(200, {"project": version_dir.parent.name})
+
+    def _save_feedback(self, data: dict) -> dict:
+        """Set or delete one feedback entry; returns the variant's feedback map."""
+        parts = [data["project"], data["version"], data["variant"]]
+        if not all(re.fullmatch(r"[a-z0-9-]+", p) for p in parts):
+            raise ValueError("bad path component")
+        variant_dir = self.root.joinpath(*parts)
+        if not variant_dir.is_dir():
+            raise ValueError("no such variant")
+        fb_file = variant_dir / "feedback.json"
+        feedback = json.loads(fb_file.read_text()) if fb_file.exists() else {}
+        key = str(data["key"])
+        labels = [str(x) for x in data.get("labels", [])]
+        text = str(data.get("text", "")).strip()
+        if labels or text:
+            feedback[key] = {"labels": labels, "text": text}
+        else:
+            feedback.pop(key, None)
+        fb_file.write_text(json.dumps(feedback, indent=1))
+        return feedback
 
     def do_PUT(self):
         parsed = urlparse(self.path)

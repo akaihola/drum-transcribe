@@ -67,7 +67,15 @@ version for comparison happens at the bottom of the page. Per version:
   — MuseScore 4's command-line converter sometimes refuses files its own
   editor opens fine, so the .mscz link can be missing;
 - both pipelines' **scores rendered on the page** in tabs;
-- a **pipeline log** link while processing runs (or if it fails).
+- a **progress checklist** and **pipeline log** link while processing runs
+  (or if it fails);
+- **feedback on the notation**: point at any note or rest (it turns blue),
+  click to record what is wrong (extra note, missing note, wrong rhythm,
+  wrong drum, wrong time signature, or free text). Flagged notes are tinted
+  orange with the feedback shown on hover; click again to edit or remove.
+  Clicking the score title takes general feedback. Everything is saved in
+  the variant's `feedback.json`;
+- a **"?" help button** on every page opens illustrated instructions.
 
 ## Running a transcription from the command line
 
