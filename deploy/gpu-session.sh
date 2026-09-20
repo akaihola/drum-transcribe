@@ -26,8 +26,9 @@ alive() { [ -e $STATE ] && vast show instance "$(cat $STATE)" --raw 2>/dev/null 
 ssh_cmd() {  # run "$@" on the session instance
     local hostport
     hostport=$(vast ssh-url "$(cat $STATE)") && hostport=${hostport#ssh://root@}
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-        -o ConnectTimeout=10 -p "${hostport##*:}" "root@${hostport%%:*}" "$@"
+    ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR -o ConnectTimeout=10 \
+        -p "${hostport##*:}" "root@${hostport%%:*}" "$@"
 }
 
 case ${1:?usage: gpu-session.sh start|run|status|stop} in
