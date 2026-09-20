@@ -52,7 +52,10 @@ unsandboxed server.
 A read-only copy of the review web app runs in Scaleway's cloud so it can be
 viewed from anywhere without the laptop being on:
 
-- URL: https://drumtranscribe1eb07827-webapp.functions.fnc.fr-par.scw.cloud
+- URL: https://plokkaus.vempai.men/ — a custom domain (CNAME `plokkaus` in the
+  Cloudflare `vempai.men` zone, DNS-only, pointing at the container endpoint
+  https://drumtranscribe1eb07827-webapp.functions.fnc.fr-par.scw.cloud, which
+  also still works). TLS certificate is issued and renewed by Scaleway.
 - What it is: the same web pages as the local server, serving whatever is in
   the `drum-transcribe-results` bucket (see [gpu-workers.md](gpu-workers.md)).
   Uploading songs or starting new processing does NOT work there — the image
