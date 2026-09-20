@@ -1,8 +1,9 @@
 # GPU pipeline image for rented GPU hosts (Vast.ai etc.).
 # Base: Vast's own PyTorch image — pre-cached on many Vast hosts, so a
 # cache-hit host only pulls our dep/model/code layers.
-FROM docker.io/vastai/pytorch:cuda-12.6.3-auto
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# torch 2.11 to match the newest existing torchaudio (torchaudio is frozen
+# upstream and lags torch; the -auto tags run torch 2.14 which no torchaudio fits)
+FROM docker.io/vastai/pytorch:2.11.0-cu128-cuda-12.9-mini-py311-2026-09-08
 WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
@@ -10,10 +11,14 @@ COPY src ./src
 # resolvers ignore and PyPI doesn't have; rewrite to a PEP 508 direct reference.
 # Guard against the base image's torch being too old or getting shadowed.
 RUN sed -i 's|"adtof-pytorch"|"adtof-pytorch @ git+https://github.com/xavriley/ADTOF-pytorch"|' pyproject.toml \
-    && uv pip install --python "$(command -v python)" --no-cache . onnxruntime-gpu \
-    && python -c "import torch; v=tuple(map(int, torch.__version__.split('+')[0].split('.')[:2])); assert v >= (2, 6), torch.__version__; assert torch.version.cuda"
+    # drop laptop-specific uv config (CPU-only torch index) so torchaudio
+    # resolves to the CUDA build matching the base image's torch
+    && sed -i '/^\[tool\.uv\]/,$d' pyproject.toml \
+    && printf '\n[tool.hatch.metadata]\nallow-direct-references = true\n' >> pyproject.toml \
+    && uv pip install --python /venv/main/bin/python --no-cache . onnxruntime-gpu \
+    && /venv/main/bin/python -c "import torch; v=tuple(map(int, torch.__version__.split('+')[0].split('.')[:2])); assert v >= (2, 6), torch.__version__; assert torch.version.cuda"
 # model checkpoints baked in; pipeline resolves .cache/ and .models/ relative to CWD
 COPY .cache ./.cache
 COPY .models ./.models
 ENV TORCH_HOME=/app/.cache/torch HF_HOME=/app/.cache/hf XDG_CACHE_HOME=/app/.cache
-ENTRYPOINT ["drum-transcribe"]
+ENTRYPOINT ["/venv/main/bin/drum-transcribe"]
