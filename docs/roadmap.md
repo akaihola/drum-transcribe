@@ -43,14 +43,9 @@ sonifications, score feedback, help) is feature-complete for review work.
   Open questions: how feedback annotations map back to specific hits
   (feedback keys currently break on regeneration — see Known issues), and
   which direction gives the most value for the least complexity.
-- **Play-from-bar inside MuseScore** ("Route 2", agreed 2026-09-20): a tiny
-  QML plugin for MuseScore Studio 4.7 (user runs 4.7.4.1 on NixOS) reads the
-  selected bar and POSTs it to this server; the server pushes a seek event
-  to the open project page, which plays the recording from that bar (web-app
-  click-to-play shipped 2026-09-20 provides the seek mechanism). Prior art
-  to borrow from: hoshi005/musescore-audio-sync (GPL-3, MS 4.6+). Known MS4
-  limits: no dock panels / selection-change events (UX = select bar + press
-  plugin shortcut), plugin can't play audio itself.
+- **Play-from-bar inside MuseScore** (agreed 2026-09-20, build in a fresh
+  session): full design, research findings and prior-art links in
+  [musescore-plugin.md](musescore-plugin.md).
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
 - PDF export (Verovio can render server-side) if printed parts are wanted.
