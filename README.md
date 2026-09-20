@@ -58,6 +58,14 @@ uv run drum-transcribe serve
 
 Open `http://<the machine's address>:8765/` from any of your machines.
 
+The same site also runs in the cloud at <https://plokkaus.vempai.men/>, so
+it works even when the laptop is off. There you can listen and review
+everything, and also add new pieces or versions — as an upload or a direct
+audio link (YouTube and Google Drive links only work on the laptop) — as
+long as you tick "process on a rented cloud GPU". Keep the page open while
+it processes. The first visit after a quiet period takes some extra
+seconds while the site fetches the latest results.
+
 **Main page**: your projects, plus a form to transcribe a new piece — upload
 a sound or video file, or paste a public link (YouTube, a Google Drive share
 link, or a direct URL). Submitting creates the project page and starts all

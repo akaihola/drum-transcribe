@@ -48,7 +48,9 @@ handed to `deploy/run-on-gpu.sh` — rent (or reuse an open
 the same `output/<song>/<version>/`, destroy unless the session owns it. The script's `== … ==`
 stage lines go to `pipeline.log`, so the page's stage indicator works;
 the artifact checklist fills only when results sync back at the end
-(and `stems/` are not synced, so no drums-stem player). See
+(and `stems/` are not synced, so no drums-stem player). This works both
+on the laptop and in the cloud container (which has no `uv`: the scripts
+and the presign step fall back to plain `python3`/`vastai`). See
 [gpu-workers.md](gpu-workers.md).
 
 ## Front-end notes
