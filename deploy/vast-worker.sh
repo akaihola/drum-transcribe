@@ -30,7 +30,8 @@ export RCLONE_CONFIG_S3_TYPE=s3 RCLONE_CONFIG_S3_PROVIDER=Scaleway \
     RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=$S3_SECRET_KEY
 
 mkdir -p "$dest"
-src="$dest/source.${SOURCE_URL##*.}"
+urlpath=${SOURCE_URL%%\?*}   # strip query string (e.g. presigned S3 params)
+src="$dest/source.${urlpath##*.}"
 [ -e "$src" ] || curl -fsSL "$SOURCE_URL" -o "$src"
 
 for variant in $VARIANTS; do
