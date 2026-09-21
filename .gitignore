@@ -25,3 +25,4 @@ vendor/
 .secrets*
 .gpu-instance
 .gpu-known-hosts
+.build-ctx-gpu/

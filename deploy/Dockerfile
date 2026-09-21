@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM docker.io/python:3.12-slim
 WORKDIR /app
 # openssh-client: gpu-session.sh delivers jobs to Vast instances over ssh
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-client \
