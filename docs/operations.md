@@ -110,14 +110,24 @@ viewed from anywhere without the laptop being on:
   New results appear after the next cold start (or a `redeploy`) — no image
   rebuild needed for data.
 - How it's built (code changes only): `deploy/Dockerfile` — a slim Python
-  image with just the web app code. Stage a build context with
-  `pyproject.toml`, `src/`, and `deploy/`, then:
+  image with just the web app code. Built and pushed on gogo (600 Mbit
+  uplink; workflow verified 2026-09-21 — atom's ~11 Mbit uplink also
+  manages this small image in a few minutes if gogo is unavailable):
   ```bash
-  docker build -f deploy/Dockerfile -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test <context>
-  docker login rg.fr-par.scw.cloud -u nologin -p <scw-secret-key>
-  docker push rg.fr-par.scw.cloud/drum-transcribe/webapp:test
+  rsync -a pyproject.toml src deploy agent@gogo:drum-transcribe-build/ctx/
+  # registry credentials: atom's podman logins live in the ephemeral
+  # /run/user/1000/containers/auth.json — copy per push, remove after
+  scp /run/user/1000/containers/auth.json agent@gogo:drum-transcribe-build/auth.json
+  ssh agent@gogo 'cd drum-transcribe-build \
+    && podman build -f ctx/deploy/Dockerfile -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test ctx \
+    && podman push --authfile auth.json rg.fr-par.scw.cloud/drum-transcribe/webapp:test \
+    && rm auth.json'
   , scw container container redeploy <container-id> --profile drum-transcribe
   ```
+  gogo notes: its podman resolves no short image names (every `FROM`
+  must be fully qualified, e.g. `docker.io/python:3.12-slim`), and its
+  disk is ~99 % full — fine for this 400 MB image, hopeless for the
+  13 GB+ GPU image (see [gpu-workers.md](gpu-workers.md) § 1).
 - Scaleway resources (profile `drum-transcribe`, region fr-par): registry
   namespace `drum-transcribe`, containers namespace `drum-transcribe`,
   container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
