@@ -11,12 +11,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from functools import partial
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from . import gate
 from .beats import BeatGrid, regularize
 from .ingest import AUDIO_EXTS, VARIANTS, start_rerun_job, start_version_job
 
@@ -283,6 +287,10 @@ CREATE_FORM = """
   <input type="file" name="file" accept="audio/*,video/*">
   <label><input type="checkbox" name="gpu">
     Process on a rented cloud GPU (faster, costs ~1 cent)</label>
+  <label class="unlock" hidden>Many new pieces were added recently, so a
+    password is needed just now — ask the site owner for one. It is
+    remembered on this browser.
+    <input type="password" name="password" autocomplete="current-password"></label>
   <button>Start transcription</button>
   <span class="pending" id="create-status"></span>
 </form>
@@ -296,6 +304,12 @@ async function submitCreate(form) {
   const gpu = form.gpu.checked;
   if (!file && !url) { alert("Give a link or choose a file."); return false; }
   try {
+    if (form.password.value) {  // throttled earlier: unlock, then proceed
+      const u = await fetch("/api/unlock", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: form.password.value }) });
+      if (!u.ok) throw new Error("wrong password");
+    }
     let resp;
     if (file) {
       status.textContent = "uploading…";
@@ -311,6 +325,12 @@ async function submitCreate(form) {
         body: JSON.stringify({ project, version, url, gpu }) });
     }
     const d = await resp.json();
+    if (resp.status === 429 && d.throttled) {
+      status.textContent = "";
+      form.querySelector(".unlock").hidden = false;
+      form.password.focus();
+      return false;
+    }
     if (!resp.ok) throw new Error(d.error || resp.statusText);
     location.href = `/p/${d.project}`;
   } catch (e) { status.textContent = ""; alert("Failed: " + e.message); }
@@ -1039,10 +1059,23 @@ class AppHandler(SimpleHTTPRequestHandler):
         try:
             data = json.loads(self.rfile.read(length))
             if path == "/api/create":
+                if (kind := self._gate()) is None:
+                    return
                 url = data["url"].strip()
                 version_dir = self._new_version_dir(data["project"], data["version"])
+                gate.write_marker(version_dir, authorized=kind == "auth")
                 start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
                 self._send_json(200, {"project": version_dir.parent.name})
+            elif path == "/api/unlock":
+                salt = gate.verify_password(str(data.get("password", "")))
+                if salt is None:
+                    time.sleep(1)  # with ~72-bit passphrases this is plenty
+                    self._send_json(403, {"error": "wrong password"})
+                else:
+                    self._send_json(200, {"ok": True}, headers={
+                        "Set-Cookie": f"{gate.COOKIE}={gate.token_for(salt)}; "
+                                      "Path=/; Max-Age=31536000; HttpOnly; "
+                                      "Secure; SameSite=Lax"})
             elif path == "/api/feedback":
                 self._send_json(200, self._save_feedback(data))
             elif path == "/api/rawbars":
@@ -1099,6 +1132,8 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path != "/api/upload":
             self.send_error(404)
             return
+        if (kind := self._gate()) is None:
+            return
         q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
         try:
             suffix = Path(q.get("filename", "")).suffix.lower()
@@ -1108,7 +1143,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         except (ValueError, KeyError) as e:
             self._send_json(400, {"error": str(e)})
             return
-        version_dir.mkdir(parents=True, exist_ok=True)
+        gate.write_marker(version_dir, authorized=kind == "auth")
         upload = version_dir / f"upload{suffix}"
         remaining = int(self.headers.get("Content-Length", 0))
         with open(upload, "wb") as f:
@@ -1120,6 +1155,19 @@ class AppHandler(SimpleHTTPRequestHandler):
                 remaining -= len(chunk)
         start_version_job(version_dir, upload=upload, gpu=q.get("gpu") == "1")
         self._send_json(200, {"project": version_dir.parent.name})
+
+    def _gate(self) -> str | None:
+        """"auth"/"anon" if creation may proceed; None after sending 429."""
+        if not gate.enabled():
+            return "anon"
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        if gate.COOKIE in cookie and gate.valid_token(cookie[gate.COOKIE].value):
+            return "auth"
+        if gate.allow_anonymous(self.root):
+            return "anon"
+        self._send_json(429, {"throttled": True, "error": "password needed"})
+        self.close_connection = True  # a PUT body may be left unread
+        return None
 
     def _new_version_dir(self, project: str, version: str) -> Path:
         version_dir = self.root / slugify(project) / slugify(version)
@@ -1134,16 +1182,21 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_json(self, status: int, payload: dict) -> None:
+    def _send_json(self, status: int, payload: dict,
+                   headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
 
 def serve(root: Path, host: str = "0.0.0.0", port: int = 8765) -> None:
+    if gate.enabled() and not os.environ.get("TOKEN_SECRET"):
+        raise SystemExit("CREATE_PASSWORDS is set but TOKEN_SECRET is not")
     root.mkdir(parents=True, exist_ok=True)
     handler = partial(AppHandler, root=root)
     httpd = ThreadingHTTPServer((host, port), handler)
