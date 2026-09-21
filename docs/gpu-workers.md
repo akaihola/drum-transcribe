@@ -50,19 +50,36 @@ Design decisions, each of which broke something before it was made:
   No startup downloads, pinned bytes, one failure point. Workers must run
   with **CWD `/app`** — `.models/` resolves relative to CWD.
 
-Rebuild + push (layers ordered deps → models → code, so code changes
-re-push only megabytes):
+Rebuild + push (layers ordered deps → models → code: the deps layer
+installs from `pyproject.toml` alone, so code-only changes rebuild and
+re-push only megabytes — fine even on atom's 11 Mbit uplink, because
+GHCR keeps the unchanged multi-GB layers):
 
 ```bash
-# stage: pyproject.toml, src/, .cache/{torch,hf}, .models into one dir
-docker build -t ghcr.io/akaihola/drum-transcribe-gpu:latest <context>
-docker push ghcr.io/akaihola/drum-transcribe-gpu:latest   # user is logged in to ghcr.io
+# stage a clean context — repo .cache also holds unrelated junk (uv,
+# nix, fontconfig…), so pick just the two model-cache dirs
+mkdir -p .build-ctx-gpu/.cache
+cp -al .cache/torch .cache/hf .build-ctx-gpu/.cache/
+cp -al .models src deploy .build-ctx-gpu/
+cp pyproject.toml .build-ctx-gpu/
+podman build -f .build-ctx-gpu/deploy/Dockerfile.gpu \
+  -t ghcr.io/akaihola/drum-transcribe-gpu:latest .build-ctx-gpu
+podman push ghcr.io/akaihola/drum-transcribe-gpu:latest  # atom is logged in to ghcr.io
 ```
 
-Push from a fast-uplink machine (e.g. `agent@gogo`, 600 Mbit fiber) —
-the atom laptop uploads at ~11 Mbit/s, turning an 8 GB push into ~2 h.
-The build context is ~1 MB plus the checkpoint caches; the base image
-and checkpoints are public downloads any host can fetch.
+Before building, confirm `.cache/torch/hub/checkpoints/` holds all ten
+files (9 htdemucs `*.th` + `beat_this-final0.ckpt`) — the htdemucs ones
+vanished from the repo cache once (2026-09-21; restored from
+`~/.cache/torch/hub/checkpoints/`, where torch hub actually downloads
+them). A context missing them would build an image that breaks the
+no-startup-downloads design without any build error.
+
+Build on atom, not gogo (checked 2026-09-21): gogo's 226 GB disk sits
+at ~99 % (~6 GB free after pruning), and this base image alone unpacks
+to 13 GB — gogo can neither build nor even pull it. Its 600 Mbit
+uplink still earns its keep for the small webapp image
+([operations.md](operations.md)); the layer reordering above is what
+made atom's slow uplink acceptable here.
 
 ## 2. The worker
 
