@@ -24,3 +24,4 @@ vendor/
 .models/
 .secrets*
 .gpu-instance
+.gpu-known-hosts

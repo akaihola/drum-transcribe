@@ -130,6 +130,14 @@ worker touches `/tmp/alive` per variant to feed the watchdog. One gap:
 the watchdog starts only after the image pull, so a host stuck pulling
 is guarded by the caller's ssh-wait timeout (~22 min), not the watchdog.
 
+The rented host is a stranger, and the job stream carries the worker's
+S3 credentials, so ssh pins the instance's host key on first contact
+(`StrictHostKeyChecking=accept-new` writing to `.gpu-known-hosts`,
+wiped by `start` since each instance has its own key). Vast can't
+publish the key in advance, so the very first connection of a session
+is taken on trust; every later one is checked, which is what matters
+for the long jobs this session exists for.
+
 Spot-market hardening, each rule paid for by a real failure (2026-09-20):
 
 - **ssh directly to the host's mapped port 22** (`public_ipaddr` +

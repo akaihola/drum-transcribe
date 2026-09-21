@@ -7,11 +7,12 @@
 #   deploy/gpu-session.sh status                 print instance id if alive
 #   deploy/gpu-session.sh stop                   destroy the instance
 #
-# Instance id lives in .gpu-instance (gitignored). Safety net: the
-# instance runs a watchdog that destroys the instance itself — via the
-# Vast-injected per-instance CONTAINER_API_KEY, which can only manage
-# that one instance — after IDLE_MINUTES without job activity, so a
-# crashed or disconnected laptop can't leave it billing forever.
+# Instance id lives in .gpu-instance, the instance's ssh host key in
+# .gpu-known-hosts (both gitignored). Safety net: the instance runs a
+# watchdog that destroys the instance itself — via the Vast-injected
+# per-instance CONTAINER_API_KEY, which can only manage that one
+# instance — after IDLE_MINUTES without job activity, so a crashed or
+# disconnected laptop can't leave it billing forever.
 # deploy/vast-worker.sh is streamed from the repo over ssh (no image
 # rebuild for worker changes); it touches /tmp/alive to feed the
 # watchdog. Needs .secrets.worker-s3.json and a configured vastai key.
@@ -19,6 +20,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 IMAGE=ghcr.io/akaihola/drum-transcribe-gpu:latest
 STATE=.gpu-instance
+KNOWN_HOSTS=.gpu-known-hosts
 
 # laptop: tools via uv; cloud container: vastai + boto3 installed directly
 if command -v uv >/dev/null; then
@@ -44,7 +46,10 @@ print(d.get('public_ipaddr') or '', p[0]['HostPort'] if p else '')" 2>/dev/null)
         local hp; hp=$(vast ssh-url "$id") && hp=${hp#ssh://root@}
         host=${hp%%:*} port=${hp##*:}
     fi
-    ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    # trust on first use: Vast can't hand us the host key in advance, but
+    # pinning it for the session blocks a mid-job host swap from reading the
+    # worker S3 key off the wire
+    ssh -F /dev/null -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$KNOWN_HOSTS \
         -o LogLevel=ERROR -o ConnectTimeout=10 \
         -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
         -p "$port" "root@$host" "$@"
@@ -55,7 +60,7 @@ case ${1:?usage: gpu-session.sh start|run|status|stop} in
 start)
     IDLE_MIN=${2:-30}
     if alive; then echo "session already running: instance $(cat $STATE)"; exit 0; fi
-    rm -f $STATE
+    rm -f $STATE $KNOWN_HOSTS  # new instance, new host key to pin
 
     echo "== searching spot offers =="
     # cuda_max_good: host driver must support the image's CUDA 12.8;
