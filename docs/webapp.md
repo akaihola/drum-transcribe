@@ -17,8 +17,8 @@ without it browsers heuristically cache and render stale scores), and
 | `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job |
 | `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job |
 | `POST /api/unlock` | `{password}` → scrypt check → bypass cookie (see Throttling) |
-| `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
-| `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
+| `POST /api/feedback` | set/delete one feedback entry, returns variant's map (gated) |
+| `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run (gated) |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /files/**` | static from the output root |
@@ -34,10 +34,12 @@ this take seconds, but note it renumbers bars, which orphans feedback keys.
 
 ## Throttling (gate.py)
 
-Creation (`/api/create`, `/api/upload`) is throttled only where the
-`CREATE_PASSWORDS` env var is set — in practice the cloud container; the
-laptop server stays unlimited. Design notes (all forced by the serverless
-platform: scale-to-zero kills memory, instances don't share it):
+Creation (`/api/create`, `/api/upload`) is throttled, and editing existing
+results (`/api/feedback`, `/api/rawbars`) need the unlock cookie outright,
+only where the `CREATE_PASSWORDS` env var is set — in practice the cloud
+container; the laptop server stays unlimited. Design notes (all forced by
+the serverless platform: scale-to-zero kills memory, instances don't share
+it):
 
 - **Global cap, no per-IP state**: at most `THROTTLE_MAX` (3) anonymous
   creations per `THROTTLE_HOURS` (24), counted from `created` marker files
@@ -50,6 +52,12 @@ platform: scale-to-zero kills memory, instances don't share it):
   `CREATE_PASSWORDS`, one per person — `drum-transcribe hash-password`
   makes them) and answers with a `create_token` cookie
   (HttpOnly/Secure/SameSite=Lax, 1 year).
+- **Edits need the cookie, not the budget** (`_may_edit`): feedback text
+  lands in someone else's results and a meter switch costs a re-run, so
+  anonymous visitors get 403 — the anonymous creation budget buys creation
+  only. The page answers a 403 by prompting for the password and retrying
+  (`postGated`), so a password holder can unlock from the score too, not
+  just from the create form.
 - **Token**: stateless — `HMAC(TOKEN_SECRET, salt of the matched entry)`.
   Deleting a person's entry revokes their tokens; rotating `TOKEN_SECRET`
   revokes all. Brute force is answered with passphrase entropy (~72 bits)

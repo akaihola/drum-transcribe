@@ -271,7 +271,9 @@ HELP_HTML = """
   free text). Notes with saved feedback are tinted orange; hover to read the
   note, click again to edit or remove it. Clicking the score's title takes
   general feedback about the whole transcription. Feedback is stored with
-  the other result files (feedback.json).</p>
+  the other result files (feedback.json). On the public cloud site, saving
+  feedback or switching the meter asks for the site's password once per
+  browser.</p>
 </dialog>
 """
 
@@ -587,10 +589,27 @@ window.addEventListener("resize", () =>
 
 let vrvReady;
 
-async function setRawBars(version, raw) {
-  const r = await fetch("/api/rawbars", { method: "POST",
+// Changing existing results needs the unlock password where the server is
+// throttled (the public site). Ask for it when refused, then retry — the
+// cookie /api/unlock sets lasts a year, so this happens once per browser.
+async function postGated(url, body) {
+  const send = () => fetch(url, { method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project: PROJECT, version, raw }) });
+    body: JSON.stringify(body) });
+  const r = await send();
+  if (r.status !== 403) return r;
+  const password = prompt("Changing this needs a password — ask the site " +
+                          "owner for one. It is remembered on this browser.");
+  if (!password) return r;
+  const u = await fetch("/api/unlock", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }) });
+  if (!u.ok) { alert("Wrong password."); return r; }
+  return send();
+}
+
+async function setRawBars(version, raw) {
+  const r = await postGated("/api/rawbars", { project: PROJECT, version, raw });
   if (r.ok) alert("Recomputing the scores with this setting — " +
                   "reload the page in a minute to see the result.");
   else alert("Changing the setting failed.");
@@ -751,9 +770,8 @@ function openFbMenu(sym, x, y) {
       const labels = act === "delete" ? [] :
         [...menu.querySelectorAll("input:checked")].map(i => i.value);
       const text = act === "delete" ? "" : menu.querySelector("textarea").value;
-      const r = await fetch("/api/feedback", { method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project: PROJECT, version, variant, key, labels, text }) });
+      const r = await postGated("/api/feedback",
+        { project: PROJECT, version, variant, key, labels, text });
       if (r.ok) {
         fbMaps[panel.id] = await r.json();
         annotate(panel.querySelector(".score"));
@@ -1080,8 +1098,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                                       "Path=/; Max-Age=31536000; HttpOnly; "
                                       "Secure; SameSite=Lax"})
             elif path == "/api/feedback":
+                if not self._may_edit():
+                    return
                 self._send_json(200, self._save_feedback(data))
             elif path == "/api/rawbars":
+                if not self._may_edit():
+                    return
                 self._set_raw_bars(data)
                 self._send_json(200, {"ok": True})
             elif path == "/api/seek":
@@ -1159,12 +1181,27 @@ class AppHandler(SimpleHTTPRequestHandler):
         start_version_job(version_dir, upload=upload, gpu=q.get("gpu") == "1")
         self._send_json(200, {"project": version_dir.parent.name})
 
+    def _unlocked(self) -> bool:
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        return gate.COOKIE in cookie and gate.valid_token(cookie[gate.COOKIE].value)
+
+    def _may_edit(self) -> bool:
+        """May this request change existing results? 403 (and False) if not.
+
+        Feedback and the meter switch write into someone else's results (and
+        a re-run costs compute), so where creation is throttled they need the
+        unlock password — the anonymous creation budget does not cover them.
+        """
+        if not gate.enabled() or self._unlocked():
+            return True
+        self._send_json(403, {"error": "password needed"})
+        return False
+
     def _gate(self) -> str | None:
         """"auth"/"anon" if creation may proceed; None after sending 429."""
         if not gate.enabled():
             return "anon"
-        cookie = SimpleCookie(self.headers.get("Cookie", ""))
-        if gate.COOKIE in cookie and gate.valid_token(cookie[gate.COOKIE].value):
+        if self._unlocked():
             return "auth"
         if gate.allow_anonymous(self.root):
             return "anon"
