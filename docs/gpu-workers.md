@@ -84,6 +84,13 @@ Fetches the static rclone binary at startup (~20 MB, seconds).
 - Pull finished results into the canonical tree, then commit them:
   `rclone sync s3:drum-transcribe-results output/` (configure rclone with
   the same key, or use `, scw object` / any S3 client).
+- **Everything in the bucket is untrusted.** Every rented host gets the
+  worker key, so a host operator can upload any file under any name —
+  including names like `../../.bashrc` that try to escape the results
+  folder and overwrite files on the laptop or in the cloud app. rclone
+  blocks that by itself; the two places that copy the bucket with boto3
+  (`deploy/gpu-session.sh run`, `deploy/sync_bucket.py`) check each name
+  and skip anything landing outside the destination folder.
 
 ## 4. Renting a GPU (Vast.ai)
 

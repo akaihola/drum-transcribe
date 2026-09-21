@@ -113,8 +113,13 @@ from pathlib import Path
 c = json.load(open('.secrets.worker-s3.json'))
 s3 = boto3.client('s3', endpoint_url=c['endpoint'], region_name=c['region'],
                   aws_access_key_id=c['access_key'], aws_secret_access_key=c['secret_key'])
+out = Path('output').resolve()
 for o in s3.list_objects_v2(Bucket=c['bucket'], Prefix=sys.argv[1] + '/')['Contents']:
-    dst = Path('output') / o['Key']
+    dst = (out / o['Key']).resolve()
+    # keys are written by the rented GPU host, so '..' is attacker input
+    if not dst.is_relative_to(out):
+        print('   skipping unsafe key', repr(o['Key']))
+        continue
     dst.parent.mkdir(parents=True, exist_ok=True)
     s3.download_file(c['bucket'], o['Key'], str(dst))
     print('  ', o['Key'])

@@ -8,7 +8,7 @@ import boto3  # ty: ignore[unresolved-import]  # installed in the container only
 
 
 def main() -> None:
-    dest = Path(sys.argv[1])
+    dest = Path(sys.argv[1]).resolve()
     s3 = boto3.client(
         "s3",
         endpoint_url=os.environ["S3_ENDPOINT"],
@@ -22,7 +22,11 @@ def main() -> None:
         for obj in page.get("Contents", []):
             if obj["Key"].startswith("sources/"):  # worker inputs, not results
                 continue
-            path = dest / obj["Key"]
+            path = (dest / obj["Key"]).resolve()
+            # keys are written by rented GPU hosts, so ".." is attacker input
+            if not path.is_relative_to(dest):
+                print(f"skipping unsafe key {obj['Key']!r}", flush=True)
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
             s3.download_file(bucket, obj["Key"], str(path))
             n += 1
