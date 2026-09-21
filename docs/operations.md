@@ -103,5 +103,6 @@ viewed from anywhere without the laptop being on:
 ## GPU workers
 
 Heavy processing (especially mdx23c) can run on rented cloud GPUs for
-under a cent per song: see [gpu-workers.md](gpu-workers.md) for the
+a few cents per song (measured: $0.02–0.03 all-in, see its §5): see
+[gpu-workers.md](gpu-workers.md) for the
 image, worker script, storage bucket, and Vast.ai workflow.

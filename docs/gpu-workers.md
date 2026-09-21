@@ -190,10 +190,39 @@ happen per variant; just relaunch elsewhere.
 
 | item | cost |
 |---|---|
-| RTX 3090 spot, EU | ~$0.09/h → < €0.01 per song |
+| RTX 3090 spot, EU | floor ~$0.08–0.13/h; we bid 1.25× → pay $0.10–0.17/h |
+| one song, all 3 variants | **$0.02–0.03 all-in** (measured, see below) |
 | GHCR public image | €0 (storage and bandwidth free) |
 | bucket storage | ~€0.01/GB/month; a song's results ≈ 50 MB |
 | cold start | ~1–3 min on a cache-hit host, up to ~10 min otherwise |
+
+Measured billing (`vastai show invoices`, 2026-09-20/21 test campaign).
+A Vast invoice line has three parts: **GPU** (billed only while the
+container runs), **storage** (billed for the instance's whole lifetime —
+including while pulling the image, stopped, or outbid; the 40 GB disk
+runs $0.007–0.05/h depending on host), and **upload/download**
+(~$0.001/job at our volumes). The two successful production-path runs:
+
+| run | GPU time | GPU | storage | net | total |
+|---|---|---|---|---|---|
+| 10-min song, 3 variants + image pull | 0.16 h @ $0.167 | $0.027 | $0.002 | $0.001 | **$0.030** |
+| 3-min song, 3 variants + image pull | 0.10 h @ $0.135 | $0.014 | $0.005 | — | **$0.019** |
+
+Failure economics, from the same campaign (13 instances, ~$0.25 total —
+the hardening rules in §4 exist to keep these rare):
+
+- A host stuck pulling the image, or outbid before start, bills
+  **storage only** ($0.003–0.03) — annoying, not scary.
+- A host with a broken CUDA driver is the worst case: it *processes*, on
+  CPU, slowly, billing GPU rate for garbage throughput ($0.02 for one
+  half-finished job). The post-ssh `torch.cuda.is_available()` check now
+  catches this in seconds (~$0.001).
+- The idle watchdog caps an abandoned instance at the idle timeout:
+  ~$0.05 at the default 30 min.
+
+Rule of thumb: **a song costs 2–3 cents; a whole failed rental costs
+about the same; only an undetected-CPU host or a forgotten instance
+costs more** — and both now have guards.
 
 Alternatives considered and rejected on price or fit: Scaleway serverless
 CPU (adtof-only viable at ~€0.03/song, mdx23c ~2 h/€0.60), managed L4 at
