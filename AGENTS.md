@@ -55,5 +55,6 @@ Model caches: `.cache/` (torch, HF) and `.models/` (MDX23C), both gitignored.
 - [docs/musescore-plugin.md](docs/musescore-plugin.md) — play-from-bar MuseScore plugin (musescore/PlayFromBar.qml) + server design
 - [docs/operations.md](docs/operations.md) — running on atom: sandbox, firewall, systemd, caches; cloud web app copy
 - [docs/gpu-workers.md](docs/gpu-workers.md) — processing songs on rented cloud GPUs (image, worker, bucket, Vast.ai)
+- [docs/recovery.md](docs/recovery.md) — laptop-loss plan: which secrets go in the password manager, rebuild steps
 - [docs/roadmap.md](docs/roadmap.md) — current state, known issues, agreed next steps
 - [docs/adt-landscape.md](docs/adt-landscape.md) — 2026 tool survey the stack was chosen from
