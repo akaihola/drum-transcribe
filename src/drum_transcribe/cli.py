@@ -56,12 +56,30 @@ def main(argv: list[str] | None = None) -> int:
     srv.add_argument("--host", default="0.0.0.0")
     srv.add_argument("--port", type=int, default=8765)
 
+    pw = sub.add_parser("hash-password",
+                        help="make a CREATE_PASSWORDS entry for the cloud "
+                             "webapp's creation throttle (see docs/webapp.md)")
+    pw.add_argument("password", nargs="?", default=None,
+                    help="password to hash (default: generate a passphrase)")
+
     args = parser.parse_args(argv)
 
     if args.command == "serve":
         from .serve import serve
 
         serve(args.root, host=args.host, port=args.port)
+        return 0
+
+    if args.command == "hash-password":
+        from .gate import generate_passphrase, hash_password
+
+        password = args.password or generate_passphrase()
+        if len(password) < 12:
+            parser.error("password must be at least 12 characters")
+        print(f"password: {password}")
+        print(f"entry:    {hash_password(password)}")
+        print("Append the entry to the container's CREATE_PASSWORDS secret "
+              "env var (comma-separated, one entry per person).")
         return 0
 
     return run_pipeline(args)
