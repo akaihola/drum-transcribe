@@ -131,7 +131,9 @@ viewed from anywhere without the laptop being on:
 - Scaleway resources (profile `drum-transcribe`, region fr-par): registry
   namespace `drum-transcribe`, containers namespace `drum-transcribe`,
   container `webapp` (id 9a37c1c8-6bf7-4a65-bee0-44db504fd1d3, 1 GB RAM,
-  500 mvCPU, scales to zero when idle — costs nothing while unused).
+  500 mvCPU, scales to zero when idle — costs nothing while unused,
+  as long as no open page is polling it; see
+  [musescore-plugin.md](musescore-plugin.md) on the `/api/seek` poll).
 
 ## GPU workers
 

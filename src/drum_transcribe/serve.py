@@ -869,22 +869,40 @@ document.addEventListener("click", e => {
 // The server owns the play/pause toggle (repeated bar = pause), so every
 // open page acts the same way — a page must never decide from its own
 // audio state, or two open pages hand playback back and forth.
-let seekSeq = null;
-setInterval(async () => {
-  try {
-    const s = await fetch("/api/seek").then(r => r.json());
-    if (seekSeq !== null && s.seq !== seekSeq) {
-      if (!s.playing)
-        document.querySelectorAll("audio").forEach(a => a.pause());
-      else {
-        const section =
-          document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
-        if (section) seekToBar(section, s.bar);
+// Poll only while the page is visible or its audio is still playing: a
+// forgotten background tab polling once a second keeps the cloud container
+// awake for as long as it stays open, and it never scales back to zero.
+let seekSeq = null, seekBoot = null, seekPolling = false;
+const seekPollWanted = () =>
+  document.visibilityState === "visible" ||
+  [...document.querySelectorAll("audio")].some(a => !a.paused);
+
+async function pollSeek() {
+  if (seekPolling) return;
+  seekPolling = true;
+  seekSeq = null;  // adopt the current state silently, never replay a seek
+  while (seekPollWanted()) {
+    try {
+      const s = await fetch("/api/seek").then(r => r.json());
+      if (s.boot !== seekBoot) seekSeq = null;  // container restarted, reseq
+      seekBoot = s.boot;
+      if (seekSeq !== null && s.seq !== seekSeq) {
+        if (!s.playing)
+          document.querySelectorAll("audio").forEach(a => a.pause());
+        else {
+          const section =
+            document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
+          if (section) seekToBar(section, s.bar);
+        }
       }
-    }
-    seekSeq = s.seq;
-  } catch (e) { /* server briefly down */ }
-}, 1000);
+      seekSeq = s.seq;
+    } catch (e) { /* server briefly down */ }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  seekPolling = false;
+}
+pollSeek();
+document.addEventListener("visibilitychange", pollSeek);
 
 document.addEventListener("click", e => {
   const btn = e.target.closest(".tabbar button");
@@ -996,6 +1014,11 @@ def scan_output(root: Path) -> dict:
 # on every "pause" press (observed 2026-09-20).
 SEEK = {"seq": 0, "bar": 0, "playing": False}
 
+# Sent alongside SEEK, new on every process start: the cloud container scales
+# to zero, so a page can outlive the server it polls and must not read the
+# restarted server's seq 0 as a fresh seek back to bar 0.
+BOOT = os.urandom(8).hex()
+
 
 class AppHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, root: Path, **kwargs):
@@ -1035,7 +1058,8 @@ class AppHandler(SimpleHTTPRequestHandler):
         elif path == "/api/index":
             self._send(json.dumps(scan_output(self.root)).encode(), "application/json")
         elif path == "/api/seek":
-            self._send(json.dumps(SEEK).encode(), "application/json")
+            self._send(json.dumps(SEEK | {"boot": BOOT}).encode(),
+                       "application/json")
         elif path.startswith("/files/"):
             self.path = self.path[len("/files"):]
             self._send_file()

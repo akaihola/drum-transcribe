@@ -23,7 +23,13 @@ Server side: `POST /api/seek {bar}` bumps a `{seq, bar, playing}` state —
 the server flips `playing` when the same bar repeats, so all open pages
 apply the same play/pause decision ([webapp.md](webapp.md)); project pages
 poll `GET /api/seek` every 1 s (polling chosen over SSE — zero connection
-management).
+management), but **only while the page is visible or its audio is still
+playing**: the cloud copy runs in a scale-to-zero container, and an
+unattended background tab polling once a second held it awake for 17 h
+straight (~54 000 requests) on 2026-09-20/21. The response also carries a
+`boot` id, new on every server start, so a page that outlived a container
+restart re-syncs silently instead of replaying the restarted server's
+`seq` 0 as a seek back to bar 0.
 
 ## Target environment
 
