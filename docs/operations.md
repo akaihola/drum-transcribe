@@ -63,8 +63,9 @@ viewed from anywhere without the laptop being on:
   cloud GPU" checkbox works**: the container uploads the source to the
   bucket and drives a Vast.ai instance through `deploy/run-on-gpu.sh`
   (ssh client + `vastai` + `boto3` are in the image;
-  Creation is throttled for anonymous visitors via the secret env vars
-  `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
+  Creation is throttled for anonymous visitors, and changing existing
+  results (feedback, meter switch) needs the password outright, via the
+  secret env vars `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
   [webapp.md](webapp.md) → Throttling; `drum-transcribe hash-password`
   makes entries). Their values live in the gitignored
   `.secrets.throttle.env` at the repo root on atom; TOKEN_SECRET must stay

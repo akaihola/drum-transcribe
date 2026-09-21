@@ -34,7 +34,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 | `export.py` | best-effort MusicXML → .mscz |
 | `ingest.py` | URL/upload fetch + background pipeline jobs |
 | `serve.py` | web app: pages, API, score feedback |
-| `gate.py` | creation throttle for the cloud webapp: password unlock, bypass cookie |
+| `gate.py` | cloud webapp gate: creation throttle, password unlock, bypass cookie (edits need it too) |
 
 ## Data layout
 
