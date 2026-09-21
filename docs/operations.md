@@ -11,6 +11,16 @@ systemctl --user status|restart drum-transcribe
 Unit: `~/.config/systemd/user/drum-transcribe.service`, runs
 `uv run drum-transcribe serve output --port 8765` in the repo.
 
+**A restart can silently do nothing:** a `drum-transcribe serve` started by
+hand keeps port 8765, so the unit crash-loops on `Address already in use`
+while the old process goes on answering — and `systemctl --user is-active`
+still prints `active` during the auto-restart window, so it looks fine. When
+a change has to be live, check who owns the port: `ss -tlnp | grep 8765`
+should name the unit's PID (`systemctl --user show -p MainPID
+drum-transcribe`). Otherwise kill the stray process and restart. Found on
+2026-09-21, when a security fix looked deployed but an orphan from the
+previous evening was still serving the code it fixed.
+
 **Claude Code sandbox note:** each Bash command gets its own network
 namespace, so a server started inside the sandbox is unreachable from
 anywhere else — start/restart it with sandbox disabled (or via systemctl).

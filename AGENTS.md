@@ -18,7 +18,8 @@ No test suite; verify by running the pipeline on `output/dancing-through-life/ta
 (all stages cached → seconds) and by driving the web UI with PinchTab.
 
 The server runs as a systemd user service: `systemctl --user status drum-transcribe`.
-Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-transcribe`.
+Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-transcribe`
+— then check it took (`ss -tlnp | grep 8765`); see operations.md → The server.
 
 ## Code map (src/drum_transcribe/)
 
