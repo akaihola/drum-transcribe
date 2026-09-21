@@ -78,7 +78,11 @@ viewed from anywhere without the laptop being on:
   secret env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY`/`VAST_API_KEY`/
   `GPU_SSH_KEY_B64` — the last is the base64 of the dedicated
   `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Only uploads
-  and direct-download URLs work there (no yt-dlp/ffmpeg in the image).
+  and direct-download URLs work there (no yt-dlp/ffmpeg in the image), and
+  only to public http(s) addresses — on this deployment `check_url` resolves
+  the host and refuses private ones ([webapp.md](webapp.md) → Fetching a new
+  version), so a visitor can't read the container's own network back out of
+  `/files/…`.
   Caveats: serverless CPU is throttled between requests, so keep the
   version's page open while it processes (its 1 s status polling keeps the
   job moving); if the container is scaled away mid-job, the GPU instance's

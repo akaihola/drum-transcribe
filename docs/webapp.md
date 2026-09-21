@@ -64,18 +64,35 @@ it):
   plus a 1 s delay on failure, not with lockout counters (which would be a
   DoS button and need durable state anyway).
 
+## Fetching a new version (ingest.py)
+
 Daemon thread per new version: fetch (yt-dlp for YouTube, gdown fuzzy for
 Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
 unknown containers) → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`.
 
-`ingest.check_url` rejects every scheme but `http`/`https`: all three
-fetchers happily open `file://`, and on the public server the fetched bytes
-are served back from `/files/…` — a visitor could ask for
-`/proc/self/environ` and read every secret at once. `POST /api/create`
-checks the link first, so a bad one is a 400 with no project directory and
-no throttle marker.
+`ingest.check_url` decides which links the fetchers may open at all —
+everything fetched is served back from `/files/…`, so a link is a read
+primitive:
+
+- **Scheme**, everywhere: `http`/`https` only. urllib, yt-dlp and gdown all
+  open `file://` (and `ftp://`) happily, and `file:///proc/self/environ`
+  would hand a visitor every secret env var at once.
+- **Address**, only where the throttle is on (the cloud container): the host
+  name is resolved and every address it answers with must be globally
+  routable — no `localhost`, `10.x`, `169.254.169.254`, or neighbour in the
+  datacentre network. The laptop skips this half; fetching from the home LAN
+  or the tailnet is normal there.
+- **Redirects**: the urlopen opener re-checks every hop (`_CheckedRedirect`),
+  because a public link may bounce inwards. urllib's own redirect handler
+  refuses `file://` hops before ours even runs.
+
+`POST /api/create` calls it before creating anything, so a bad link is a 400
+with no project directory and no throttle marker spent. Not covered: DNS
+rebinding (the name is resolved once for the check, again by the fetcher),
+and hops yt-dlp or gdown follow on their own — both need a public host to
+start from.
 
 The new-version form's "process on a rented cloud GPU" checkbox sets
 `gpu`: the source is still fetched locally (so all link types and uploads

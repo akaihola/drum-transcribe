@@ -32,7 +32,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 | `score.py` | events → MusicXML drum staff (MuseScore-compatible; see below) |
 | `audition.py`, `sonify.py` | quantized MIDI; original + blips WAV |
 | `export.py` | best-effort MusicXML → .mscz |
-| `ingest.py` | URL/upload fetch + background pipeline jobs |
+| `ingest.py` | URL/upload fetch + background pipeline jobs; `check_url` vets links (webapp.md) |
 | `serve.py` | web app: pages, API, score feedback |
 | `gate.py` | cloud webapp gate: creation throttle, password unlock, bypass cookie (edits need it too) |
 
