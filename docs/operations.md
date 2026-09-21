@@ -88,6 +88,8 @@ viewed from anywhere without the laptop being on:
   from container env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY` — the worker's
   restricted key, set as secret env vars on the container, never baked into
   the image; `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` are plain env vars).
+  Rented GPU hosts can put anything in that bucket, so the sync skips any
+  object whose name would write outside `/app/output` (gpu-workers.md §3).
   The container scales to zero when idle, so each cold start re-syncs
   (~100 MB → the first request after an idle period takes extra seconds).
   New results appear after the next cold start (or a `redeploy`) — no image
