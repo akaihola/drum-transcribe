@@ -12,6 +12,7 @@ import sys
 import threading
 from pathlib import Path
 from textwrap import dedent
+from urllib.parse import urlparse
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
 VARIANTS = ("adtof", "mdx23c", "fused")
@@ -146,7 +147,20 @@ def _fetch(version_dir: Path, url: str | None, upload: Path | None) -> Path:
     return _as_source(version_dir, _download(version_dir, url))
 
 
+def check_url(url: str) -> str:
+    """Reject anything but web links.
+
+    The fetchers below happily open ``file://`` and ``ftp://`` URLs, which on
+    the public server would hand a visitor the container's own files
+    (``/proc/self/environ`` holds every secret at once).
+    """
+    if urlparse(url).scheme not in ("http", "https"):
+        raise ValueError("only http:// and https:// links can be fetched")
+    return url
+
+
 def _download(version_dir: Path, url: str) -> Path:
+    check_url(url)
     if "youtube.com" in url or "youtu.be" in url:
         _log(version_dir, f"downloading audio with yt-dlp: {url}")
         with open(version_dir / "pipeline.log", "a") as logf:

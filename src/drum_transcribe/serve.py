@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import gate
 from .beats import BeatGrid, regularize
-from .ingest import AUDIO_EXTS, VARIANTS, start_rerun_job, start_version_job
+from .ingest import AUDIO_EXTS, VARIANTS, check_url, start_rerun_job, start_version_job
 
 DOWNLOADS = [
     ("score.mscz", "MuseScore file"),
@@ -1061,7 +1061,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             if path == "/api/create":
                 if (kind := self._gate()) is None:
                     return
-                url = data["url"].strip()
+                url = check_url(data["url"].strip())
                 version_dir = self._new_version_dir(data["project"], data["version"])
                 gate.write_marker(version_dir, authorized=kind == "auth")
                 start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))

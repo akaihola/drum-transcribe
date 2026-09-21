@@ -62,6 +62,13 @@ unknown containers) → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`.
 
+`ingest.check_url` rejects every scheme but `http`/`https`: all three
+fetchers happily open `file://`, and on the public server the fetched bytes
+are served back from `/files/…` — a visitor could ask for
+`/proc/self/environ` and read every secret at once. `POST /api/create`
+checks the link first, so a bad one is a 400 with no project directory and
+no throttle marker.
+
 The new-version form's "process on a rented cloud GPU" checkbox sets
 `gpu`: the source is still fetched locally (so all link types and uploads
 work), then uploaded to the results bucket, presigned (boto3 via
