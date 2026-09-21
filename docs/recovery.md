@@ -15,7 +15,9 @@ named by its path. Print them all for copying with:
 cd ~/prg/drum-transcribe
 for f in .secrets.gpu-ssh .secrets.gpu-ssh.pub .secrets.throttle.env \
          .secrets.worker-s3.json ~/.config/scw/config.yaml \
-         ~/.config/vastai/vast_api_key; do echo "════ $f"; cat "$f"; done
+         ~/.config/vastai/vast_api_key; do
+  echo "════ $f"; grep -vE '^\s*(#|$)' "$f"
+done
 ```
 
 | file | what it is |
