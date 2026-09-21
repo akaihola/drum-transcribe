@@ -139,4 +139,7 @@ where symbol-index counts `g.note, g.rest` in document order within the
 measure — stable across reloads for identical score files, NOT stable if a
 pipeline re-run changes the notation. Empty labels+text deletes the entry.
 UI: hover → blue; saved → orange + SVG `<title>` tooltip; `g.pgHead` click
-= whole-transcription feedback.
+= whole-transcription feedback. Stored text is attacker-controlled input:
+put it in the DOM via `textContent`/`.value` only — it was once interpolated
+into the edit menu's `innerHTML`, where `</textarea><img onerror=…>` ran as
+script for whoever clicked the note.

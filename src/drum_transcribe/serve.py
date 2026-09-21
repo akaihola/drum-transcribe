@@ -734,10 +734,13 @@ function openFbMenu(sym, x, y) {
     `<b>${key === "title" ? "Feedback on this transcription" : "Feedback on this symbol"}</b>` +
     FB_LABELS.map(l => `<label><input type="checkbox" value="${l}"
       ${existing.labels.includes(l) ? "checked" : ""}> ${l}</label>`).join("") +
-    `<textarea rows="2" placeholder="free text…">${existing.text}</textarea>
+    `<textarea rows="2" placeholder="free text…"></textarea>
      <div class="row"><button data-act="save">Save</button>
      <button data-act="delete">Remove</button>
      <button data-act="cancel">Cancel</button></div>`;
+  // Anyone who may write feedback may write "</textarea><img onerror=…>",
+  // so the saved text goes in as a value, never as markup.
+  menu.querySelector("textarea").value = existing.text;
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
   document.body.appendChild(menu);
