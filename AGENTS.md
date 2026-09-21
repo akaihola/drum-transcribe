@@ -24,7 +24,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 
 | module | job |
 |---|---|
-| `cli.py` | `run` (pipeline per variant) and `serve` subcommands |
+| `cli.py` | `run` (pipeline per variant), `serve`, and `hash-password` subcommands |
 | `separate.py` | Demucs drums stem; MDX23C 6-stem kit split |
 | `beats.py` | beat_this beat/downbeat grid (`BeatGrid`); `regularize()` barline repair |
 | `transcribe.py` | ADTOF onsets + stem-energy velocities; per-stem onset detection |

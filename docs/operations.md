@@ -66,8 +66,14 @@ viewed from anywhere without the laptop being on:
   Creation is throttled for anonymous visitors via the secret env vars
   `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
   [webapp.md](webapp.md) → Throttling; `drum-transcribe hash-password`
-  makes entries). `deploy/container-start.sh` materializes credentials at
-  startup from the
+  makes entries). Their values live in the gitignored
+  `.secrets.throttle.env` at the repo root on atom; TOKEN_SECRET must stay
+  fixed there — changing it revokes every bypass cookie.
+  **`scw container container update secret-environment-variables.*`
+  REPLACES the container's whole secret map** — always pass all six
+  secrets in one update, or startup crashes on the missing S3 keys
+  (learned 2026-09-21). `deploy/container-start.sh` materializes
+  credentials at startup from the
   secret env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY`/`VAST_API_KEY`/
   `GPU_SSH_KEY_B64` — the last is the base64 of the dedicated
   `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Only uploads
