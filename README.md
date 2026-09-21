@@ -68,6 +68,11 @@ long as you tick "process on a rented cloud GPU". Keep the page open while
 it processes. The first visit after a quiet period takes some extra
 seconds while the site fetches the latest results.
 
+Because the cloud site is open to the whole internet, it only accepts a few
+new pieces per day from unknown visitors. If it asks for a password, ask
+Antti for one — after typing it once, that browser is remembered and never
+asks again.
+
 **Main page**: your projects, plus a form to transcribe a new piece — upload
 a sound or video file, or paste a public link (YouTube, a Google Drive share
 link, or a direct URL). Submitting creates the project page and starts all

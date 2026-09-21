@@ -63,7 +63,11 @@ viewed from anywhere without the laptop being on:
   cloud GPU" checkbox works**: the container uploads the source to the
   bucket and drives a Vast.ai instance through `deploy/run-on-gpu.sh`
   (ssh client + `vastai` + `boto3` are in the image;
-  `deploy/container-start.sh` materializes credentials at startup from the
+  Creation is throttled for anonymous visitors via the secret env vars
+  `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
+  [webapp.md](webapp.md) → Throttling; `drum-transcribe hash-password`
+  makes entries). `deploy/container-start.sh` materializes credentials at
+  startup from the
   secret env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY`/`VAST_API_KEY`/
   `GPU_SSH_KEY_B64` — the last is the base64 of the dedicated
   `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Only uploads

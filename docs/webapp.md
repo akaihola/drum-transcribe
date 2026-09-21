@@ -16,6 +16,7 @@ without it browsers heuristically cache and render stale scores), and
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
 | `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job |
 | `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job |
+| `POST /api/unlock` | `{password}` → scrypt check → bypass cookie (see Throttling) |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
@@ -31,7 +32,29 @@ meter option POSTs `/api/rawbars`, which starts `start_rerun_job`: re-runs
 the pipeline for each variant that has `onsets.json`; cached stages make
 this take seconds, but note it renumbers bars, which orphans feedback keys.
 
-## Ingestion jobs (ingest.py)
+## Throttling (gate.py)
+
+Creation (`/api/create`, `/api/upload`) is throttled only where the
+`CREATE_PASSWORDS` env var is set — in practice the cloud container; the
+laptop server stays unlimited. Design notes (all forced by the serverless
+platform: scale-to-zero kills memory, instances don't share it):
+
+- **Global cap, no per-IP state**: at most `THROTTLE_MAX` (3) anonymous
+  creations per `THROTTLE_HOURS` (24), counted from `created` marker files
+  in the version dirs. The timestamp is in the file *content* — mtimes lie
+  after every bucket re-sync. Markers are best-effort uploaded to the
+  bucket at creation so cold starts still see them. `auth` markers (created
+  with a valid cookie) don't consume the anonymous budget.
+- **Unlock**: past the cap the create form reveals a password field;
+  `/api/unlock` checks scrypt entries (`salt:hex` comma-separated in
+  `CREATE_PASSWORDS`, one per person — `drum-transcribe hash-password`
+  makes them) and answers with a `create_token` cookie
+  (HttpOnly/Secure/SameSite=Lax, 1 year).
+- **Token**: stateless — `HMAC(TOKEN_SECRET, salt of the matched entry)`.
+  Deleting a person's entry revokes their tokens; rotating `TOKEN_SECRET`
+  revokes all. Brute force is answered with passphrase entropy (~72 bits)
+  plus a 1 s delay on failure, not with lockout counters (which would be a
+  DoS button and need durable state anyway).
 
 Daemon thread per new version: fetch (yt-dlp for YouTube, gdown fuzzy for
 Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
