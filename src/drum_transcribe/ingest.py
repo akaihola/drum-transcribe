@@ -6,13 +6,18 @@ progress by rescanning which artifacts exist on reload.
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import socket
 import subprocess
 import sys
 import threading
+import urllib.request
 from pathlib import Path
 from textwrap import dedent
 from urllib.parse import urlparse
+
+from . import gate
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
 VARIANTS = ("adtof", "mdx23c", "fused")
@@ -148,15 +153,46 @@ def _fetch(version_dir: Path, url: str | None, upload: Path | None) -> Path:
 
 
 def check_url(url: str) -> str:
-    """Reject anything but web links.
+    """Refuse links that would make the server read its own network.
 
-    The fetchers below happily open ``file://`` and ``ftp://`` URLs, which on
-    the public server would hand a visitor the container's own files
-    (``/proc/self/environ`` holds every secret at once).
+    Everything the fetchers download is served back from ``/files/…``, so a
+    link is a read primitive. ``file://`` and ``ftp://`` (which urllib,
+    yt-dlp and gdown all open) would hand a visitor the server's own files —
+    ``/proc/self/environ`` holds every secret at once.
+
+    On the public deployment — the one with the creation throttle switched
+    on — host names are resolved too, so nobody can aim it at ``localhost``
+    or a neighbour in the datacentre network. The laptop server skips that
+    half: fetching from the home LAN or the tailnet is normal there.
     """
-    if urlparse(url).scheme not in ("http", "https"):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
         raise ValueError("only http:// and https:// links can be fetched")
+    if gate.enabled():
+        _check_public_host(parsed.hostname)
     return url
+
+
+def _check_public_host(host: str | None) -> None:
+    """Every address ``host`` resolves to must be out on the internet."""
+    if not host:
+        raise ValueError("that link has no server name")
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(host, None)}
+    except socket.gaierror as e:
+        raise ValueError(f"cannot find the server {host}") from e
+    for address in addresses:
+        if not ipaddress.ip_address(address).is_global:
+            raise ValueError(f"{host} is inside a private network "
+                             f"({address}); links must be public")
+
+
+class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
+    """Re-check every hop: a public link can redirect inwards."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def _download(version_dir: Path, url: str) -> Path:
@@ -180,11 +216,10 @@ def _download(version_dir: Path, url: str) -> Path:
             raise RuntimeError("Google Drive download failed (is the link public?)")
         return Path(name)
     _log(version_dir, f"downloading: {url}")
-    import urllib.request
-
     suffix = Path(url.split("?")[0]).suffix or ".bin"
     fetched = version_dir / f"fetched{suffix}"
-    with urllib.request.urlopen(url, timeout=60) as r, open(fetched, "wb") as f:
+    opener = urllib.request.build_opener(_CheckedRedirect)
+    with opener.open(url, timeout=60) as r, open(fetched, "wb") as f:
         while chunk := r.read(1 << 20):
             f.write(chunk)
     return fetched
