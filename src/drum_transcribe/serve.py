@@ -63,23 +63,28 @@ STYLE = """
   .player figcaption, .sonihead { font-size: .85rem; color: var(--ink-quiet);
                                   margin-bottom: .4rem; }
   .player figcaption b, .sonihead b { color: var(--ink); font-size: 1rem; }
-  .player audio { display: block; width: 16rem; }
+  .player audio { display: block; width: 100%; }
+  /* Chromium: volume lives in the one shared slider (.vol), not per player */
+  audio::-webkit-media-controls-mute-button,
+  audio::-webkit-media-controls-volume-slider,
+  audio::-webkit-media-controls-volume-control-container { display: none; }
+  .vol { margin-left: auto; display: flex; align-items: center; gap: .4rem;
+         color: var(--ink-quiet); font-size: .9rem; }
+  .vol input { accent-color: var(--teal); width: 8rem; }
   .player audio::-webkit-media-controls-enclosure { background: var(--paper);
                                                     border-radius: 999px; }
   .ic { width: 1.25em; height: 1.25em; vertical-align: -.3em; margin-right: .25em; }
   .grouplbl { display: block; font-weight: 500; color: var(--ink-quiet);
               margin: 1.4rem 0 .4rem; }
+  /* Rows: original → drums stem; adtof, mdx23c; fused centred below both. */
   .flow { position: relative; display: grid; margin: .8rem 0 0;
-          grid-template-columns: max-content minmax(0, max-content);
-          gap: 1rem 5.5rem; align-items: center; }
-  .srcs { display: flex; flex-direction: column; gap: 3.2rem; }
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 3rem 4rem; align-items: start; }
+  .flow > .player { grid-column: span 2; }
+  .flow > .soni[data-name="fused"] { grid-column: 2 / span 2; }
   svg.arrows { position: absolute; inset: 0; overflow: visible;
                pointer-events: none; color: var(--ink-quiet); }
-  .sonis { display: flex; flex-direction: column; gap: .8rem; }
-  .sonis > .grouplbl { margin: 0; }
-  .soni { min-width: 26rem; }
-  .soni .dimmable { display: flex; align-items: center; gap: .3rem 1rem; flex-wrap: wrap; }
-  .soni audio { flex: 1 1 15rem; width: auto; min-width: 15rem; }
+  .soni .docs { margin-top: .4rem; }
   .sonihead { display: flex; gap: .8rem; align-items: baseline; margin-bottom: .35rem; }
   .waiting .dimmable { opacity: .4; pointer-events: none; }
   .spin { display: inline-block; width: .95em; height: .95em; vertical-align: -.12em;
@@ -157,8 +162,8 @@ STYLE = """
                        color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
   @media (max-width: 64rem) {
     .flow { grid-template-columns: 1fr; gap: 1rem; }
+    .flow > .player, .flow > .soni[data-name="fused"] { grid-column: auto; }
     svg.arrows { display: none; }
-    .soni { min-width: 0; }
   }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
@@ -409,10 +414,10 @@ const INFO = {
   fused: "adtof's hits, checked against the six per-drum tracks to tell ride from crash and to judge how hard each hit was — the best of both pipelines.",
 };
 
-function infoBtn(vname, key) {
-  return `<button class="minfo sm" popovertarget="i--${vname}--${key}"
+function infoBtn(vname, key, id = key) {
+  return `<button class="minfo sm" popovertarget="i--${vname}--${id}"
     title="what is this?">i</button>
-    <div popover id="i--${vname}--${key}" class="popcard">${INFO[key]}</div>`;
+    <div popover id="i--${vname}--${id}" class="popcard">${INFO[key]}</div>`;
 }
 
 // One source/derived audio node in the flow diagram; dimmed with a spinner
@@ -480,8 +485,9 @@ function docIcon(file, label, url) {
 function soniRow(v, name) {
   const variant = v.variants.find(x => x.name === name);
   const url = variant && variant.files["sonification.wav"];
-  let inner = `<div class="sonihead"><b>${name}</b>${infoBtn(v.name, name)}` +
-    (variant ? `<span class="stats">${variant.n_events} hits, ${variant.n_suspect} suspect</span>` : "") +
+  let inner = `<div class="sonihead"><b>${name}</b>${infoBtn(v.name, name)}
+    <span class="stats">sonification${infoBtn(v.name, "sonis", "sonis-" + name)}` +
+    (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") + `</span>` +
     (url ? "" : `<span class="spin" title="${explain(v, name)}"></span>`) + `</div>`;
   inner += `<div class="dimmable">
     <audio controls preload="none" ${url ? `src="${url}"` : ""}></audio>`;
@@ -542,9 +548,10 @@ function meterCtl(v) {
   </div>`;
 }
 
-// Derivation arrows: original -(Demucs)-> drums stem -> each sonification.
-// Drawn as an SVG overlay from live element positions, so it survives any
-// wrapping; redrawn on tab switches and resizes (hidden panels have no layout).
+// Derivation arrows: original -(Demucs)-> drums stem -> adtof, mdx23c;
+// both of those -> fused. Drawn as an SVG overlay from live element
+// positions, so it survives any wrapping; redrawn on tab switches and
+// resizes (hidden panels have no layout).
 function drawArrows(panel) {
   const flow = panel && panel.querySelector(".flow");
   if (!flow || !flow.clientWidth) return;
@@ -557,32 +564,47 @@ function drawArrows(panel) {
              cx: r.left - base.left + r.width / 2,
              cy: r.top - base.top + r.height / 2 };
   };
-  const bend = (a, b) => {
-    const dx = (b.left - a.right) / 2;
-    return `M ${a.right + 5} ${a.cy} C ${a.right + 5 + dx} ${a.cy},
-            ${b.left - 5 - dx} ${b.cy}, ${b.left - 7} ${b.cy}`;
-  };
-  const s = rel(flow.querySelector(".node-src"));
-  const d = rel(flow.querySelector(".node-drums"));
-  const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
-                      stroke-width="1.5" marker-end="url(#arr)"/>`;
   const label = (x, y, anchor, t) => `<text x="${x}" y="${y}"
     text-anchor="${anchor}" font-size="12" fill="currentColor">${t}</text>`;
-  let inner = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
-    markerWidth="6.5" markerHeight="6.5" orient="auto">
-    <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>`;
-  inner += arrow(`M ${s.cx} ${s.bottom + 5} L ${s.cx} ${d.top - 7}`);
-  inner += label(s.cx + 9, (s.bottom + d.top) / 2 + 4, "start", "Demucs");
-  const MODEL = { adtof: "adtof", mdx23c: "mdx23c", fused: "adtof + mdx23c" };
-  for (const row of flow.querySelectorAll(".soni")) {
-    const r = rel(row);
-    inner += arrow(bend(d, r));
-    inner += label(r.left - 12, r.cy - 8, "end", MODEL[row.dataset.name] || "");
-  }
+  // a -> b: sideways if b is right of a, else downwards (straight where the
+  // two overlap horizontally, an elbow otherwise); label beside the tip.
+  const link = (a, b, t) => {
+    let p, mx, my;
+    if (b.left >= a.right) {
+      p = `M ${a.right + 5} ${a.cy} L ${b.left - 7} ${b.cy}`;
+      mx = (a.right + b.left) / 2; my = a.cy - 8;
+      return arrow(p) + label(mx, my, "middle", t);
+    }
+    const lo = Math.max(a.left, b.left), hi = Math.min(a.right, b.right);
+    const x1 = lo < hi ? (lo + hi) / 2 : a.cx, x2 = lo < hi ? x1 : b.cx;
+    const y1 = a.bottom + 5, y2 = b.top - 7;
+    my = (y1 + y2) / 2;
+    const r = Math.min(8, Math.abs(x2 - x1) / 2), s = Math.sign(x2 - x1);
+    p = `M ${x1} ${y1} V ${my - r} Q ${x1} ${my} ${x1 + s * r} ${my}
+         H ${x2 - s * r} Q ${x2} ${my} ${x2} ${my + r} V ${y2}`;
+    return arrow(p) + label(x2 + 8, (my + y2) / 2 + 5, "start", t);
+  };
+  const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
+                      stroke-width="1.5" marker-end="url(#arr)"/>`;
+  const at = sel => rel(flow.querySelector(sel));
+  const src = at(".node-src"), drums = at(".node-drums"),
+        adtof = at('[data-name="adtof"]'), mdx = at('[data-name="mdx23c"]'),
+        fused = at('[data-name="fused"]');
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "arrows");
-  svg.innerHTML = inner;
+  svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
+    markerWidth="6.5" markerHeight="6.5" orient="auto">
+    <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>` +
+    link(src, drums, "Demucs") + link(drums, adtof, "ADTOF") +
+    link(drums, mdx, "MDX23C") + link(adtof, fused, "hits") +
+    link(mdx, fused, "6 drum tracks");
   flow.appendChild(svg);
+}
+// Show a version tab's contents: arrows, and the players' durations (fetched
+// only for the visible version, to spare bandwidth).
+function showPanel(panel) {
+  drawArrows(panel);
+  panel?.querySelectorAll("audio").forEach(a => a.preload = "metadata");
 }
 window.addEventListener("resize", () =>
   document.querySelectorAll(".vtabs > .tabpanel.active").forEach(drawArrows));
@@ -626,20 +648,22 @@ async function build() {
       `<button class="${i ? "" : "active"}" data-target="v--${v.name}">${v.name}</button>`
     ).join("") +
     `<button class="add ${versions.length ? "" : "active"}"
-      data-target="v--__add">+ add a version</button></div>`;
+      data-target="v--__add">+ add a version</button>
+      <label class="vol" title="volume of all players">volume
+        <input type="range" min="0" max="1" step="0.01"
+          value="${localStorage.volume ?? 1}" oninput="setVolume(this.value)"></label></div>`;
   for (const [i, v] of versions.entries()) {
     html += `<div class="tabpanel ${i ? "" : "active"}" id="v--${v.name}">
              <section data-song="${v.name}">`;
     if (v.error)
       html += `<p class="error">Processing failed — the pipeline log
         (gear button, top right) tells what went wrong.</p>`;
-    html += `<div class="flow"><div class="srcs">` +
+    html += `<div class="flow">` +
       node("node-src", IC_WAVE, "original", infoBtn(v.name, "original"), v.source,
            "still working: fetching the recording") +
       node("node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"), v.drums,
            "still working: Demucs is isolating the drums from the rest of the band") +
-      `</div><div class="sonis"><span class="grouplbl">Sonifications${infoBtn(v.name, "sonis")}</span>` +
-      VARIANTS.map(name => soniRow(v, name)).join("") + `</div></div>`;
+      VARIANTS.map(name => soniRow(v, name)).join("") + `</div>`;
     const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
       .filter(x => x && x.files["score.musicxml"]);
     html += `<div class="tabs stabs"><div class="scorehead">
@@ -669,10 +693,17 @@ async function build() {
     versions.filter(v => v.log).map(v =>
       `<a href="${v.log}">pipeline log — ${v.name}</a>`).join("") ||
     "No pipeline logs yet.";
+  setVolume(localStorage.volume ?? 1);
   renderScores();
   followPlayback(versions);
   requestAnimationFrame(() =>
-    drawArrows(document.querySelector(".vtabs > .tabpanel.active")));
+    showPanel(document.querySelector(".vtabs > .tabpanel.active")));
+}
+
+// One shared volume for every player, remembered across page loads.
+function setVolume(vol) {
+  localStorage.volume = vol;
+  document.querySelectorAll("audio").forEach(a => a.volume = vol);
 }
 
 async function renderScores() {
@@ -844,7 +875,7 @@ function seekToBar(section, bar) {
   if (!hit || !audio) return;
   const t = Math.max(0, hit.t - 0.1);
   if (audio.readyState) { audio.currentTime = t; audio.play(); }
-  else {  // preload="none": metadata must arrive before seeking works
+  else {  // metadata not loaded yet: it must arrive before seeking works
     audio.addEventListener("loadedmetadata",
       () => { audio.currentTime = t; }, { once: true });
     audio.play();
@@ -912,7 +943,7 @@ document.addEventListener("click", e => {
   const tabs = btn.closest(".tabs");
   for (const p of tabs.querySelectorAll(":scope > .tabpanel"))
     p.classList.toggle("active", p.id === btn.dataset.target);
-  drawArrows(tabs.querySelector(":scope > .tabpanel.active"));
+  showPanel(tabs.querySelector(":scope > .tabpanel.active"));
 });
 
 document.addEventListener("DOMContentLoaded", () => {

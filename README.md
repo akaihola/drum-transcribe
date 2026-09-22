@@ -86,7 +86,9 @@ the backing track and the album recording) in its own tab. Adding another
 version for comparison happens at the bottom of the page. Per version:
 
 - players for the **original**, the **drums stem**, and each pipeline's
-  **sonification**;
+  **sonification**, laid out as a diagram whose arrows show what is made
+  from what; one **volume** slider (top right) sets the volume of all of
+  them;
 - while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording

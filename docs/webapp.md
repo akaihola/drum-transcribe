@@ -146,12 +146,18 @@ and the presign step fall back to plain `python3`/`vastai`). See
   tabbar ends with a "+ add a version" tab whose panel adopts the
   server-rendered `#addform` node. Meter-switch buttons (`.mopt`) share the
   tabbar styling but have no `data-target`, so the tab handler skips them.
-- The project page is a flow diagram per version: original —Demucs→ drums
-  stem (stacked vertically) → one card per pipeline (sonification + file-type
-  logo icons beside the player; drag-out downloadable via `DownloadURL`).
-  Arrows are an SVG overlay drawn from live element positions (`drawArrows`),
-  labeled with the model that produced each derivation — redrawn on tab
-  switches and resizes because hidden panels have no layout. Every title has
+- The project page is a flow diagram per version, three rows on a 4-column
+  grid: original —Demucs→ drums stem; drums stem —ADTOF→ adtof and
+  —MDX23C→ mdx23c; both of those → fused (centred below; "hits" from ADTOF,
+  "6 drum tracks" from the MDX23C kit split). Pipeline cards hold the
+  sonification player and file-type logo icons under it (drag-out
+  downloadable via `DownloadURL`). Arrows are an SVG overlay drawn from live
+  element positions (`drawArrows`) — redrawn on tab switches and resizes
+  because hidden panels have no layout. Players stretch to the card width;
+  Chromium's per-player volume controls are hidden in favour of one shared
+  `.vol` slider (remembered in `localStorage`). Players are `preload="none"`
+  until their version tab is shown (`showPanel` flips them to `metadata`),
+  so durations appear without fetching ~0.4 MB per file for hidden tabs. Every title has
   an `i` popover (`INFO`/`infoBtn`) explaining the artifact. Anything not
   ready is dimmed (`.waiting .dimmable`) with a spinner whose `title`
   explains the step; pipeline logs are in the `#gear-btn` popover.
