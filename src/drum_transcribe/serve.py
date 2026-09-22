@@ -278,7 +278,7 @@ HELP_HTML = """
 """
 
 CREATE_FORM = """
-<form class="create" onsubmit="return submitCreate(this)">
+<form class="create" onsubmit="submitCreate(this); return false">
   <b>__FORM_TITLE__</b>
   __PROJECT_FIELD__
   <label>Name of this version (e.g. "backing track", "album recording")</label>
