@@ -30,6 +30,8 @@ else
     vast() { vastai "$@"; }
     PYB=(python3)
 fi
+# stage lines carry a UTC time; the web page times its progress bars by them
+stage() { echo "== $* == $(date -u +%FT%TZ)"; }
 s3() { python3 -c "import json;print(json.load(open('.secrets.worker-s3.json'))['$1'])"; }
 alive() { [ -e $STATE ] && vast show instance "$(cat $STATE)" --raw 2>/dev/null | grep -q '"actual_status"'; }
 ssh_cmd() {  # run "$@" on the session instance
@@ -62,7 +64,7 @@ start)
     if alive; then echo "session already running: instance $(cat $STATE)"; exit 0; fi
     rm -f $STATE $KNOWN_HOSTS  # new instance, new host key to pin
 
-    echo "== searching spot offers =="
+    stage "searching spot offers"
     # cuda_max_good: host driver must support the image's CUDA 12.8;
     # random among the 3 cheapest so a retry escapes a flaky host
     OFFER=$(vast search offers \
@@ -74,7 +76,7 @@ print(o['id'], round(o['min_bid']*1.25, 3))")
     read -r OFFER_ID BID <<<"$OFFER"
     echo "   offer $OFFER_ID, bid \$$BID/h"
 
-    echo "== launching instance (idle self-destruct after $IDLE_MIN min) =="
+    stage "launching instance (idle self-destruct after $IDLE_MIN min)"
     WATCHDOG='touch /tmp/alive; while sleep 60; do [ $(( $(date +%s) - $(stat -c %Y /tmp/alive) )) -gt '$(( IDLE_MIN * 60 ))' ] && curl -fsS -X DELETE -H "Authorization: Bearer $CONTAINER_API_KEY" "https://console.vast.ai/api/v0/instances/$CONTAINER_ID/?api_key=$CONTAINER_API_KEY"; done'
     ID=$(vast create instance "$OFFER_ID" --image "$IMAGE" --disk 40 \
         --onstart-cmd "$WATCHDOG" --bid_price "$BID" --raw \
@@ -84,34 +86,48 @@ print(o['id'], round(o['min_bid']*1.25, 3))")
     trap "echo '== start failed, destroying instance $ID =='; echo y | vast destroy instance $ID; rm -f $STATE" EXIT
     vast attach ssh "$ID" "$(cat ~/.ssh/id_ed25519.pub)" >/dev/null
 
-    echo "== waiting for ssh (image pull ~1-10 min, slow hosts longer) =="
+    stage "waiting for ssh (image pull ~1-10 min, slow hosts longer)"
+    last= parked=0
     for i in $(seq 1 90); do
         sleep 15
         ssh_cmd true 2>/dev/null && break
-        vast show instance "$ID" --raw 2>/dev/null | grep -q '"actual_status"' \
+        # Vast reports no pull progress, only the status; log its changes
+        # (the page's progress bar reads them) and the host's download speed
+        now=$(vast show instance "$ID" --raw 2>/dev/null | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(d.get('actual_status') or 'starting', d.get('intended_status') or '-', int(d.get('inet_down') or 0))" 2>/dev/null) \
             || { echo "instance disappeared (spot outbid?)"; exit 1; }
+        read -r status intended down <<<"$now"
+        [ "$status" != "$last" ] && echo "   instance $status, host downloads at $down Mbit/s"
+        last=$status
+        # parked by Vast from the start (GPU taken, observed 2026-09-22):
+        # it never runs; re-rent instead of waiting out the timeout
+        if [ "$intended" = stopped ]; then parked=$((parked + 1)); else parked=0; fi
+        [ "$parked" -ge 8 ] && { echo "instance parked as stopped for 2 min (GPU taken?)"; exit 1; }
         [ "$i" = 90 ] && { echo "timed out waiting for ssh"; exit 1; }
     done
+    stage "checking the GPU"
     # a host can look fine yet have a broken driver (torch then silently
     # runs on CPU); fail fast so the caller can retry on another host
     ssh_cmd '/venv/main/bin/python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)"' \
         || { echo "GPU unusable on this host (driver?)"; exit 1; }
     trap - EXIT
-    echo "== session ready: instance $ID =="
+    stage "session ready: instance $ID"
     ;;
 
 run)
     SOURCE_URL=${2:?usage: gpu-session.sh run <SOURCE_URL> <SONG> <VERSION> [VARIANTS]}
     SONG=${3:?SONG missing} VERSION=${4:?VERSION missing} VARIANTS=${5:-"adtof mdx23c"}
     alive || { rm -f $STATE; echo "no live session (idle watchdog fired?) — deploy/gpu-session.sh start"; exit 1; }
-    echo "== running $SONG/$VERSION on instance $(cat $STATE) =="
+    stage "running $SONG/$VERSION on instance $(cat $STATE)"
     ssh_cmd "SOURCE_URL=$(printf %q "$SOURCE_URL") SONG=$(printf %q "$SONG") \
         VERSION=$(printf %q "$VERSION") VARIANTS=$(printf %q "$VARIANTS") \
         S3_ACCESS_KEY=$(printf %q "$(s3 access_key)") \
         S3_SECRET_KEY=$(printf %q "$(s3 secret_key)") bash -s" \
         < deploy/vast-worker.sh
 
-    echo "== syncing results from bucket =="
+    stage "syncing results from bucket"
     "${PYB[@]}" - "$SONG/$VERSION" <<'PY'
 import json, sys, boto3
 from pathlib import Path
@@ -129,7 +145,7 @@ for o in s3.list_objects_v2(Bucket=c['bucket'], Prefix=sys.argv[1] + '/')['Conte
     s3.download_file(c['bucket'], o['Key'], str(dst))
     print('  ', o['Key'])
 PY
-    echo "== results in output/$SONG/$VERSION/ =="
+    stage "results in output/$SONG/$VERSION/"
     ;;
 
 status)
@@ -141,7 +157,7 @@ status)
 
 stop)
     [ -e $STATE ] || { echo "no session"; exit 0; }
-    echo "== destroying instance $(cat $STATE) =="
+    stage "destroying instance $(cat $STATE)"
     echo y | vast destroy instance "$(cat $STATE)"
     rm -f $STATE
     ;;

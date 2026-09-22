@@ -171,6 +171,13 @@ Spot-market hardening, each rule paid for by a real failure (2026-09-20):
 - **Bid 1.25× over the floor** — 1.15× got outbid between image load
   and container start (instance sits in `created`/`stopped`; destroy
   and re-rent rather than wait for the GPU to free up).
+- **Give up on an instance parked as `stopped`**: one rental (2026-09-22)
+  sat in `actual_status=loading` with `intended_status=stopped` for 7 min
+  (bid above the floor, GPU apparently taken) and would never have run.
+  The ssh-wait loop now fails after 2 min of `intended_status=stopped`, so
+  `run-on-gpu.sh` retries on another host. Not yet confirmed that a
+  healthy spot rental never shows `stopped` briefly while loading — check
+  the logged status lines on the next run.
 - **No progress bars over the job stream** (`TQDM_DISABLE=1` in the
   worker): tqdm floods the ssh stream, and a slow log consumer (the
   CPU-throttled cloud container) can stall the job via backpressure.
