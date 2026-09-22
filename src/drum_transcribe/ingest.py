@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import dedent
 from urllib.parse import urlparse
@@ -21,12 +22,28 @@ from . import gate
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
 VARIANTS = ("adtof", "mdx23c", "fused")
+RUNNING: set[Path] = set()  # version dirs with a job thread going (progress.py)
+
+
+def marker(what: str) -> str:
+    """A stage line for pipeline.log; progress.py times the steps by it."""
+    return f"== {what} == {datetime.now(UTC):%Y-%m-%dT%H:%M:%SZ}"
 
 
 def start_version_job(version_dir: Path, url: str | None = None,
                       upload: Path | None = None, gpu: bool = False) -> None:
-    threading.Thread(target=_job, args=(version_dir, url, upload, gpu),
-                     daemon=True).start()
+    _start(_job, version_dir, url, upload, gpu)
+
+
+def _start(job, version_dir: Path, *args) -> None:
+    def run():
+        try:
+            job(version_dir, *args)
+        finally:
+            RUNNING.discard(version_dir)
+
+    RUNNING.add(version_dir)
+    threading.Thread(target=run, daemon=True).start()
 
 
 def _log(version_dir: Path, message: str) -> None:
@@ -46,7 +63,6 @@ def _env() -> dict[str, str]:
 
 
 def _run_variant(version_dir: Path, source: Path, variant: str) -> None:
-    _log(version_dir, f"== running pipeline: {variant} ==")
     title = f"{version_dir.parent.name} / {version_dir.name} [{variant}]"
     with open(version_dir / "pipeline.log", "a") as logf:
         subprocess.run(
@@ -66,7 +82,7 @@ def _job(version_dir: Path, url: str | None, upload: Path | None,
         else:
             for variant in VARIANTS:
                 _run_variant(version_dir, source, variant)
-        _log(version_dir, "== all pipelines finished ==")
+        _log(version_dir, marker("all pipelines finished"))
     except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
         _log(version_dir, f"ERROR: {e!r}")
 
@@ -114,12 +130,12 @@ def _run_on_gpu(version_dir: Path, source: Path) -> None:
     """
     song, version = version_dir.parent.name, version_dir.name
     repo = _repo()
-    _log(version_dir, "== uploading source for the GPU worker ==")
+    _log(version_dir, marker("uploading source for the GPU worker"))
     presigned = subprocess.run(
         [*_boto3_python(), str(source), f"{song}/{version}/{source.name}"],
         input=_PRESIGN_PY, capture_output=True, text=True, check=True, cwd=repo,
     ).stdout.strip()
-    _log(version_dir, "== processing on a rented cloud GPU ==")
+    _log(version_dir, marker("processing on a rented cloud GPU"))
     with open(version_dir / "pipeline.log", "a") as logf:
         subprocess.run(
             [str(repo / "deploy" / "run-on-gpu.sh"),
@@ -130,7 +146,7 @@ def _run_on_gpu(version_dir: Path, source: Path) -> None:
 
 def start_rerun_job(version_dir: Path) -> None:
     """Regenerate results after a setting change; cached stages make it fast."""
-    threading.Thread(target=_rerun, args=(version_dir,), daemon=True).start()
+    _start(_rerun, version_dir)
 
 
 def _rerun(version_dir: Path) -> None:
@@ -139,7 +155,7 @@ def _rerun(version_dir: Path) -> None:
         for variant in VARIANTS:
             if (version_dir / variant / "onsets.json").exists():
                 _run_variant(version_dir, source, variant)
-        _log(version_dir, "== all pipelines finished ==")
+        _log(version_dir, marker("all pipelines finished"))
     except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
         _log(version_dir, f"ERROR: {e!r}")
 
@@ -198,7 +214,8 @@ class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
 def _download(version_dir: Path, url: str) -> Path:
     check_url(url)
     if "youtube.com" in url or "youtu.be" in url:
-        _log(version_dir, f"downloading audio with yt-dlp: {url}")
+        _log(version_dir, marker("downloading the recording with yt-dlp"))
+        _log(version_dir, f"   {url}")
         with open(version_dir / "pipeline.log", "a") as logf:
             subprocess.run(
                 [sys.executable, "-m", "yt_dlp", "-f", "bestaudio", "-x",
@@ -208,14 +225,16 @@ def _download(version_dir: Path, url: str) -> Path:
             )
         return next(version_dir.glob("fetched.*"))
     if "drive.google.com" in url:
-        _log(version_dir, f"downloading with gdown: {url}")
+        _log(version_dir, marker("downloading the recording with gdown"))
+        _log(version_dir, f"   {url}")
         import gdown
 
         name = gdown.download(url=url, output=f"{version_dir}/", fuzzy=True, quiet=True)
         if not name:
             raise RuntimeError("Google Drive download failed (is the link public?)")
         return Path(name)
-    _log(version_dir, f"downloading: {url}")
+    _log(version_dir, marker("downloading the recording"))
+    _log(version_dir, f"   {url}")
     suffix = Path(url.split("?")[0]).suffix or ".bin"
     fetched = version_dir / f"fetched{suffix}"
     opener = urllib.request.build_opener(_CheckedRedirect)
@@ -233,7 +252,7 @@ def _as_source(version_dir: Path, fetched: Path) -> Path:
         return source
 
     # video or unknown container: extract/convert the audio track
-    _log(version_dir, f"extracting audio from {fetched.name} with ffmpeg")
+    _log(version_dir, marker(f"extracting audio from {fetched.name} with ffmpeg"))
     source = version_dir / "source.m4a"
     with open(version_dir / "pipeline.log", "a") as logf:
         subprocess.run(

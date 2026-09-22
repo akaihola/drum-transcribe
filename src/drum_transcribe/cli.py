@@ -86,6 +86,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_pipeline(args: argparse.Namespace) -> int:
+    from .ingest import marker
+
+    print(marker(f"running pipeline: {args.variant}"), flush=True)
     from .audition import write_audition_midi
     from .beats import BeatGrid, regularize, track_beats
     from .export import to_mscz
@@ -113,7 +116,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     print(f"song: {song_dir.name}  variant: {args.variant}", flush=True)
 
-    print("== separating drums stem (Demucs htdemucs) ==", flush=True)
+    print(marker("separating drums stem (Demucs htdemucs)"), flush=True)
     drums_stem = separate_drums(source, song_dir)
     print(f"   {drums_stem}")
 
@@ -127,7 +130,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if beats_raw.exists() and not args.force:
         raw = BeatGrid.load(beats_raw)
     else:
-        print("== tracking beats/downbeats (beat_this) ==", flush=True)
+        print(marker("tracking beats/downbeats (beat_this)"), flush=True)
         raw = track_beats(source)
         raw.save(beats_raw)
     keep_raw = (song_dir / "keep-raw-bars").exists()
@@ -140,31 +143,31 @@ def run_pipeline(args: argparse.Namespace) -> int:
     if onsets_json.exists() and not args.force:
         onsets = load_onsets(onsets_json)
     elif args.variant == "mdx23c":
-        print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
+        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
         stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
-        print("== detecting per-stem onsets ==", flush=True)
+        print(marker("detecting per-stem onsets"), flush=True)
         onsets = detect_onsets_from_stems(stems)
     elif args.variant == "fused":
-        print("== splitting kit into 6 stems (MDX23C, slow on CPU) ==", flush=True)
+        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
         stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
-        print("== detecting drum hits (ADTOF) ==", flush=True)
+        print(marker("detecting drum hits (ADTOF)"), flush=True)
         onsets, _act = detect_onsets(drums_stem)
-        print("== refining with per-drum stems (ride/crash, velocities) ==", flush=True)
+        print(marker("refining with per-drum stems (ride/crash, velocities)"), flush=True)
         refine_with_stems(onsets, stems)
     else:
-        print("== detecting drum hits (ADTOF) ==", flush=True)
+        print(marker("detecting drum hits (ADTOF)"), flush=True)
         onsets, _act = detect_onsets(drums_stem)
         estimate_velocities(onsets, drums_stem)
     save_onsets(onsets, vdir / "onsets.json")
     print(f"   {len(onsets)} onsets")
 
-    print("== quantizing to grid ==", flush=True)
+    print(marker("quantizing to grid"), flush=True)
     events = quantize(onsets, grid)
     save_events(events, grid.meter, vdir / "events.json")
     big_err = [e for e in events if abs(e.error_ms) > 35]
     print(f"   {len(events)} events; {len(big_err)} with >35 ms quantization error")
 
-    print("== writing outputs ==", flush=True)
+    print(marker("writing outputs"), flush=True)
     write_audition_midi(events, vdir / "audition.mid")
     write_sonification(events, source, vdir / "sonification.wav")
     title = args.title or f"{audio.stem} [{args.variant}]"
