@@ -56,6 +56,10 @@ column under 65 characters; scores are never squeezed into one.
   a one-line caption saying what you are hearing, and the browser's own
   controls recolored to blend in (Chromium; other browsers just show their
   native controls on the card).
+- Something not ready yet shows a **progress bar where its player will
+  be**: brass fill while working, a hatched still track while waiting its
+  turn, red on error. The caption says what is happening and how long is
+  left; the percentage is in the tooltip only, since it is an estimate.
 - Errors say what went wrong and what to try.
 - Visible keyboard focus (teal outline); animations respect the browser's
   reduced-motion setting.

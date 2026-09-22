@@ -2,7 +2,8 @@
 
 Stdlib-only `ThreadingHTTPServer`; HTML/JS lives in template strings inside
 `serve.py`. No state besides the `output/` tree — every page render rescans
-the filesystem, which is what makes "reload to see progress" work. All
+the filesystem (plus, for live progress, `ingest.RUNNING`: the version
+dirs whose job thread is alive in this process). All
 responses carry `Cache-Control: no-cache` (re-runs replace files in place;
 without it browsers heuristically cache and render stale scores), and
 `/files/**` supports byte ranges (Chromium won't seek audio otherwise).
@@ -21,11 +22,12 @@ without it browsers heuristically cache and render stale scores), and
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run (gated) |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
+| `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
 | `GET /files/**` | static from the output root |
 
-`scan_output` also derives per-version: `done`, `error` (log tail contains
-"ERROR:"), `stage` (last `== … ==` log marker), the `steps` checklist from
-artifact existence, and `irregular`/`raw_bars` — whether `regularize()`
+`scan_output` also derives per-version: `error` (log tail contains
+"ERROR:"), `tracked` (beats.json exists), `progress` (same as
+`/api/progress`), and `irregular`/`raw_bars` — whether `regularize()`
 would change the raw beat grid (then the meter switch above the score is
 enabled) and whether the `keep-raw-bars` flag file is set. Switching the
 meter option POSTs `/api/rawbars`, which starts `start_rerun_job`: re-runs
@@ -100,10 +102,11 @@ work), then uploaded to the results bucket, presigned (boto3 via
 `uv run --with boto3`, credentials from `.secrets.worker-s3.json`), and
 handed to `deploy/run-on-gpu.sh` — rent (or reuse an open
 `gpu-session.sh` instance), process all variants, sync into
-the same `output/<song>/<version>/`, destroy unless the session owns it. The script's `== … ==`
-stage lines go to `pipeline.log`, so the page's stage indicator works;
-the artifact checklist fills only when results sync back at the end
-(and `stems/` are not synced, so no drums-stem player). This works both
+the same `output/<song>/<version>/`, destroy unless the session owns it. The scripts' stage
+lines (and the worker's, streamed over ssh) go to `pipeline.log`, so the
+progress bars work for GPU jobs too, plus a "cloud GPU" bar for the
+rental start; the result files arrive only when results sync back at
+the end, so finished pipelines show a full bar saying so meanwhile. This works both
 on the laptop and in the cloud container (which has no `uv`: the scripts
 and the presign step fall back to plain `python3`/`vastai`). See
 [gpu-workers.md](gpu-workers.md).
@@ -161,8 +164,42 @@ and the presign step fall back to plain `python3`/`vastai`). See
   until their version tab is shown (`showPanel` flips them to `metadata`),
   so durations appear without fetching ~0.4 MB per file for hidden tabs. Every title has
   an `i` popover (`INFO`/`infoBtn`) explaining the artifact. Anything not
-  ready is dimmed (`.waiting .dimmable`) with a spinner whose `title`
-  explains the step; pipeline logs are in the `#gear-btn` popover.
+  ready has a progress bar (`progBar`) where its player will be; pipeline
+  logs are in the `#gear-btn` popover.
+- Live refresh: the panel is built from `versionPieces(v)`, each piece's
+  root carrying `data-piece`. `pollProgress` fetches `/api/progress`
+  every 2 s while a job runs and the page is visible; `showProgress`
+  updates the bars in place (width, caption, `data-tip` tooltip, aria).
+  When a version's `sig` (job state + result-file mtimes) changes,
+  `refreshVersion` re-fetches `/api/index` and swaps in only the pieces
+  whose HTML changed — never one with a playing `<audio>` — after
+  running their bars to 100 %. A new score keeps the selected score tab.
+
+## Live progress (progress.py)
+
+Every stage line in `pipeline.log` is `== what == <UTC time>`
+(`ingest.marker`; `stage` in gpu-session.sh). `version_progress` takes
+the current job's part of the log (after the last `all pipelines
+finished`/`ERROR:`), maps each marker to a task (`src`, `gpu`, `drums`,
+`adtof`, `mdx23c`, `fused`) and step via `STEPS`, and estimates:
+
+- **Expected step time** = fixed + per-song-second, CPU or GPU column,
+  measured 2026-09-22 on atom (60 s clip: Demucs 0.34×, MDX23C 6.5×
+  song length, the rest seconds) and guessed for the GPU from the
+  gpu-workers.md figures — recalibrate from a timestamped GPU log. The
+  image-pull step is `45 s + 2 × 8 GB / host download speed`, the speed
+  coming from the `instance …, host downloads at N Mbit/s` lines the
+  ssh-wait loop logs (Vast reports no pull progress at all: its
+  `status_msg` stays empty and `disk_usage` is -1 while loading).
+- **Real progress** overrides the guess where a step prints it: yt-dlp's
+  `45.3% of`, tqdm's `45%|` (Demucs on CPU; the GPU worker disables tqdm).
+- Past its expected time a step creeps (asymptotically, never to 100 %)
+  and says "taking longer than usual"; times left are then unknown.
+- Task states: `queued` (hatched, still bar), `running`, `arriving`
+  (done on the GPU, files not synced yet), `failed`, `stopped` (log
+  unfinished but no job thread — the server restarted). A task with its
+  file present gets no bar, also during a meter re-run (old results stay
+  playable; the meter shows "recomputing…").
 
 ## Feedback
 

@@ -22,7 +22,15 @@ from urllib.parse import parse_qs, urlparse
 
 from . import gate
 from .beats import BeatGrid, regularize
-from .ingest import AUDIO_EXTS, VARIANTS, check_url, start_rerun_job, start_version_job
+from .ingest import (
+    AUDIO_EXTS,
+    RUNNING,
+    VARIANTS,
+    check_url,
+    start_rerun_job,
+    start_version_job,
+)
+from .progress import version_progress
 
 DOWNLOADS = [
     ("score.mscz", "MuseScore file"),
@@ -88,11 +96,47 @@ STYLE = """
   .soniline > :first-child { flex: 1; min-width: 0; }
   .sonihead { display: flex; gap: .8rem; align-items: baseline; margin-bottom: .35rem; }
   .waiting .dimmable { opacity: .4; pointer-events: none; }
-  .spin { display: inline-block; width: .95em; height: .95em; vertical-align: -.12em;
-          border: 2px solid var(--hairline); border-top-color: var(--brass);
-          border-radius: 50%; animation: spin 1.1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 4s; } }
+  .player.waiting { border-left-color: var(--hairline); }  /* teal = plays */
+  /* Progress bar standing in for a player until its file exists: brass
+     while working, hatched and still while queued ("dead"), red on error. */
+  .prog { position: relative; padding: .3rem 0 .1rem; border-radius: 4px; }
+  .progtrack { height: 6px; border-radius: 999px; background: var(--hairline);
+               overflow: hidden; }
+  .progtrack i { display: block; height: 100%; width: 0; border-radius: inherit;
+                 background: var(--brass); transition: width 2s linear; }
+  .prog.running .progtrack i, .prog.arriving .progtrack i { animation: sheen 2.4s linear infinite;
+    background: linear-gradient(90deg, var(--brass) 40%, #D09540 50%, var(--brass) 60%)
+                0 0 / 250% 100%; }
+  @keyframes sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+  .prog.queued .progtrack { background: repeating-linear-gradient(-45deg,
+    var(--hairline) 0 3px, transparent 3px 7px); box-shadow: inset 0 0 0 1px var(--hairline); }
+  .prog.failed .progtrack { background: rgba(196,0,0,.25); }
+  .prog.finishing .progtrack i { width: 100% !important; transition-duration: .4s; }
+  .progcap { display: flex; justify-content: space-between; gap: .8rem;
+             margin-top: .3rem; font-size: .8rem; color: var(--ink-quiet); }
+  .progcap .act { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .progcap .eta { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .prog.queued .progcap, .prog.absent .progcap { font-style: italic; }
+  .prog.failed .progcap { color: var(--signal); }
+  .prog:hover::after, .prog:focus-visible::after {
+    content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + .35rem);
+    z-index: 5; width: max-content; max-width: 22rem; white-space: pre-line;
+    background: var(--ink); color: var(--paper); font-size: .8rem; line-height: 1.4;
+    padding: .4rem .65rem; border-radius: 6px; pointer-events: none; }
+  .prog.absent:hover::after { content: none; }
+  .gpu { display: flex; align-items: center; gap: .9rem; margin: .4rem 0 0;
+         padding: .6rem .8rem; background: var(--card); border-radius: 8px;
+         border: 1px solid var(--hairline); border-left: 4px solid var(--brass); }
+  .gpu[hidden] { display: none; }
+  .gpu > b { font-weight: 500; white-space: nowrap; }
+  .gpu .prog { flex: 1; }
+  .arrived { animation: arrive .7s ease-out; }
+  @keyframes arrive { from { opacity: .35; } }
+  .mbusy { font-size: .8rem; color: var(--brass); font-style: italic; }
+  @media (prefers-reduced-motion: reduce) {
+    .prog .progtrack i, .arrived { animation: none; }
+    .progtrack i { transition: none; }
+  }
   .docs { display: flex; gap: .35rem; }
   a.doc { display: grid; place-items: center; width: 1.7rem; height: 1.7rem;
           border-radius: 6px; font-size: .85rem; font-weight: 700;
@@ -160,8 +204,8 @@ STYLE = """
   #gear-btn:hover { border-color: var(--ink-quiet); }
   #gear-btn svg { vertical-align: middle; }
   #gearmenu { position: fixed; inset: 3.9rem 1.2rem auto auto; margin: 0; }
-  .score.placeholder { display: flex; gap: .6rem; align-items: center;
-                       color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
+  .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
+  .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
   @media (max-width: 64rem) {
     .flow { grid-template-columns: 1fr; gap: 1rem; }
     .flow > .player, .flow > .soni[data-name="fused"] { grid-column: auto; }
@@ -209,13 +253,16 @@ HELP_HTML = """
   paste a public link (YouTube, a Google Drive share link, or a direct file
   link) or upload a sound/video file. Processing starts immediately in the
   background and takes from minutes up to ~10&times; the length of the
-  recording. <b>Reload the project page</b> to see new results; anything
-  still processing is dimmed, with a small spinner — point at the spinner to
-  see which step it is waiting on. (The full technical log is behind the
+  recording. The project page updates by itself: until a result is ready,
+  its player is replaced by a <b>progress bar</b> saying what is being done
+  and roughly how long is left. A hatched, empty bar is waiting its turn.
+  Point at a bar for the estimated percentage — it is an estimate from how
+  long each step usually takes. (The full technical log is behind the
   gear button, top right.) Ticking <b>process on a rented cloud GPU</b> rents
   a fast machine for the job (all results in ~5&ndash;15 minutes, costs about
-  a cent); progress then appears in the pipeline log, and the result files
-  show up all at once when it finishes.</p>
+  a cent); an extra bar at the top shows the machine starting up, which
+  usually takes 2&ndash;5 minutes, and the result files show up all at once
+  when it finishes.</p>
 
   <h3>2. Versions and pipelines</h3>
   <svg viewBox="0 0 340 70" width="340">
@@ -357,8 +404,8 @@ MAIN_HTML = """<!DOCTYPE html>
 __HELP__
 <h1>drum-transcribe</h1>
 <p>Give a recording; get drum sheet music plus everything needed to check it
-by ear. Processing runs in the background — reload the project page to watch
-results appear (a 3-minute song takes a few minutes for the first results,
+by ear. Processing runs in the background and the project page shows its
+progress live (a 3-minute song takes a few minutes for the first results,
 tens of minutes for everything).</p>
 <h2>Projects</h2>
 <ul class="projects" id="projects"><li>loading…</li></ul>
@@ -408,6 +455,9 @@ const IC_DRUM = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="current
   stroke-width="1.6" stroke-linecap="round"><path d="M3.5 2.5 11 9M20.5 2.5 13 9"/>
   <ellipse cx="12" cy="12" rx="8.5" ry="3"/>
   <path d="M3.5 12v5.5c0 1.8 3.8 3.2 8.5 3.2s8.5-1.4 8.5-3.2V12"/></svg>`;
+const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.6" stroke-linejoin="round"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95
+  A6 6 0 0 0 6.6 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>`;
 
 const INFO = {
   original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched.",
@@ -424,26 +474,21 @@ function infoBtn(vname, key, id = key) {
     <div popover id="i--${vname}--${id}" class="popcard">${INFO[key]}</div>`;
 }
 
-// One source/derived audio node in the flow diagram; dimmed with a spinner
-// until its file exists.
-function node(cls, icon, label, info, url, spinTitle) {
-  return `<figure class="player node ${cls} ${url ? "" : "waiting"}">
-    <figcaption>${icon}<b>${label}</b>${info}
-      ${url ? "" : `<span class="spin" title="${spinTitle}"></span>`}</figcaption>
-    <audio class="dimmable" controls preload="none" ${url ? `src="${url}"` : ""}></audio>
-  </figure>`;
+// Stands in for a player until its file exists; showProgress fills it in
+// from the server's estimates (task = src, drums, gpu or a pipeline name).
+function progBar(task) {
+  return `<div class="prog" data-task="${task}" role="progressbar" tabindex="0"
+    aria-valuemin="0" aria-valuemax="100"><div class="progtrack"><i></i></div>
+    <div class="progcap"><span class="act"></span><span class="eta"></span></div></div>`;
 }
 
-// Why a pipeline's sonification is not there yet, for spinner tooltips.
-function explain(v, name) {
-  const done = Object.fromEntries(v.steps);
-  if (name === "adtof")
-    return "still working: adtof reads the drum mix with a neural network (the first results)";
-  if (name === "mdx23c")
-    return done["kit split into 6 stems (slow)"]
-      ? "still working: mdx23c reads each of the six per-drum tracks"
-      : "still working: splitting the drum recording into six per-drum tracks (kick, snare, toms, hi-hat, ride, crash) — the slowest step";
-  return "still working: fused combines adtof's hits with the six per-drum tracks (needs both)";
+// One source/derived audio node in the flow diagram; a progress bar until
+// its file exists.
+function node(task, cls, icon, label, info, url) {
+  return `<figure class="player node ${cls} ${url ? "" : "waiting"}" data-piece="${task}">
+    <figcaption>${icon}<b>${label}</b>${info}</figcaption>
+    ${url ? `<audio controls preload="none" src="${url}"></audio>` : progBar(task)}
+  </figure>`;
 }
 
 function dragFile(e, name, url) {
@@ -476,15 +521,15 @@ function soniRow(v, name) {
   const url = variant && variant.files["sonification.wav"];
   let inner = `<div class="sonihead"><b>${name}</b>${infoBtn(v.name, name)}
     <span class="stats">sonification${infoBtn(v.name, "sonis", "sonis-" + name)}` +
-    (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") + `</span>` +
-    (url ? "" : `<span class="spin" title="${explain(v, name)}"></span>`) + `</div>`;
-  inner += `<div class="dimmable soniline">
-    <audio controls preload="none" ${url ? `src="${url}"` : ""}></audio>`;
+    (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") +
+    `</span></div><div class="soniline">` +
+    (url ? `<audio controls preload="none" src="${url}"></audio>` : progBar(name));
   if (variant)
-    inner += `<div class="docs">` + DOWNLOADS.map(([file, label]) =>
+    inner += `<div class="docs dimmable">` + DOWNLOADS.map(([file, label]) =>
       variant.files[file] ? docIcon(file, label, variant.files[file]) : "").join("") + `</div>`;
   inner += `</div>`;
-  return `<div class="player soni ${url ? "" : "waiting"}" data-name="${name}">${inner}</div>`;
+  return `<div class="player soni ${url ? "" : "waiting"}" data-name="${name}"
+    data-piece="${name}">${inner}</div>`;
 }
 
 // Three miniature bars on a one-line staff; sigs = [[num, den], ...] with
@@ -512,9 +557,9 @@ function setMeter(version, raw, btn) {
 }
 
 function meterCtl(v) {
-  const tracked = v.steps.find(s => s[0] === "beat grid tracked")[1];
   const toggleable = v.irregular || v.raw_bars;
-  return `<div class="meter ${tracked ? "" : "waiting"}" data-version="${v.name}">
+  return `<div class="meter ${v.tracked ? "" : "waiting"}" data-version="${v.name}"
+    ${v.tracked ? "" : `title="available once the beats and barlines are found"`}>
     <div class="tabbar seg mseg dimmable">
       <button class="mopt ${v.raw_bars ? "" : "active"}"
         title="Steady meter: barlines straightened to the piece&#39;s usual bar length"
@@ -531,9 +576,10 @@ function meterCtl(v) {
       straightened automatically to the piece&#39;s usual bar length (left
       option, showing the detected time signature). Choose the right option
       only if the piece genuinely changes meter — the detected barlines are
-      then kept exactly as heard. Switching recomputes the scores; reload in
-      a minute. Bar numbers can shift, which orphans feedback already given.</div>
-    ${tracked ? "" : `<span class="spin" title="still working: tracking beats and barlines"></span>`}
+      then kept exactly as heard. Switching recomputes the scores, which
+      takes about a minute; the page updates by itself. Bar numbers can
+      shift, which orphans feedback already given.</div>
+    <span class="mbusy" hidden>recomputing…</span>
   </div>`;
 }
 
@@ -621,10 +667,43 @@ async function postGated(url, body) {
 
 async function setRawBars(version, raw) {
   const r = await postGated("/api/rawbars", { project: PROJECT, version, raw });
-  if (r.ok) alert("Recomputing the scores with this setting — " +
-                  "reload the page in a minute to see the result.");
+  if (r.ok) pollProgress();
   else alert("Changing the setting failed.");
 }
+
+// A version's panel as separately replaceable pieces (each root element
+// carries data-piece), so a result that becomes ready swaps in on its own
+// without touching players that are playing.
+function versionPieces(v) {
+  const pieces = {
+    err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
+      failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
+    src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"), v.source),
+    drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"), v.drums),
+  };
+  for (const name of VARIANTS) pieces[name] = soniRow(v, name);
+  const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
+    .filter(x => x && x.files["score.musicxml"]);
+  let score = `<div class="tabs stabs" data-piece="score"><div class="scorehead">
+           <span class="grouplbl">Score</span>`;
+  if (scored.length)
+    score += `<div class="tabbar seg">` + scored.map((x, j) =>
+      `<button class="${j ? "" : "active"}" data-target="s--${v.name}--${x.name}">${x.name}</button>`
+    ).join("") + `</div>`;
+  score += meterCtl(v) + `</div>`;
+  if (scored.length)
+    score += scored.map((x, j) =>
+      `<div class="tabpanel ${j ? "" : "active"}" id="s--${v.name}--${x.name}">
+       <div class="score" data-url="${x.files["score.musicxml"]}">rendering…</div></div>`
+    ).join("");
+  else
+    score += `<div class="score placeholder">The score appears here when adtof
+      finishes.${progBar("adtof")}</div>`;
+  pieces.score = score + `</div>`;
+  return pieces;
+}
+
+const rendered = {};  // version name -> piece key -> html last put on the page
 
 async function build() {
   const index = await fetch("/api/index").then(r => r.json());
@@ -642,36 +721,12 @@ async function build() {
         <input type="range" min="0" max="1" step="0.01"
           value="${localStorage.volume ?? 1}" oninput="setVolume(this.value)"></label></div>`;
   for (const [i, v] of versions.entries()) {
+    const p = rendered[v.name] = versionPieces(v);
     html += `<div class="tabpanel ${i ? "" : "active"}" id="v--${v.name}">
-             <section data-song="${v.name}">`;
-    if (v.error)
-      html += `<p class="error">Processing failed — the pipeline log
-        (gear button, top right) tells what went wrong.</p>`;
-    html += `<div class="flow">` +
-      node("node-src", IC_WAVE, "original", infoBtn(v.name, "original"), v.source,
-           "still working: fetching the recording") +
-      node("node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"), v.drums,
-           "still working: Demucs is isolating the drums from the rest of the band") +
-      VARIANTS.map(name => soniRow(v, name)).join("") + `</div>`;
-    const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
-      .filter(x => x && x.files["score.musicxml"]);
-    html += `<div class="tabs stabs"><div class="scorehead">
-             <span class="grouplbl">Score</span>`;
-    if (scored.length)
-      html += `<div class="tabbar seg">` + scored.map((x, j) =>
-        `<button class="${j ? "" : "active"}" data-target="s--${v.name}--${x.name}">${x.name}</button>`
-      ).join("") + `</div>`;
-    html += meterCtl(v) + `</div>`;
-    if (scored.length)
-      html += scored.map((x, j) =>
-        `<div class="tabpanel ${j ? "" : "active"}" id="s--${v.name}--${x.name}">
-         <div class="score" data-url="${x.files["score.musicxml"]}">rendering…</div></div>`
-      ).join("");
-    else
-      html += `<div class="score placeholder waiting">
-        <span class="spin" title="${explain(v, "adtof")}"></span>
-        <span class="dimmable">The score appears here when the first pipeline finishes.</span></div>`;
-    html += `</div></section></div>`;
+      <section data-song="${v.name}">${p.err}
+      <div class="gpu" hidden>${IC_CLOUD}<b>cloud GPU</b>${progBar("gpu")}</div>
+      <div class="flow">${p.src}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
+      `</div>${p.score}</section></div>`;
   }
   html += `<div class="tabpanel ${versions.length ? "" : "active"}" id="v--__add"></div></div>`;
   app.innerHTML = html;
@@ -683,10 +738,122 @@ async function build() {
       `<a href="${v.log}">pipeline log — ${v.name}</a>`).join("") ||
     "No pipeline logs yet.";
   setVolume(localStorage.volume ?? 1);
-  renderScores();
-  followPlayback(versions);
+  renderScores(app);
+  for (const v of versions) {
+    loadBars(v);
+    showProgress(v.name, v.progress);
+    progSigs[v.name] = v.progress.sig;
+  }
+  if (versions.some(v => v.progress.job === "running")) pollProgress();
   requestAnimationFrame(() =>
     showPanel(document.querySelector(".vtabs > .tabpanel.active")));
+}
+
+// ---- live progress ------------------------------------------------------
+// The server estimates each missing result's progress from the pipeline
+// log (progress.py); the page polls it while a job runs and the page is
+// visible, and swaps in each result the moment its file appears.
+const progSigs = {};  // version name -> server's "something changed" token
+let progPolling = false;
+
+function minutes(s) {
+  if (s < 50) return "under a minute";
+  if (s < 5400) return `about ${Math.max(1, Math.round(s / 60))} min`;
+  return `about ${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min`;
+}
+
+function showProgress(vname, prog) {
+  const panel = document.getElementById(`v--${vname}`);
+  if (!panel) return;
+  panel.querySelector(".gpu").hidden = !prog.tasks.gpu;
+  // a re-run after a meter switch: the old scores stay up meanwhile
+  panel.querySelector(".mbusy").hidden =
+    prog.job !== "running" || !panel.querySelector(".score[data-url]");
+  for (const el of panel.querySelectorAll(".prog")) {
+    const t = prog.tasks[el.dataset.task] ||
+      { state: "absent", pct: 0, eta: null, activity: "" };
+    let act = t.activity, eta = "", head = `about ${t.pct} % done (an estimate)`;
+    if (t.state === "running" && t.eta !== null) eta = `${minutes(t.eta)} left`;
+    if (t.state === "queued") {
+      head = "not started yet";
+      if (t.eta !== null) eta = `ready in ${minutes(t.eta)}`;
+    }
+    if (t.state === "arriving") head = "100 % done";
+    if (t.state === "failed")
+      act = "Stopped by an error — the pipeline log (gear button) says why";
+    if (t.state === "stopped")
+      act = "Interrupted: the server restarted before this was finished";
+    if (t.state === "absent") act = "Not made for this version";
+    if (!["running", "queued", "arriving"].includes(t.state)) head = "";
+    el.className = `prog ${t.state}`;
+    el.querySelector("i").style.width = `${t.pct}%`;
+    el.querySelector(".act").textContent = act;
+    el.querySelector(".eta").textContent = eta;
+    const tip = [head, act, eta].filter(Boolean).join("\\n");
+    el.dataset.tip = tip;
+    el.setAttribute("aria-valuenow", t.pct);
+    el.setAttribute("aria-valuetext", tip.replaceAll("\\n", ". "));
+  }
+}
+
+async function pollProgress() {
+  if (progPolling) return;
+  progPolling = true;
+  while (document.visibilityState === "visible") {
+    let running = true;
+    try {
+      const all = await fetch(`/api/progress?project=${encodeURIComponent(PROJECT)}`)
+        .then(r => r.json());
+      for (const [name, prog] of Object.entries(all)) {
+        if (!(name in progSigs)) continue;  // added elsewhere; shown on reload
+        if (prog.sig !== progSigs[name]) {
+          progSigs[name] = prog.sig;
+          await refreshVersion(name);
+        }
+        showProgress(name, prog);
+      }
+      running = Object.values(all).some(p => p.job === "running");
+    } catch (e) { /* server briefly down: try again */ }
+    if (!running) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  progPolling = false;
+}
+document.addEventListener("visibilitychange", pollProgress);
+
+// Re-render the pieces of one version whose content changed. A bar about
+// to be replaced by its result first runs to the end.
+async function refreshVersion(name) {
+  const index = await fetch("/api/index").then(r => r.json());
+  const v = index.projects.find(p => p.name === PROJECT)
+    ?.versions.find(x => x.name === name);
+  const panel = document.getElementById(`v--${name}`);
+  if (!v || !panel) return;
+  for (const [key, html] of Object.entries(versionPieces(v))) {
+    const el = panel.querySelector(`[data-piece="${key}"]`);
+    if (!el || rendered[name][key] === html ||
+        [...el.querySelectorAll("audio")].some(a => !a.paused)) continue;
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html.trim();
+    const fresh = tpl.content.firstElementChild;
+    const bars = el.querySelectorAll(".prog");
+    if (bars.length && !fresh.querySelector(".prog")) {
+      bars.forEach(b => b.classList.add("finishing"));
+      await new Promise(r => setTimeout(r, 450));
+    }
+    const tab = el.querySelector(".tabbar button.active")?.dataset.target;
+    el.replaceWith(fresh);
+    rendered[name][key] = html;
+    if (el.classList.contains("waiting") || bars.length) fresh.classList.add("arrived");
+    if (key === "score") {
+      fresh.querySelector(`[data-target="${tab}"]`)?.click();
+      renderScores(fresh);
+    }
+  }
+  setVolume(localStorage.volume ?? 1);
+  showProgress(name, v.progress);
+  loadBars(v);
+  if (panel.classList.contains("active")) showPanel(panel);
 }
 
 // One shared volume for every player, remembered across page loads.
@@ -695,13 +862,13 @@ function setVolume(vol) {
   document.querySelectorAll("audio").forEach(a => a.volume = vol);
 }
 
-async function renderScores() {
+async function renderScores(root) {
   await vrvReady;
   const tk = new verovio.toolkit();
   tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
                   pageWidth: 2100, footer: "none",
                   svgAdditionalAttribute: ["measure@n"] });
-  for (const el of document.querySelectorAll(".score[data-url]")) {
+  for (const el of root.querySelectorAll(".score[data-url]")) {
     const xml = await fetch(el.dataset.url).then(r => r.text());
     tk.loadData(xml);
     let svg = "";
@@ -812,47 +979,47 @@ document.addEventListener("click", e => {
 const barTimes = {};   // version name -> [{t, bar}]
 const lastAudio = {};  // version name -> the <audio> the user last played
 
-async function followPlayback(versions) {
-  for (const v of versions) {
-    try {
-      const grid = await fetch(v.beats).then(r => r.json());
-      let bar = 0;
-      barTimes[v.name] = grid.times.map((t, i) => {
-        if (grid.positions[i] === 1) bar++;
-        return { t, bar };
-      });
-      // Detected time signature: the most common beats-per-bar count,
-      // shown as the numerator in the steady-meter option.
-      const counts = {};
-      let len = 0;
-      for (const p of grid.positions) {
-        if (p === 1 && len) { counts[len] = (counts[len] || 0) + 1; len = 0; }
-        len++;
-      }
-      const num = Object.entries(counts).sort((a, b) => a[1] - b[1]).pop()?.[0];
-      const sig = document.querySelector(`.meter[data-version="${v.name}"] .msig-num`);
-      if (num && sig) sig.textContent = num;
-    } catch (e) { /* no beat grid yet */ }
-  }
-  document.addEventListener("timeupdate", e => {
-    const section = e.target.closest("section[data-song]");
-    if (!section || e.target.paused) return;
-    const bars = barTimes[section.dataset.song];
-    if (!bars) return;
+async function loadBars(v) {
+  if (!v.tracked) return;
+  try {
+    const grid = await fetch(v.beats).then(r => r.json());
     let bar = 0;
-    for (const b of bars) { if (b.t <= e.target.currentTime + 0.05) bar = b.bar; else break; }
-    for (const el of section.querySelectorAll("g.measure.now")) el.classList.remove("now");
-    if (bar === 0) return;
-    for (const score of section.querySelectorAll(".score")) {
-      const m = score.querySelector(`g.measure[data-n="${bar}"]`);
-      if (m) m.classList.add("now");
+    barTimes[v.name] = grid.times.map((t, i) => {
+      if (grid.positions[i] === 1) bar++;
+      return { t, bar };
+    });
+    // Detected time signature: the most common beats-per-bar count,
+    // shown as the numerator in the steady-meter option.
+    const counts = {};
+    let len = 0;
+    for (const p of grid.positions) {
+      if (p === 1 && len) { counts[len] = (counts[len] || 0) + 1; len = 0; }
+      len++;
     }
-  }, true);
-  document.addEventListener("play", e => {
-    const section = e.target.closest("section[data-song]");
-    if (section) lastAudio[section.dataset.song] = e.target;
-  }, true);
+    const num = Object.entries(counts).sort((a, b) => a[1] - b[1]).pop()?.[0];
+    const sig = document.querySelector(`.meter[data-version="${v.name}"] .msig-num`);
+    if (num && sig) sig.textContent = num;
+  } catch (e) { /* beat grid being rewritten: next refresh */ }
 }
+
+document.addEventListener("timeupdate", e => {
+  const section = e.target.closest("section[data-song]");
+  if (!section || e.target.paused) return;
+  const bars = barTimes[section.dataset.song];
+  if (!bars) return;
+  let bar = 0;
+  for (const b of bars) { if (b.t <= e.target.currentTime + 0.05) bar = b.bar; else break; }
+  for (const el of section.querySelectorAll("g.measure.now")) el.classList.remove("now");
+  if (bar === 0) return;
+  for (const score of section.querySelectorAll(".score")) {
+    const m = score.querySelector(`g.measure[data-n="${bar}"]`);
+    if (m) m.classList.add("now");
+  }
+}, true);
+document.addEventListener("play", e => {
+  const section = e.target.closest("section[data-song]");
+  if (section) lastAudio[section.dataset.song] = e.target;
+}, true);
 
 // Seek a version's audio to a bar and play — the player currently playing,
 // else the last one used, else the original.
@@ -992,12 +1159,6 @@ def scan_output(root: Path) -> dict:
                 fixed = regularize(g)
                 irregular = (fixed.times.tolist() != g.times.tolist()
                              or fixed.positions.tolist() != g.positions.tolist())
-            stage = None
-            if log.exists():
-                markers = [ln for ln in log.read_text().splitlines()
-                           if ln.startswith(("==", "ERROR"))]
-                stage = markers[-1].strip("= ") if markers else None
-            done = {v["name"] for v in variants}
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
@@ -1007,18 +1168,8 @@ def scan_output(root: Path) -> dict:
                 "drums": f"{rel}/{drums[0].relative_to(vdir)}" if drums else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
                 "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
-                "done": done == set(VARIANTS),
-                "stage": stage,
-                # ordered progress checklist shown while processing
-                "steps": [
-                    ["source audio fetched", bool(sources)],
-                    ["drums isolated (Demucs)", bool(drums)],
-                    ["beat grid tracked", (vdir / "beats.json").exists()],
-                    ["adtof transcription", "adtof" in done],
-                    ["kit split into 6 stems (slow)",
-                     any((vdir / "stems" / "mdx23c").glob("*")) if (vdir / "stems" / "mdx23c").is_dir() else False],
-                    ["mdx23c transcription", "mdx23c" in done],
-                ],
+                "tracked": (vdir / "beats.json").exists(),
+                "progress": version_progress(vdir, vdir in RUNNING),
                 "variants": variants,
             })
         if versions:
@@ -1080,6 +1231,16 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send(guide.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/index":
             self._send(json.dumps(scan_output(self.root)).encode(), "application/json")
+        elif path == "/api/progress":
+            project = parse_qs(urlparse(self.path).query).get("project", [""])[0]
+            pdir = self.root / project
+            if not (re.fullmatch(r"[a-z0-9-]+", project) and pdir.is_dir()):
+                self.send_error(404)
+                return
+            self._send(json.dumps({
+                v.name: version_progress(v, v in RUNNING)
+                for v in sorted(pdir.iterdir()) if v.is_dir()}).encode(),
+                "application/json")
         elif path == "/api/seek":
             self._send(json.dumps(SEEK | {"boot": BOOT}).encode(),
                        "application/json")

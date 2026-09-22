@@ -79,7 +79,7 @@ browser is remembered and never asks again. The laptop site never asks.
 **Main page**: your projects, plus a form to transcribe a new piece — upload
 a sound or video file, or paste a public link (YouTube, a Google Drive share
 link, or a direct URL). Submitting creates the project page and starts all
-pipelines in the background; reload the project page to watch results appear.
+pipelines in the background; the project page shows their progress live.
 
 **Project page**: one piece, with every uploaded/linked version of it (say,
 the backing track and the album recording) in its own tab. Adding another
@@ -105,9 +105,14 @@ version for comparison happens at the bottom of the page. Per version:
   be missing;
 - the pipelines' **scores rendered on the page**, chosen with the selector
   above the score;
-- anything still processing shown **dimmed with a spinner** (hover the
-  spinner to see the step); the **pipeline log** is behind the gear button
-  (top right);
+- a **progress bar** in place of anything not ready yet, saying what is
+  being done and roughly how long is left; a hatched, empty bar is waiting
+  its turn. Point at a bar to see the estimated percentage — an estimate
+  from how long each step usually takes, not an exact measurement. With
+  the cloud GPU option, an extra bar at the top shows the rented machine
+  starting up (usually 2–5 minutes). Results swap in by themselves as they
+  finish, without reloading. The **pipeline log** is behind the gear
+  button (top right);
 - **feedback on the notation**: point at any note or rest (it turns blue),
   click to record what is wrong (extra note, missing note, wrong rhythm,
   wrong drum, wrong time signature, or free text). Flagged notes are tinted
