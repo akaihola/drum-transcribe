@@ -63,7 +63,7 @@ STYLE = """
   .player figcaption, .sonihead { font-size: .85rem; color: var(--ink-quiet);
                                   margin-bottom: .4rem; }
   .player figcaption b, .sonihead b { color: var(--ink); font-size: 1rem; }
-  .player audio { display: block; width: 100%; }
+  .player audio { display: block; width: 100%; height: 2rem; }
   /* Chromium: volume lives in the one shared slider (.vol), not per player */
   audio::-webkit-media-controls-mute-button,
   audio::-webkit-media-controls-volume-slider,
@@ -84,7 +84,8 @@ STYLE = """
   .flow > .soni[data-name="fused"] { grid-column: 2 / span 2; }
   svg.arrows { position: absolute; inset: 0; overflow: visible;
                pointer-events: none; color: var(--ink-quiet); }
-  .soni .docs { margin-top: .4rem; }
+  .soniline { display: flex; align-items: center; gap: .6rem; }
+  .soniline > :first-child { flex: 1; min-width: 0; }
   .sonihead { display: flex; gap: .8rem; align-items: baseline; margin-bottom: .35rem; }
   .waiting .dimmable { opacity: .4; pointer-events: none; }
   .spin { display: inline-block; width: .95em; height: .95em; vertical-align: -.12em;
@@ -92,11 +93,12 @@ STYLE = """
           border-radius: 50%; animation: spin 1.1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 4s; } }
-  .docs { display: flex; gap: .7rem; flex-wrap: wrap; }
-  a.doc { width: 3.9rem; text-align: center; font-size: .68rem; line-height: 1.25;
-          color: var(--ink-quiet); text-decoration: none; word-break: break-all; }
-  a.doc svg { width: 1.9rem; height: 2.4rem; display: block; margin: 0 auto .15rem; }
-  a.doc:hover { color: var(--teal-deep); }
+  .docs { display: flex; gap: .35rem; }
+  a.doc { display: grid; place-items: center; width: 1.7rem; height: 1.7rem;
+          border-radius: 6px; font-size: .85rem; font-weight: 700;
+          color: var(--ink-quiet); text-decoration: none; }
+  a.doc img, a.doc svg { width: 1.35rem; height: 1.35rem; }
+  a.doc:hover { background: var(--paper); color: var(--teal-deep); }
   .stats { font-size: .85rem; color: var(--ink-quiet); max-width: 75ch; }
   .pending { color: var(--brass); font-style: italic; }
   .error { color: var(--signal); }
@@ -109,7 +111,7 @@ STYLE = """
   .tabbar button.add { border-style: dashed; color: var(--ink-quiet); }
   .tabbar button.add.active { border-style: solid; color: var(--paper); }
   .vtabs > .tabpanel.active { border: 1px solid var(--hairline); border-radius: 12px;
-                              background: rgba(255,255,255,.55);
+                              background: #F0EDE5;
                               padding: 1rem 1.4rem 1.4rem; }
   .seg { gap: 0; margin: 0; }
   .seg button { border-radius: 0; margin-left: -1.5px; }
@@ -263,12 +265,14 @@ HELP_HTML = """
   unequal length; the <b>?</b> next to it explains the details.</p>
 
   <h3>5. Downloads</h3>
-  <p>Each pipeline's result files are the small document icons under its
-  sonification — click one to download it, or drag it straight into your
-  file manager. <b>MusicXML</b> opens directly in MuseScore (File &rarr;
-  Open) and is always available; the <b>MuseScore file</b> appears when
-  automatic conversion succeeded. <b>MIDI</b> plays the transcription; the
-  JSON files hold the raw detection data.</p>
+  <p>Each pipeline's result files are the small icons to the right of its
+  sonification player (point at one to see its name) — click one to
+  download it, or drag it straight into your file manager. The green
+  <b>MusicXML</b> logo opens directly in MuseScore (File &rarr; Open) and is
+  always available; the purple <b>MuseScore</b> logo appears when automatic
+  conversion succeeded. The round plug is <b>MIDI</b>, which plays the
+  transcription; the { } braces are JSON files with the raw detection
+  data.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Point at any note or rest in a score: it turns blue. Click it to record
@@ -447,39 +451,24 @@ function dragFile(e, name, url) {
     `application/octet-stream:${name}:${location.origin}${url}`);
 }
 
-// Recognizable marks per file type: MuseScore's four-petal star, the
-// MusicXML note-in-brackets, the MIDI 5-pin DIN plug, JSON braces.
+// One small download tile per file: the MuseScore and MusicXML logos, the
+// MIDI 5-pin DIN plug, braces for JSON; the tooltip names the file.
 const FILE_LOGOS = {
-  mscz: `<g fill="currentColor">
-    <path d="M16 9.5c1.9 1.9 1.9 4.6 0 6.5-1.9-1.9-1.9-4.6 0-6.5z"/>
-    <path d="M22.5 16c-1.9 1.9-4.6 1.9-6.5 0 1.9-1.9 4.6-1.9 6.5 0z"/>
-    <path d="M16 22.5c-1.9-1.9-1.9-4.6 0-6.5 1.9 1.9 1.9 4.6 0 6.5z"/>
-    <path d="M9.5 16c1.9-1.9 4.6-1.9 6.5 0-1.9 1.9-4.6 1.9-6.5 0z"/></g>`,
-  musicxml: `<g fill="none" stroke="currentColor" stroke-width="1.4"
-      stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10 12l-3.5 4L10 20M22 12l3.5 4L22 20"/>
-    <path d="M16.8 18.5V11l2.8 1.6"/></g>
-    <ellipse cx="15" cy="18.7" rx="2" ry="1.5" fill="currentColor"/>`,
-  mid: `<circle cx="16" cy="16" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/>
-    <g fill="currentColor"><circle cx="11.6" cy="17.6" r="1.1"/>
-    <circle cx="13.4" cy="13.5" r="1.1"/><circle cx="16" cy="12" r="1.1"/>
-    <circle cx="18.6" cy="13.5" r="1.1"/><circle cx="20.4" cy="17.6" r="1.1"/></g>`,
-  json: `<text x="16" y="20" text-anchor="middle" font-size="10"
-    fill="currentColor">{ }</text>`,
+  mscz: `<img src="/static/musescore.svg" alt="">`,
+  musicxml: `<img src="/static/musicxml.png" alt="">`,
+  mid: `<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none"
+    stroke="currentColor" stroke-width="2"/><g fill="currentColor">
+    <circle cx="9.5" cy="18.5" r="1.8"/><circle cx="12" cy="12" r="1.8"/>
+    <circle cx="16" cy="9.5" r="1.8"/><circle cx="20" cy="12" r="1.8"/>
+    <circle cx="22.5" cy="18.5" r="1.8"/></g></svg>`,
+  json: `{ }`,
 };
 
 function docIcon(file, label, url) {
-  const ext = file.split(".").pop();
   return `<a class="doc" href="${url}" download
-    title="${label} — click to download, or drag into a folder"
-    ondragstart="dragFile(event, '${file}', '${url}')">
-    <svg viewBox="0 0 32 40"><path d="M2 1h19l9 9v29H2z" fill="var(--card)"
-      stroke="currentColor" stroke-width="1.5"/>
-      <path d="M21 1v9h9" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      ${FILE_LOGOS[ext] || FILE_LOGOS.json}
-      <text x="16" y="34" text-anchor="middle" font-size="7.5" font-weight="700"
-        fill="currentColor">${ext === "musicxml" ? "XML" : ext.toUpperCase()}</text></svg>
-    <span>${file}</span></a>`;
+    title="${file}: ${label} — click to download, or drag into a folder"
+    ondragstart="dragFile(event, '${file}', '${url}')"
+    >${FILE_LOGOS[file.split(".").pop()] || FILE_LOGOS.json}</a>`;
 }
 
 function soniRow(v, name) {
@@ -489,7 +478,7 @@ function soniRow(v, name) {
     <span class="stats">sonification${infoBtn(v.name, "sonis", "sonis-" + name)}` +
     (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") + `</span>` +
     (url ? "" : `<span class="spin" title="${explain(v, name)}"></span>`) + `</div>`;
-  inner += `<div class="dimmable">
+  inner += `<div class="dimmable soniline">
     <audio controls preload="none" ${url ? `src="${url}"` : ""}></audio>`;
   if (variant)
     inner += `<div class="docs">` + DOWNLOADS.map(([file, label]) =>
@@ -1083,6 +1072,9 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
+        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png)", path):
+            f = Path(__file__).parent / path[1:]
+            self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
             guide = Path(__file__).parents[2] / "docs" / "style-guide.html"
             self._send(guide.read_bytes(), "text/html; charset=utf-8")

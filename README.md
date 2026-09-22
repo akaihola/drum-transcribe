@@ -97,7 +97,7 @@ version for comparison happens at the bottom of the page. Per version:
   by default the bar lines are straightened automatically; choose the
   changing-meter option only if the piece really changes meter, and the
   scores are recomputed with the bar lines exactly as detected;
-- **downloadable files** as document icons under each sonification — click
+- **downloadable files** as small icons beside each sonification player — click
   to download or drag into your file manager: MusicXML (opens directly in
   MuseScore), MIDI, the raw detection data (JSON), and a ready MuseScore
   file when conversion succeeded — MuseScore 4's command-line converter

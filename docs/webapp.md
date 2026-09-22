@@ -150,8 +150,10 @@ and the presign step fall back to plain `python3`/`vastai`). See
   grid: original —Demucs→ drums stem; drums stem —ADTOF→ adtof and
   —MDX23C→ mdx23c; both of those → fused (centred below; "hits" from ADTOF,
   "6 drum tracks" from the MDX23C kit split). Pipeline cards hold the
-  sonification player and file-type logo icons under it (drag-out
-  downloadable via `DownloadURL`). Arrows are an SVG overlay drawn from live
+  sonification player (slimmed to 2rem) with small download tiles on the
+  same line (`.soniline`): the MuseScore and MusicXML logos, served from
+  `src/drum_transcribe/static/` at `/static/`, a MIDI plug, and braces for
+  JSON; the tooltip names the file; drag-out downloadable via `DownloadURL`. Arrows are an SVG overlay drawn from live
   element positions (`drawArrows`) — redrawn on tab switches and resizes
   because hidden panels have no layout. Players stretch to the card width;
   Chromium's per-player volume controls are hidden in favour of one shared
