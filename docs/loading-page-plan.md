@@ -27,9 +27,15 @@ For every request to `plokkaus.vempai.men`:
      (status 503, `Cache-Control: no-store`, `Retry-After: 5`). The
      original request stays alive via `ctx.waitUntil`, so it keeps waking
      the container.
-2. **Everything else** (API calls, score files, audio redirects, uploads):
-   pass through untouched. Only page loads get the loading page; by the
-   time a page has loaded, the container is awake anyway.
+2. **Everything else** (score files, audio redirects, uploads): pass
+   through untouched. Only page loads get the loading page; by the time a
+   page has loaded, the container is awake anyway.
+3. **`/api/*` never reaches the Worker.** A second route,
+   `plokkaus.vempai.men/api/*`, is set to "no Worker", so these requests
+   go through Cloudflare's plain proxy straight to the app. That covers the
+   once-a-second polls (`/api/seek`, `/api/progress`), which would
+   otherwise use up the free plan's daily Worker allowance, as well as
+   unlock and create. It also covers the loading page's own `/api/seek` check.
 
 Passing through is `fetch(request, { redirect: "manual" })`. The request
 goes to the existing DNS target with the `Host` header unchanged, so:
@@ -57,7 +63,8 @@ location.reload();
 ```
 
 `/api/seek` is the cheapest endpoint the app already has, and it has no side
-effects. The fetch simply waits while the container starts. The reload
+effects. It skips the Worker (the `/api/*` route), so the fetch simply waits
+at the proxy while the container starts. The reload
 goes through the Worker again, which by then passes the real page through.
 
 ## Files
@@ -80,6 +87,12 @@ Using a *route* rather than a Worker "custom domain" keeps the existing DNS
 record and the Scaleway domain binding as the origin. Rolling back then
 means turning one switch off (see below).
 
+The `/api/*` exclusion can't be written in `wrangler.toml` (a route there
+always names this Worker). It is created once through the Cloudflare API:
+`POST /zones/<zone_id>/workers/routes` with
+`{"pattern": "plokkaus.vempai.men/api/*"}` and no `script`. The more
+specific pattern wins over `plokkaus.vempai.men/*`.
+
 ## Deployment
 
 One-time setup, done by you in the Cloudflare dashboard:
@@ -101,9 +114,11 @@ Then the agent:
 4. Switches the `plokkaus` DNS record from "DNS only" to "Proxied" (Cloudflare
    API). The route only runs for proxied records, so this step turns the
    Worker on.
-5. Sets the route's failure mode to "fail open" (see limits below).
+5. Creates the `/api/*` "no Worker" route (above) and sets the main
+   route's failure mode to "fail open" (see limits below).
 6. Verifies the live site with a browser: page, audio playback and seeking,
-   password unlock, a small upload. Then waits for a real cold start and
+   password unlock, a small upload. Checks in the Cloudflare dashboard that
+   `/api/seek` polls don't show up as Worker requests. Then waits for a real cold start and
    checks that the loading page appears.
 7. Documents it in [operations.md](operations.md) (cloud section) and adds
    one plain sentence to the README.
@@ -113,9 +128,10 @@ bypassed immediately and everything works as it does today.
 
 ## Limits and risks
 
-- **Free plan: 100 000 Worker requests a day.** An open, visible project page
-  polls `/api/seek` once a second (3 600 an hour), so the limit equals ~27
-  tab-hours a day. With "fail open", requests over the limit skip the Worker
+- **Free plan: 100 000 Worker requests a day.** Only page loads and file
+  requests count, because the once-a-second polls go through the `/api/*`
+  route and never reach the Worker. Normal use stays far below the limit.
+  As a safety net, "fail open" makes requests over the limit skip the Worker
   and go straight to the app. Only the loading page is lost.
 - **Uploads over 100 MB fail** through Cloudflare's proxy (free plan limit).
   Song MP3s are far below that, but a long WAV or video upload might not be.
