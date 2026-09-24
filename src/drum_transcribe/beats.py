@@ -16,13 +16,17 @@ class BeatGrid:
 
     @property
     def meter(self) -> int:
-        """Most common number of beats per bar."""
+        """Bar length (in beats) that covers the most beats.
+
+        Weighted by beats, not bars: a sparse intro where the tracker marks
+        nearly every beat a downbeat yields many 1- and 2-beat "bars", which
+        would outnumber the song's real 4-beat bars."""
         downbeat_idx = np.flatnonzero(self.positions == 1)
         bar_lengths = np.diff(downbeat_idx)
         if len(bar_lengths) == 0:
             return int(self.positions.max()) or 4
         values, counts = np.unique(bar_lengths, return_counts=True)
-        return int(values[np.argmax(counts)])
+        return int(values[np.argmax(values * counts)])
 
     def save(self, path: Path) -> None:
         path.write_text(

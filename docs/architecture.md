@@ -9,7 +9,8 @@ musical simplification; every intermediate inspectable and re-runnable.
 2. **beat_this** → `beats_raw.json` (tracker output) + `beats.json` (the
    effective grid everything else uses): beat times + position-in-bar. Bar
    numbers = cumulative downbeat count; beats before the first downbeat form
-   pickup bar 0. `BeatGrid.meter` = modal downbeat spacing.
+   pickup bar 0. `BeatGrid.meter` = the downbeat spacing covering the most beats
+   (a sparse intro of 1-beat "bars" must not outvote the real 4-beat bars).
    By default `beats.regularize()` repairs tracker slips — bursts of doubled
    tempo and spurious downbeats (seen in taustanauha 2:04–2:30) — by walking
    the dominant pulse through the raw beats and re-laying barlines every
