@@ -216,7 +216,11 @@ STYLE = """
               background: var(--card); color: var(--ink); font: inherit;
               font-size: 1.2rem; cursor: pointer;
               box-shadow: 0 2px 8px rgba(35,32,25,.12); }
-  #help-btn:hover { border-color: var(--ink-quiet); }
+  #help-btn:hover, #gh-link:hover { border-color: var(--ink-quiet); }
+  #gh-link { position: fixed; bottom: 1rem; right: 1.2rem; width: 2.4rem;
+             height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
+             background: var(--card); color: var(--ink); display: grid;
+             place-items: center; box-shadow: 0 2px 8px rgba(35,32,25,.12); }
   dialog#help { max-width: 32rem; max-height: 80vh; overflow-y: auto;
                 color: var(--ink); background: var(--card);
                 border: 1px solid var(--hairline); border-radius: 8px;
@@ -243,6 +247,9 @@ STYLE = """
 """
 
 HELP_HTML = """
+<a id="gh-link" href="https://github.com/akaihola/drum-transcribe"
+   title="Source code on GitHub"><svg viewBox="0 0 16 16" width="20" height="20"
+   fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
 <button id="help-btn" title="Help" onclick="document.getElementById('help').showModal()">?</button>
 <dialog id="help">
   <button class="close" onclick="document.getElementById('help').close()">×</button>
