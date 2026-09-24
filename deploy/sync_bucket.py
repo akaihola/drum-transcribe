@@ -6,9 +6,11 @@ app redirects requests for those to the bucket (serve.py _send_file).
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import boto3  # ty: ignore[unresolved-import]  # installed in the container only
+from botocore.config import Config  # ty: ignore[unresolved-import]
 
 from drum_transcribe.ingest import AUDIO_EXTS
 
@@ -21,9 +23,10 @@ def main() -> None:
         region_name=os.environ.get("S3_REGION", "fr-par"),
         aws_access_key_id=os.environ["S3_ACCESS_KEY"],
         aws_secret_access_key=os.environ["S3_SECRET_KEY"],
+        config=Config(max_pool_connections=32),
     )
     bucket = os.environ["S3_BUCKET"]
-    n = 0
+    n, todo = 0, []
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket):
         for obj in page.get("Contents", []):
             if obj["Key"].startswith("sources/"):  # worker inputs, not results
@@ -37,8 +40,11 @@ def main() -> None:
             if path.suffix in AUDIO_EXTS:
                 path.touch()
             else:
-                s3.download_file(bucket, obj["Key"], str(path))
+                todo.append((obj["Key"], path))
             n += 1
+    # in parallel: each object is mostly request latency, not bytes
+    with ThreadPoolExecutor(32) as pool:
+        list(pool.map(lambda kp: s3.download_file(bucket, kp[0], str(kp[1])), todo))
     print(f"synced {n} objects from {bucket} to {dest}", flush=True)
 
 
