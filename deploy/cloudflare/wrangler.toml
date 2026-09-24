@@ -1,0 +1,8 @@
+# Worker in front of plokkaus.vempai.men: shows a "Starting up…" page while
+# the sleeping Scaleway container wakes. See docs/loading-page-plan.md.
+# The /api/* "no Worker" route lives outside this file (Cloudflare API).
+name = "plokkaus-front"
+main = "worker.js"
+compatibility_date = "2026-09-24"
+workers_dev = false
+routes = [{ pattern = "plokkaus.vempai.men/*", zone_name = "vempai.men" }]

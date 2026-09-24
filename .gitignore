@@ -26,3 +26,4 @@ vendor/
 .gpu-instance
 .gpu-known-hosts
 .build-ctx-gpu/
+.wrangler/
