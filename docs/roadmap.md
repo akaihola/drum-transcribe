@@ -46,6 +46,10 @@ regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
 
 ## Agreed / floated next steps
 
+- **"Starting up…" page for the cloud copy** (planned 2026-09-24): a
+  Cloudflare Worker in front of plokkaus.vempai.men shows a loading page
+  while the sleeping container wakes up. See
+  [loading-page-plan.md](loading-page-plan.md).
 - **Feedback-driven correction** (needs refinement before starting): use
   collected `feedback.json` to auto-correct scores and/or tune pipeline
   parameters. Two possible directions, scope still undecided:
