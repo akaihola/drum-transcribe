@@ -126,7 +126,10 @@ viewed from anywhere without the laptop being on:
   The container scales to zero when idle, so each cold start re-syncs
   (~20 MB without audio; with audio it was 550 MB and ~70 s). The log line
   `container starting` marks when our start script begins — its gap to the
-  first request is Scaleway's own start-up time. Logs: Scaleway Cockpit,
+  first request is Scaleway's own start-up time. Measured cold start
+  2026-09-25: 23 s in total = Scaleway 2.8 s + start script and sync 18.7 s
+  + server start 1.5 s. The same script takes ~6 s on gogo at 0.5 CPU, so
+  most of the 18.7 s is the throttled or cold serverless environment. Logs: Scaleway Cockpit,
   queried with the read-only token in `.secrets.cockpit-logs.json`
   (Loki API: `curl -G -H "Authorization: Bearer $SECRET_KEY"
   https://4b1f9092-5364-45e2-9395-596638758a27.logs.cockpit.fr-par.scw.cloud/loki/api/v1/query_range
