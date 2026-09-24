@@ -1257,6 +1257,14 @@ class AppHandler(SimpleHTTPRequestHandler):
         serves whole files, so handle ranges here."""
         rng = re.fullmatch(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
         file = Path(self.translate_path(self.path))
+        if file.is_file() and file.suffix in AUDIO_EXTS and not file.stat().st_size:
+            # empty stand-in left by the cloud container's startup sync: the
+            # audio stays in the bucket and the browser fetches it from there
+            self.send_response(302)
+            self.send_header("Location", gate.presigned(
+                file.relative_to(self.directory).as_posix()))
+            self.end_headers()
+            return
         if not (rng and file.is_file()):
             super().do_GET()
             return

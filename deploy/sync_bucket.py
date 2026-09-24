@@ -1,10 +1,16 @@
-"""Download the whole results bucket to a local dir (container startup)."""
+"""Download the results bucket to a local dir (container startup).
+
+Audio files (~95 % of the bytes) become empty stand-ins instead; the web
+app redirects requests for those to the bucket (serve.py _send_file).
+"""
 
 import os
 import sys
 from pathlib import Path
 
 import boto3  # ty: ignore[unresolved-import]  # installed in the container only
+
+from drum_transcribe.ingest import AUDIO_EXTS
 
 
 def main() -> None:
@@ -28,7 +34,10 @@ def main() -> None:
                 print(f"skipping unsafe key {obj['Key']!r}", flush=True)
                 continue
             path.parent.mkdir(parents=True, exist_ok=True)
-            s3.download_file(bucket, obj["Key"], str(path))
+            if path.suffix in AUDIO_EXTS:
+                path.touch()
+            else:
+                s3.download_file(bucket, obj["Key"], str(path))
             n += 1
     print(f"synced {n} objects from {bucket} to {dest}", flush=True)
 

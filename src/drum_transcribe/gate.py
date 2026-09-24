@@ -17,8 +17,10 @@ string), THROTTLE_MAX (default 3), THROTTLE_HOURS (default 24).
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import threading
@@ -90,18 +92,29 @@ def write_marker(version_dir: Path, authorized: bool) -> None:
         threading.Thread(target=_upload, args=(marker,), daemon=True).start()
 
 
+@functools.cache
+def _bucket():
+    """(boto3 client, bucket name) from the container's worker credentials."""
+    import boto3  # ty: ignore[unresolved-import]
+
+    c = json.loads(Path(".secrets.worker-s3.json").read_text())
+    return boto3.client("s3", endpoint_url=c["endpoint"], region_name=c["region"],
+                        aws_access_key_id=c["access_key"],
+                        aws_secret_access_key=c["secret_key"]), c["bucket"]
+
+
+def presigned(key: str) -> str:
+    """Temporary download link for a bucket object (audio left out of the sync)."""
+    s3, bucket = _bucket()
+    return s3.generate_presigned_url(
+        "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=12 * 3600)
+
+
 def _upload(marker: Path) -> None:
     """Persist the marker to the bucket so cold starts still count it."""
     try:
-        import json
-
-        import boto3  # ty: ignore[unresolved-import]
-
-        c = json.loads(Path(".secrets.worker-s3.json").read_text())
-        s3 = boto3.client("s3", endpoint_url=c["endpoint"], region_name=c["region"],
-                          aws_access_key_id=c["access_key"],
-                          aws_secret_access_key=c["secret_key"])
-        s3.upload_file(str(marker), c["bucket"],
+        s3, bucket = _bucket()
+        s3.upload_file(str(marker), bucket,
                        f"{marker.parent.parent.name}/{marker.parent.name}/created")
     except Exception as e:  # noqa: BLE001
         print(f"created-marker upload failed (cap resets at next cold start): {e!r}",

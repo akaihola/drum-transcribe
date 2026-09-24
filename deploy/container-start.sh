@@ -6,6 +6,7 @@
 #   GPU_SSH_KEY_B64                base64 ed25519 private key for job ssh
 set -eu
 cd /app
+echo "container starting"  # log timestamp: splits Scaleway's start from our sync
 
 python - <<'PY'
 import json, os
