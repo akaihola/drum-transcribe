@@ -67,8 +67,10 @@ audio link (YouTube and Google Drive links only work on the laptop, and so
 do links to your own machines at home — the cloud site fetches only links
 that anyone on the internet could open) — as
 long as you tick "process on a rented cloud GPU". Keep the page open while
-it processes. The first visit after a quiet period takes some extra
-seconds while the site fetches the latest results.
+it processes. The cloud site sleeps when nobody uses it: the first visit
+after a quiet period shows a "Starting up…" page for up to a minute, which
+switches to the real page by itself. Files uploaded to the cloud site can
+be at most 100 MB.
 
 Because the cloud site is open to the whole internet, anyone may listen and
 read there, but it only accepts a few new pieces per day from unknown

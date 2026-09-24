@@ -1,6 +1,6 @@
 # Plan: "Starting up…" page for plokkaus.vempai.men
 
-Status: planned (2026-09-24), not built.
+Status: built and deployed 2026-09-25 (operations reference: [operations.md](operations.md)).
 
 ## What and why
 
@@ -135,14 +135,14 @@ bypassed immediately and everything works as it does today.
   and go straight to the app. Only the loading page is lost.
 - **Uploads over 100 MB fail** through Cloudflare's proxy (free plan limit).
   Song MP3s are far below that, but a long WAV or video upload might not be.
-  Before switching, check whether Scaleway already has a lower limit. If not,
-  and big uploads matter, uploads would need to go straight to the bucket.
-  That is a separate change.
+  Checked 2026-09-25: Scaleway alone accepted a 120 MB request, so this is a
+  new limit. If big uploads matter, uploads would need to go straight to the
+  bucket. That is a separate change.
 - **HTTPS certificate:** Scaleway renews its `plokkaus` certificate itself.
   Behind the proxy, the renewal's check passes through Cloudflare, which
-  normally lets `/.well-known/acme-challenge/` through. If a renewal fails,
-  set the SSL mode for this hostname to "Full" (a Configuration Rule, not
-  the zone-wide setting), which accepts an expired origin certificate.
+  normally lets `/.well-known/acme-challenge/` through ("Always use HTTPS"
+  is off in the zone). Even if a renewal fails, the zone's SSL mode was
+  already "Full" (not strict), which accepts an expired origin certificate.
 - **Proxy timeout 100 s:** Cloudflare gives up on an origin that hasn't
   answered in 100 s (error 524). Page loads never hit it (the loading page
   answers after 2.5 s). The loading page's `/api/seek` poll just retries.

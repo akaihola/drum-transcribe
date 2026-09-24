@@ -46,7 +46,7 @@ regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
 
 ## Agreed / floated next steps
 
-- **"Starting up…" page for the cloud copy** (planned 2026-09-24): a
+- **"Starting up…" page for the cloud copy** (live since 2026-09-25): a
   Cloudflare Worker in front of plokkaus.vempai.men shows a loading page
   while the sleeping container wakes up. See
   [loading-page-plan.md](loading-page-plan.md).

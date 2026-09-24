@@ -6,15 +6,15 @@ ability to *maintain* that deployment, plus any results and code not yet
 pushed. This page lists what to keep in the password manager and how to
 get working again on a new machine.
 
-## Keep in the password manager (six items)
+## Keep in the password manager (seven items)
 
-Six files hold every credential. Save each one as its own secure note,
+Seven files hold every credential. Save each one as its own secure note,
 named by its path. Print them all for copying with:
 
 ```bash
 cd ~/prg/drum-transcribe
 for f in .secrets.gpu-ssh .secrets.gpu-ssh.pub .secrets.throttle.env \
-         .secrets.worker-s3.json ~/.config/scw/config.yaml \
+         .secrets.worker-s3.json .secrets.cloudflare.env ~/.config/scw/config.yaml \
          ~/.config/vastai/vast_api_key; do
   echo "════ $f"; grep -vE '^\s*(#|$)' "$f"
 done
@@ -25,6 +25,7 @@ done
 | `.secrets.gpu-ssh` + `.pub` | dedicated ssh key the cloud app uses to drive rented GPU instances (its base64 is the container's `GPU_SSH_KEY_B64`) |
 | `.secrets.throttle.env` | web app `CREATE_PASSWORDS` and `TOKEN_SECRET`; **`TOKEN_SECRET` cannot be recreated** — a new one logs every browser out of its password bypass |
 | `.secrets.worker-s3.json` | scoped S3 key for the results bucket (IAM application `drum-transcribe-worker`, expires 2027-03-31) |
+| `.secrets.cloudflare.env` | Cloudflare API token (Workers + DNS for `vempai.men`) and account ID — deploys the loading-page Worker, flips the `plokkaus` record |
 | `~/.config/scw/config.yaml` | main Scaleway API key, profile `drum-transcribe` — needed to push images and update the container |
 | `~/.config/vastai/vast_api_key` | Vast.ai API key |
 

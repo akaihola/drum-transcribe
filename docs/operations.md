@@ -63,9 +63,24 @@ A read-only copy of the review web app runs in Scaleway's cloud so it can be
 viewed from anywhere without the laptop being on:
 
 - URL: https://plokkaus.vempai.men/ — a custom domain (CNAME `plokkaus` in the
-  Cloudflare `vempai.men` zone, DNS-only, pointing at the container endpoint
+  Cloudflare `vempai.men` zone, **proxied**, pointing at the container endpoint
   https://drumtranscribe1eb07827-webapp.functions.fnc.fr-par.scw.cloud, which
-  also still works). TLS certificate is issued and renewed by Scaleway.
+  also still works). Browsers get Cloudflare's certificate; Cloudflare talks
+  to Scaleway over HTTPS (zone SSL mode "Full"), where Scaleway's own
+  certificate for the domain still lives.
+- Loading page: the Cloudflare Worker `plokkaus-front`
+  (`deploy/cloudflare/`, design in [loading-page-plan.md](loading-page-plan.md))
+  answers page loads that the container doesn't answer within 2.5 s with a
+  "Starting up…" page that reloads itself once the app is up. Routes:
+  `plokkaus.vempai.men/*` → the Worker (fail open), `plokkaus.vempai.men/api/*`
+  → no Worker, so the once-a-second polls don't count against the free
+  plan's 100 000 Worker requests a day. Deploy after editing:
+  `cd deploy/cloudflare && set -a && . ../../.secrets.cloudflare.env && set +a && npx wrangler@4 deploy`
+  (then check the main route still has `request_limit_fail_open: true`:
+  `GET /zones/<zone>/workers/routes`). **Off switch:** set the `plokkaus`
+  DNS record back to "DNS only"; the site then works exactly as before,
+  without the loading page. Proxying caps request bodies at 100 MB (free plan),
+  so bigger uploads fail with 413; Scaleway alone accepted 120 MB.
 - What it is: the same web pages as the local server, serving whatever is in
   the `drum-transcribe-results` bucket (see [gpu-workers.md](gpu-workers.md)).
   Local (in-container) processing does not work — the image has no ML
