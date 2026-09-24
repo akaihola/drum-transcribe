@@ -98,15 +98,24 @@ viewed from anywhere without the laptop being on:
   job moving); if the container is scaled away mid-job, the GPU instance's
   idle watchdog self-destructs it (see gpu-workers.md). `pipeline.log` is
   ephemeral — results persist only via the bucket.
-- Data: at every container start, `deploy/sync_bucket.py` downloads the whole
-  bucket into `/app/output` before the server starts (boto3; credentials come
+- Data: at every container start, `deploy/sync_bucket.py` downloads the
+  bucket into `/app/output` before the server starts, except audio files
+  (WAV/MP3, ~95 % of the bytes): those become empty stand-ins, and the server
+  answers requests for them with a redirect to a 12-hour bucket download
+  link, so the audio streams straight from the bucket (boto3; credentials come
   from container env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY` — the worker's
   restricted key, set as secret env vars on the container, never baked into
   the image; `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` are plain env vars).
   Rented GPU hosts can put anything in that bucket, so the sync skips any
   object whose name would write outside `/app/output` (gpu-workers.md §3).
   The container scales to zero when idle, so each cold start re-syncs
-  (~100 MB → the first request after an idle period takes extra seconds).
+  (~20 MB without audio; with audio it was 550 MB and ~70 s). The log line
+  `container starting` marks when our start script begins — its gap to the
+  first request is Scaleway's own start-up time. Logs: Scaleway Cockpit,
+  queried with the read-only token in `.secrets.cockpit-logs.json`
+  (Loki API: `curl -G -H "Authorization: Bearer $SECRET_KEY"
+  https://4b1f9092-5364-45e2-9395-596638758a27.logs.cockpit.fr-par.scw.cloud/loki/api/v1/query_range
+  --data-urlencode 'query={resource_type="serverless_container"}'`).
   New results appear after the next cold start (or a `redeploy`) — no image
   rebuild needed for data.
 - How it's built (code changes only): `deploy/Dockerfile` — a slim Python
