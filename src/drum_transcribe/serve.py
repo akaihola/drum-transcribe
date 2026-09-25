@@ -493,9 +493,13 @@ function infoBtn(vname, key, id = key) {
 
 // An info note opens just above its button (below when there is no room
 // above), centred on it but kept inside the surrounding tab panel.
-document.addEventListener("toggle", e => {
+// Placed in the frame before its first paint, so it never flashes centred.
+document.addEventListener("beforetoggle", e => {
   const pop = e.target, btn = pop.previousElementSibling;
-  if (e.newState !== "open" || !btn?.classList.contains("minfo")) return;
+  if (e.newState === "open" && btn?.classList.contains("minfo"))
+    requestAnimationFrame(() => placeNote(pop, btn));
+}, true);
+function placeNote(pop, btn) {
   const m = 8, b = btn.getBoundingClientRect();
   const area = btn.closest(".tabpanel").getBoundingClientRect();
   const lo = Math.max(area.left, 0) + m, hi = Math.min(area.right, innerWidth) - m;
@@ -504,7 +508,7 @@ document.addEventListener("toggle", e => {
   const x = Math.min(Math.max(b.left + b.width / 2 - p.width / 2, lo), hi - p.width);
   const y = b.top - p.height - m >= 0 ? b.top - p.height - m : b.bottom + m;
   Object.assign(pop.style, {left: `${x}px`, top: `${y}px`});
-}, true);
+}
 
 // Stands in for a player until its file exists; showProgress fills it in
 // from the server's estimates (task = src, drums, gpu or a pipeline name).
