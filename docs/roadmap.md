@@ -38,6 +38,9 @@ regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
   detector. Untuned; the cymbal-dominance rule is the only filter so far.
 - **.mscz is forced** (with a warning) when the beat grid is broken
   (see [notation-musescore.md](notation-musescore.md)).
+- **Cloud GPU runs write no .mscz**: the GPU image has no MuseScore. On
+  2026-09-25 every bucket variant was regenerated and converted on atom
+  and uploaded; newer GPU runs need the same until MuseScore is added.
 - ADT model limits (inherent): no open/closed hi-hat, flams, chokes; toms
   weakest class; adtof can't tell ride from crash.
 - Feedback keys break if a score is regenerated with different notation.
