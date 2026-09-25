@@ -32,7 +32,7 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 | `quantize.py` | onsets → `Event` list on per-beat straight/triplet grid |
 | `score.py` | events → MusicXML drum staff (MuseScore-compatible; see below) |
 | `audition.py`, `sonify.py` | quantized MIDI; original + blips WAV |
-| `export.py` | best-effort MusicXML → .mscz |
+| `export.py` | MusicXML → .mscz; forced with `-f` + `mscz-problems.txt` if refused |
 | `ingest.py` | URL/upload fetch + background pipeline jobs; `check_url` vets links (webapp.md) |
 | `serve.py` | web app: pages, API, score feedback |
 | `gate.py` | cloud webapp gate: creation throttle, password unlock, bypass cookie (edits need it too) |
@@ -44,7 +44,8 @@ output), `beats.json` (effective grid: barlines repaired unless a
 `keep-raw-bars` flag file is present), `pipeline.log`,
 `stems/htdemucs/source/drums.flac`, `stems/mdx23c/*.flac`, and per variant
 (`adtof/`, `mdx23c/`, `fused/`): `onsets.json`, `events.json`, `audition.mid`,
-`sonification.ogg` (Opus), `score.musicxml`, `score.mscz?`, `feedback.json?`.
+`sonification.ogg` (Opus), `score.musicxml`, `score.mscz?`, `mscz-problems.txt?`,
+`feedback.json?`.
 Model caches: `.cache/` (torch, HF) and `.models/` (MDX23C), both gitignored.
 
 ## Deep dives (read when touching that area)

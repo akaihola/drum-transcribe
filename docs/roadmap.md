@@ -36,10 +36,8 @@ regenerated — bar numbers shifted (taustanauha 113 → 98 bars).
 
 - **mdx23c over-detects** (~2× adtof): stem bleed + a generic librosa onset
   detector. Untuned; the cymbal-dominance rule is the only filter so far.
-- **.mscz conversion** works for new runs; it still fails when the beat
-  grid is broken (see [notation-musescore.md](notation-musescore.md)).
-  Scores made before 2026-09-25 keep their old, often failing notation;
-  regenerating them would break feedback keys.
+- **.mscz is forced** (with a warning) when the beat grid is broken
+  (see [notation-musescore.md](notation-musescore.md)).
 - ADT model limits (inherent): no open/closed hi-hat, flams, chokes; toms
   weakest class; adtof can't tell ride from crash.
 - Feedback keys break if a score is regenerated with different notation.

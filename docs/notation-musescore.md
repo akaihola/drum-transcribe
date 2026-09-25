@@ -53,8 +53,10 @@ source events.
   `MUSESCORE_CMD` is set to here). `QT_QPA_PLATFORM=offscreen` required
   headless.
 - `musescore -f` (`--force`) skips the corruption check and writes the
-  .mscz anyway. Not used: it would hide notation bugs like the ones above.
-- A broken beat grid still breaks conversion: `vast-test/beats.json`
+  .mscz anyway. `export.py` converts without it first; on refusal it saves
+  the logged reasons to `mscz-problems.txt` next to the score, then
+  converts again with `-f`. The pipeline prints the reasons; the web UI
+  puts a red "!" on the MuseScore icon with the reasons in its tooltip.
+- A broken beat grid still trips the check: `vast-test/beats.json`
   numbers a beat 5 in 4/4 time, which wraps onto the next downbeat and piles
-  two beats of hits into one. MusicXML stays the **primary deliverable**,
-  .mscz best-effort; the web UI hides missing .mscz links.
+  two beats of hits into one.
