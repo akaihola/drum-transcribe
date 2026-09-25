@@ -16,15 +16,16 @@ MDX23C_STEMS = {
 
 
 def separate_drums(audio: Path, outdir: Path, model: str = "htdemucs") -> Path:
-    """Run Demucs two-stem separation; return path to the drums stem WAV."""
+    """Run Demucs two-stem separation; return path to the drums stem FLAC."""
     import demucs.separate
 
     stem_dir = outdir / "stems" / model / audio.stem
-    drums = stem_dir / "drums.wav"
+    drums = stem_dir / "drums.flac"
     if drums.exists():
         return drums
     demucs.separate.main(
-        ["--two-stems", "drums", "-n", model, "-o", str(outdir / "stems"), str(audio)]
+        ["--two-stems", "drums", "--other-method", "none", "--flac",
+         "-n", model, "-o", str(outdir / "stems"), str(audio)]
     )
     if not drums.exists():
         raise FileNotFoundError(f"Demucs did not produce {drums}")
@@ -50,7 +51,8 @@ def separate_kit_mdx23c(drums_stem: Path, outdir: Path, model_dir: Path) -> dict
 
     stem_dir.mkdir(parents=True, exist_ok=True)
     separator = Separator(
-        output_dir=str(stem_dir), model_file_dir=str(model_dir), log_level=40
+        output_dir=str(stem_dir), model_file_dir=str(model_dir), log_level=40,
+        output_format="FLAC",
     )
     separator.load_model(model_filename=MDX23C_MODEL)
     produced = separator.separate(str(drums_stem))

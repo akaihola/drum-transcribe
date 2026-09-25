@@ -38,8 +38,10 @@ musical simplification; every intermediate inspectable and re-runnable.
    grid time in seconds (for audition/sonification).
 5. **Render**: MusicXML via music21 (constraints in
    [notation-musescore.md](notation-musescore.md)), GM drum MIDI, and the
-   sonification WAV (original at half volume + synthetic blip per hit —
+   sonification (original at half volume + synthetic blip per hit —
    the primary by-ear QA tool).
+   Audio is stored compressed: stems as lossless FLAC (they feed the
+   detectors, so no lossy artefacts), the listen-only sonification as Opus.
 
 ## Why this shape
 

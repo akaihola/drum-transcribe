@@ -42,9 +42,9 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 `output/<project>/<version>/` holds `source.*`, `beats_raw.json` (tracker
 output), `beats.json` (effective grid: barlines repaired unless a
 `keep-raw-bars` flag file is present), `pipeline.log`,
-`stems/htdemucs/source/drums.wav`, `stems/mdx23c/*.wav`, and per variant
+`stems/htdemucs/source/drums.flac`, `stems/mdx23c/*.flac`, and per variant
 (`adtof/`, `mdx23c/`, `fused/`): `onsets.json`, `events.json`, `audition.mid`,
-`sonification.wav`, `score.musicxml`, `score.mscz?`, `feedback.json?`.
+`sonification.ogg` (Opus), `score.musicxml`, `score.mscz?`, `feedback.json?`.
 Model caches: `.cache/` (torch, HF) and `.models/` (MDX23C), both gitignored.
 
 ## Deep dives (read when touching that area)

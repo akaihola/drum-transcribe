@@ -115,7 +115,7 @@ viewed from anywhere without the laptop being on:
   ephemeral — results persist only via the bucket.
 - Data: at every container start, `deploy/sync_bucket.py` downloads the
   bucket into `/app/output` before the server starts, except audio files
-  (WAV/MP3, ~95 % of the bytes): those become empty stand-ins, and the server
+  (MP3/FLAC/Opus, ~95 % of the bytes): those become empty stand-ins, and the server
   answers requests for them with a redirect to a 12-hour bucket download
   link, so the audio streams straight from the bucket (boto3; credentials come
   from container env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY` — the worker's

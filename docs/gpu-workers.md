@@ -87,7 +87,7 @@ made atom's slow uplink acceptable here.
 Env in, results out: `SOURCE_URL` + `SONG`/`VERSION` (+ `VARIANTS`,
 default both) and the S3 credentials; uploads
 `output/<SONG>/<VERSION>/` (minus `stems/`, except the Demucs
-`drums.wav` the page plays) to the bucket
+`drums.flac` the page plays) to the bucket
 **after each variant**, so a spot interruption loses at most one stage.
 Fetches the static rclone binary at startup (~20 MB, seconds).
 

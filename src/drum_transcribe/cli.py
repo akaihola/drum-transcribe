@@ -9,12 +9,12 @@ so results from different pipelines never mix):
 
     output/<song>/source.<ext>                 copy of the input recording
     output/<song>/beats.json                   beat/downbeat grid (shared)
-    output/<song>/stems/htdemucs/.../drums.wav separated drums (shared)
+    output/<song>/stems/htdemucs/.../drums.flac separated drums (shared)
     output/<song>/stems/mdx23c/*.flac          per-drum stems (mdx23c variant)
     output/<song>/<variant>/onsets.json        detected hits
     output/<song>/<variant>/events.json        quantized events
     output/<song>/<variant>/audition.mid       quantized MIDI
-    output/<song>/<variant>/sonification.wav   original + synthetic blips
+    output/<song>/<variant>/sonification.ogg   original + synthetic blips (Opus)
     output/<song>/<variant>/score.musicxml     drum staff (MuseScore-ready)
     output/<song>/<variant>/score.mscz         MuseScore file (if converter found)
 """
@@ -169,7 +169,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     print(marker("writing outputs"), flush=True)
     write_audition_midi(events, vdir / "audition.mid")
-    write_sonification(events, source, vdir / "sonification.wav")
+    write_sonification(events, source, vdir / "sonification.ogg")
     title = args.title or f"{audio.stem} [{args.variant}]"
     write_musicxml(events, grid.meter, vdir / "score.musicxml", title=title)
     mscz = to_mscz(vdir / "score.musicxml", vdir / "score.mscz")

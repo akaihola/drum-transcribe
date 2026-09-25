@@ -45,7 +45,7 @@ Results of different methods are kept side by side, never mixed:
 
 ## What is the sonification?
 
-`sonification.wav` is the original recording (at half volume) with a short
+`sonification.ogg` is the original recording (at half volume) with a short
 synthetic **blip added at every hit the computer transcribed**: a low thump
 for kick, a noisy mid snap for snare, high ticks for hi-hat and cymbals.
 Listening to it is the fastest way to check the transcription: a missing

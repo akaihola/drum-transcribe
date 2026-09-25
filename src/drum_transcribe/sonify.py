@@ -11,7 +11,7 @@ import numpy as np
 
 from .quantize import Event
 
-SR = 44100
+SR = 48000  # Opus only takes 48 kHz (or lower rates)
 
 
 def _blip(freq: float, dur: float, noise: float = 0.0, hp: bool = False) -> np.ndarray:
@@ -56,5 +56,7 @@ def write_sonification(
     peak = np.abs(mix).max()
     if peak > 1:
         mix /= peak
-    sf.write(str(out), mix, SR)
+    # Opus at ~110 kbps: ~12x smaller than WAV, and unlike MP3 no start delay
+    # to throw playback out of step with the score
+    sf.write(str(out), mix, SR, format="OGG", subtype="OPUS", compression_level=0.6)
     return out

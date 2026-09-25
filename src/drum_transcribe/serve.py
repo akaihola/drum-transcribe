@@ -587,7 +587,7 @@ function docIcon(file, label, url) {
 
 function soniRow(v, name) {
   const variant = v.variants.find(x => x.name === name);
-  const url = variant && variant.files["sonification.wav"];
+  const url = variant && variant.files["sonification.ogg"];
   let inner = `<div class="sonihead"><b>${name}</b>${infoBtn(v.name, name)}
     <span class="stats">sonification${infoBtn(v.name, "sonis", "sonis-" + name)}` +
     (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") +
@@ -1220,7 +1220,7 @@ def scan_output(root: Path) -> dict:
         for vdir in sorted(p for p in project_dir.iterdir() if p.is_dir()):
             rel = f"/files/{project_dir.name}/{vdir.name}"
             sources = sorted(vdir.glob("source.*"))
-            drums = sorted(vdir.glob("stems/htdemucs/*/drums.wav"))
+            drums = sorted(vdir.glob("stems/htdemucs/*/drums.flac"))
             log = vdir / "pipeline.log"
             variants = []
             for variant_dir in sorted(p for p in vdir.iterdir() if p.is_dir()):

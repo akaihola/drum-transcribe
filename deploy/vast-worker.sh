@@ -45,7 +45,7 @@ for variant in $VARIANTS; do
     /venv/main/bin/drum-transcribe run "$src" --variant "$variant" -o "$dest"
     # upload after each variant so an interruption loses at most one stage
     # keep the Demucs drums stem (the page plays it); skip the big kit stems
-    rclone copy --filter "+ stems/htdemucs/*/drums.wav" --filter "- stems/**" \
+    rclone copy --filter "+ stems/htdemucs/*/drums.flac" --filter "- stems/**" \
         "$dest" "s3:$S3_BUCKET/$SONG/$VERSION"
     touch /tmp/alive
 done
