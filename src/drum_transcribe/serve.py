@@ -79,6 +79,12 @@ STYLE = """
   .vol { margin-left: auto; display: flex; align-items: center; gap: .4rem;
          color: var(--ink-quiet); font-size: .9rem; }
   .vol input { accent-color: var(--teal); width: 8rem; }
+  /* YouTube's own player, cropped to its compact-layout control strip
+     (progress bar on top, play/pause in the middle). */
+  yt-audio { display: block; position: relative; overflow: hidden;
+             height: 2.6rem; border-radius: 6px; background: #000; }
+  yt-audio iframe { position: absolute; top: -.6rem; left: 0; width: 100%;
+                    height: 4.4rem; border: 0; }
   .player audio::-webkit-media-controls-enclosure { background: var(--paper);
                                                     border-radius: 999px; }
   .ic { width: 1.25em; height: 1.25em; vertical-align: -.3em; margin-right: .25em; }
@@ -467,7 +473,7 @@ const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
   A6 6 0 0 0 6.6 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>`;
 
 const INFO = {
-  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched.",
+  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. For a YouTube link this is YouTube's own player; point at it to see its controls.",
   drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
   sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
   adtof: "A neural network trained to read a full drum mix straight into notes. The most reliable pipeline, and the first to finish.",
@@ -489,14 +495,65 @@ function progBar(task) {
     <div class="progcap"><span class="act"></span><span class="eta"></span></div></div>`;
 }
 
+const audioTag = url => url && `<audio controls preload="none" src="${url}"></audio>`;
+
 // One source/derived audio node in the flow diagram; a progress bar until
-// its file exists.
-function node(task, cls, icon, label, info, url) {
-  return `<figure class="player node ${cls} ${url ? "" : "waiting"}" data-piece="${task}">
+// its player exists.
+function node(task, cls, icon, label, info, player) {
+  return `<figure class="player node ${cls} ${player ? "" : "waiting"}" data-piece="${task}">
     <figcaption>${icon}<b>${label}</b>${info}</figcaption>
-    ${url ? `<audio controls preload="none" src="${url}"></audio>` : progBar(task)}
+    ${player || progBar(task)}
   </figure>`;
 }
+
+// A version made from a YouTube link plays its original in YouTube's own
+// embedded player. This element gives it the <audio> interface the page
+// relies on (paused, currentTime, volume, play(), pause(), "play" and
+// "timeupdate" events), so bar highlighting, click-a-bar and the MuseScore
+// plugin drive it like any other player.
+let ytApi;
+class YtAudio extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    ytApi ??= new Promise(resolve => {
+      window.onYouTubeIframeAPIReady = resolve;
+      document.head.append(Object.assign(document.createElement("script"),
+        { src: "https://www.youtube.com/iframe_api" }));
+    });
+    this.innerHTML = "<div></div>";
+    this.playing = false;
+    ytApi.then(() => this.yt = new YT.Player(this.firstChild, {
+      videoId: this.getAttribute("video"),
+      playerVars: { playsinline: 1, rel: 0 },
+      events: {
+        onReady: () => {
+          this.ready = true;
+          this.volume = this.vol ?? 1;
+          if (this.start != null) this.yt.seekTo(this.start, true);
+          if (this.playing) this.yt.playVideo();
+        },
+        onStateChange: e => {
+          clearInterval(this.timer);
+          if (e.data === YT.PlayerState.PLAYING) {
+            this.playing = true;
+            this.dispatchEvent(new Event("play"));
+            this.timer = setInterval(() => this.dispatchEvent(new Event("timeupdate")), 250);
+          } else if (e.data !== YT.PlayerState.BUFFERING) this.playing = false;
+        },
+      },
+    }));
+  }
+  get paused() { return !this.playing; }
+  get readyState() { return 1; }  // seeks before the player is ready are queued
+  get currentTime() { return this.ready ? this.yt.getCurrentTime() : this.start ?? 0; }
+  set currentTime(t) { if (this.ready) this.yt.seekTo(t, true); else this.start = t; }
+  get volume() { return this.vol ?? 1; }
+  set volume(v) { this.vol = +v; if (this.ready) this.yt.setVolume(this.vol * 100); }
+  play() { this.playing = true; if (this.ready) this.yt.playVideo(); }
+  pause() { this.playing = false; if (this.ready) this.yt.pauseVideo(); }
+}
+customElements.define("yt-audio", YtAudio);
+const MEDIA = "audio, yt-audio";
 
 function dragFile(e, name, url) {
   e.dataTransfer.setData("DownloadURL",
@@ -530,7 +587,7 @@ function soniRow(v, name) {
     <span class="stats">sonification${infoBtn(v.name, "sonis", "sonis-" + name)}` +
     (variant ? ` · ${variant.n_events} hits, ${variant.n_suspect} suspect` : "") +
     `</span></div><div class="soniline">` +
-    (url ? `<audio controls preload="none" src="${url}"></audio>` : progBar(name));
+    (audioTag(url) || progBar(name));
   if (variant)
     inner += `<div class="docs dimmable">` + DOWNLOADS.map(([file, label]) =>
       variant.files[file] ? docIcon(file, label, variant.files[file]) : "").join("") + `</div>`;
@@ -685,8 +742,10 @@ function versionPieces(v) {
   const pieces = {
     err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
       failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
-    src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"), v.source),
-    drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"), v.drums),
+    src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"),
+              v.youtube ? `<yt-audio video="${v.youtube}"></yt-audio>` : audioTag(v.source)),
+    drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"),
+                audioTag(v.drums)),
   };
   for (const name of VARIANTS) pieces[name] = soniRow(v, name);
   const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
@@ -839,7 +898,7 @@ async function refreshVersion(name) {
   for (const [key, html] of Object.entries(versionPieces(v))) {
     const el = panel.querySelector(`[data-piece="${key}"]`);
     if (!el || rendered[name][key] === html ||
-        [...el.querySelectorAll("audio")].some(a => !a.paused)) continue;
+        [...el.querySelectorAll(MEDIA)].some(a => !a.paused)) continue;
     const tpl = document.createElement("template");
     tpl.innerHTML = html.trim();
     const fresh = tpl.content.firstElementChild;
@@ -866,7 +925,7 @@ async function refreshVersion(name) {
 // One shared volume for every player, remembered across page loads.
 function setVolume(vol) {
   localStorage.volume = vol;
-  document.querySelectorAll("audio").forEach(a => a.volume = vol);
+  document.querySelectorAll(MEDIA).forEach(a => a.volume = vol);
 }
 
 async function renderScores(root) {
@@ -1032,7 +1091,7 @@ document.addEventListener("play", e => {
 // else the last one used, else the original.
 function seekToBar(section, bar) {
   const hit = (barTimes[section.dataset.song] || []).find(b => b.bar === bar);
-  const audios = [...section.querySelectorAll("audio")];
+  const audios = [...section.querySelectorAll(MEDIA)];
   const audio = audios.find(a => !a.paused) ||
                 lastAudio[section.dataset.song] || audios[0];
   if (!hit || !audio) return;
@@ -1069,7 +1128,7 @@ document.addEventListener("click", e => {
 let seekSeq = null, seekBoot = null, seekPolling = false;
 const seekPollWanted = () =>
   document.visibilityState === "visible" ||
-  [...document.querySelectorAll("audio")].some(a => !a.paused);
+  [...document.querySelectorAll(MEDIA)].some(a => !a.paused);
 
 async function pollSeek() {
   if (seekPolling) return;
@@ -1082,7 +1141,7 @@ async function pollSeek() {
       seekBoot = s.boot;
       if (seekSeq !== null && s.seq !== seekSeq) {
         if (!s.playing)
-          document.querySelectorAll("audio").forEach(a => a.pause());
+          document.querySelectorAll(MEDIA).forEach(a => a.pause());
         else {
           const section =
             document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
@@ -1128,6 +1187,24 @@ def slugify(text: str) -> str:
     return slug
 
 
+def youtube_id(version_dir: Path) -> str | None:
+    """Video id if the version was made from a YouTube link (source-url.txt)."""
+    link = version_dir / "source-url.txt"
+    if not link.exists():
+        return None
+    u = urlparse(link.read_text().strip())
+    host = u.hostname or ""
+    if host == "youtu.be":
+        vid = u.path.strip("/")
+    elif host == "youtube.com" or host.endswith(".youtube.com"):
+        parts = u.path.strip("/").split("/")
+        vid = parts[1] if len(parts) > 1 and parts[0] in ("shorts", "live", "embed") \
+            else parse_qs(u.query).get("v", [""])[0]
+    else:
+        return None
+    return vid if re.fullmatch(r"[\w-]{11}", vid) else None
+
+
 def scan_output(root: Path) -> dict:
     """Index of projects -> versions -> pipeline variants, from the file tree."""
     projects = []
@@ -1169,6 +1246,7 @@ def scan_output(root: Path) -> dict:
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
+                "youtube": youtube_id(vdir),
                 "beats": f"{rel}/beats.json",
                 "irregular": irregular,
                 "raw_bars": (vdir / "keep-raw-bars").exists(),
@@ -1308,6 +1386,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 url = check_url(data["url"].strip())
                 version_dir = self._new_version_dir(data["project"], data["version"])
                 gate.write_marker(version_dir, authorized=kind == "auth")
+                (link := version_dir / "source-url.txt").write_text(url + "\n")
+                gate.keep(link)
                 start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
                 self._send_json(200, {"project": version_dir.parent.name})
             elif path == "/api/unlock":

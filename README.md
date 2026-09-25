@@ -90,7 +90,11 @@ version for comparison happens at the bottom of the page. Per version:
 - players for the **original**, the **drums stem**, and each pipeline's
   **sonification**, laid out as a diagram whose arrows show what is made
   from what; one **volume** slider (top right) sets the volume of all of
-  them;
+  them. For a version made from a **YouTube link**, the original plays in
+  YouTube's own player, trimmed to a slim strip like the others: point the
+  mouse at it to see its play/pause button and progress bar (YouTube hides
+  them a few seconds after the mouse leaves). Clicking a bar and the
+  MuseScore plugin control it just like the other players;
 - while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording

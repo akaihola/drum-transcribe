@@ -88,8 +88,13 @@ def write_marker(version_dir: Path, authorized: bool) -> None:
     version_dir.mkdir(parents=True, exist_ok=True)
     marker = version_dir / "created"
     marker.write_text(f"{int(time.time())} {'auth' if authorized else 'anon'}\n")
+    keep(marker)
+
+
+def keep(path: Path) -> None:
+    """In the cloud, copy a small version file to the bucket so cold starts keep it."""
     if enabled():
-        threading.Thread(target=_upload, args=(marker,), daemon=True).start()
+        threading.Thread(target=_upload, args=(path,), daemon=True).start()
 
 
 @functools.cache
@@ -110,12 +115,11 @@ def presigned(key: str) -> str:
         "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=12 * 3600)
 
 
-def _upload(marker: Path) -> None:
-    """Persist the marker to the bucket so cold starts still count it."""
+def _upload(path: Path) -> None:
     try:
         s3, bucket = _bucket()
-        s3.upload_file(str(marker), bucket,
-                       f"{marker.parent.parent.name}/{marker.parent.name}/created")
+        s3.upload_file(str(path), bucket,
+                       f"{path.parent.parent.name}/{path.parent.name}/{path.name}")
     except Exception as e:  # noqa: BLE001
-        print(f"created-marker upload failed (cap resets at next cold start): {e!r}",
+        print(f"{path.name} upload failed (lost at next cold start): {e!r}",
               flush=True)

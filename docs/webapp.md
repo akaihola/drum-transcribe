@@ -72,7 +72,10 @@ Daemon thread per new version: fetch (yt-dlp for YouTube, gdown fuzzy for
 Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
 unknown containers) → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
-`<version>/pipeline.log`. Failures land in the log as `ERROR: …`.
+`<version>/pipeline.log`. Failures land in the log as `ERROR: …`. A link-created
+version also keeps its link in `source-url.txt` (uploaded to the bucket in
+the cloud, like `created`); `scan_output` reports a YouTube video id from it
+as `youtube`.
 
 `ingest.check_url` decides which links the fetchers may open at all —
 everything fetched is served back from `/files/…`, so a link is a read
@@ -166,6 +169,18 @@ and the presign step fall back to plain `python3`/`vastai`). See
   an `i` popover (`INFO`/`infoBtn`) explaining the artifact. Anything not
   ready has a progress bar (`progBar`) where its player will be; pipeline
   logs are in the `#gear-btn` popover.
+- YouTube originals: when `v.youtube` is set, the original node holds a
+  `<yt-audio video=ID>` custom element instead of `<audio>`. It wraps the
+  IFrame API player behind the `<audio>` surface the page uses (`paused`,
+  `currentTime`, `volume`, `play()`, `pause()`, dispatched `play` and a
+  250 ms `timeupdate`), and every media lookup uses the `MEDIA` selector
+  (`"audio, yt-audio"`), so seekToBar, bar follow, the shared volume and the
+  plugin treat it like any player. Seeks and plays before the API is ready
+  are queued. Cropping: the iframe is 4.4rem tall — YouTube's compact layout
+  at that height puts the progress bar at the top and play/pause in the
+  middle — shown through a 2.6rem window offset by .6rem. YouTube autohides
+  its controls ~3 s after the mouse leaves; no player parameter prevents
+  that any more (verified 2026-09-25).
 - Live refresh: the panel is built from `versionPieces(v)`, each piece's
   root carrying `data-piece`. `pollProgress` fetches `/api/progress`
   every 2 s while a job runs and the page is visible; `showProgress`
