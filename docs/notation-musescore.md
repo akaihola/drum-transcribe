@@ -51,7 +51,11 @@ source events.
   comma picks unpredictably — this produced hours of contradictory
   "nondeterministic" results. `, musescore` is unambiguous (what
   `MUSESCORE_CMD` is set to here). `QT_QPA_PLATFORM=offscreen` required
-  headless.
+  headless; official builds (the GPU image's AppImage) also need
+  `MU_QT_QPA_PLATFORM=offscreen`, or `main.cpp` forces X11 and aborts.
+  nixpkgs' build doesn't. `export.py` sets both.
+- The GPU image unpacks the official 4.7.4 AppImage into `/opt/musescore`
+  (`/usr/local/bin/musescore`), so cloud runs make their own .mscz.
 - `musescore -f` (`--force`) skips the corruption check and writes the
   .mscz anyway. `export.py` converts without it first; on refusal it saves
   the logged reasons to `mscz-problems.txt` next to the score, then

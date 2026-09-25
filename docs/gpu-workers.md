@@ -26,7 +26,9 @@ main credentials.
 
 `deploy/Dockerfile.gpu` → `ghcr.io/akaihola/drum-transcribe-gpu`
 (public, so Vast hosts pull anonymously with no rate limits; tags:
-`cu128-v1`, `latest`; ~8 GB compressed).
+`cu128-v1`, `latest`; ~8 GB compressed). Since 2026-09-25 `latest` also
+contains MuseScore for the .mscz export (see
+[notation-musescore.md](notation-musescore.md)); `cu128-v1` predates it.
 
 Design decisions, each of which broke something before it was made:
 
