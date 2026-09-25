@@ -22,6 +22,14 @@ RUN sed -i 's|"adtof-pytorch"|"adtof-pytorch @ git+https://github.com/xavriley/A
 # model checkpoints baked in; pipeline resolves .cache/ and .models/ relative to CWD
 COPY .cache ./.cache
 COPY .models ./.models
+# MuseScore for the .mscz export: the official AppImage, unpacked (no FUSE
+# in containers); its fallback libs cover what the base image lacks.
+# Same version as atom's nixpkgs musescore.
+RUN curl -fsSL -o /tmp/ms.AppImage https://github.com/musescore/MuseScore/releases/download/v4.7.4/MuseScore-Studio-4.7.4.260706075-x86_64.AppImage \
+    && echo "9233ed1b87d3e6b45722278f3c286dcd41e83da778bd0f80a1dd04949696ad93  /tmp/ms.AppImage" | sha256sum -c \
+    && chmod +x /tmp/ms.AppImage && cd /opt && /tmp/ms.AppImage --appimage-extract >/dev/null \
+    && mv squashfs-root musescore && rm /tmp/ms.AppImage \
+    && ln -s /opt/musescore/AppRun /usr/local/bin/musescore
 COPY src ./src
 RUN uv pip install --python /venv/main/bin/python --no-cache --no-deps .
 COPY deploy ./deploy

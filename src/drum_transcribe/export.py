@@ -25,7 +25,8 @@ PROBLEMS = "mscz-problems.txt"
 
 
 def _convert(cmd: list[str], musicxml: Path, mscz: Path, *flags: str) -> bool:
-    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
+    # official Linux builds force X11 unless MU_QT_QPA_PLATFORM is set
+    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "MU_QT_QPA_PLATFORM": "offscreen"}
     try:
         subprocess.run(
             [*cmd, *flags, str(musicxml), "-o", str(mscz)],
