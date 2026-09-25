@@ -178,7 +178,12 @@ and the presign step fall back to plain `python3`/`vastai`). See
   plugin treat it like any player. Seeks and plays before the API is ready
   are queued. Cropping: the iframe is 4.4rem tall — YouTube's compact layout
   at that height puts the progress bar at the top and play/pause in the
-  middle — shown through a 2.6rem window offset by .6rem. YouTube autohides
+  middle — shown through a 2.6rem window offset by .6rem. Before the first
+  play (the "cued" state) YouTube's share/"watch on YouTube" row covers its
+  own play button at every height under ~140px, so a transparent `<button>`
+  over the strip calls `play()` and is removed on the first PLAYING; after
+  that YouTube's own controls take clicks (verified in Chromium and Firefox,
+  default autoplay policy, sound unmuted). YouTube autohides
   its controls ~3 s after the mouse leaves; no player parameter prevents
   that any more (verified 2026-09-25).
 - Live refresh: the panel is built from `versionPieces(v)`, each piece's

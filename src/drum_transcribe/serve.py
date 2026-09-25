@@ -85,6 +85,9 @@ STYLE = """
              height: 2.6rem; border-radius: 6px; background: #000; }
   yt-audio iframe { position: absolute; top: -.6rem; left: 0; width: 100%;
                     height: 4.4rem; border: 0; }
+  /* Before the first play YouTube covers its own play button with a
+     share/"watch on YouTube" row at this size; this catches the click. */
+  yt-audio button { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .player audio::-webkit-media-controls-enclosure { background: var(--paper);
                                                     border-radius: 999px; }
   .ic { width: 1.25em; height: 1.25em; vertical-align: -.3em; margin-right: .25em; }
@@ -520,7 +523,8 @@ class YtAudio extends HTMLElement {
       document.head.append(Object.assign(document.createElement("script"),
         { src: "https://www.youtube.com/iframe_api" }));
     });
-    this.innerHTML = "<div></div>";
+    this.innerHTML = `<div></div><button title="play"></button>`;
+    this.lastChild.onclick = () => this.play();
     this.playing = false;
     ytApi.then(() => this.yt = new YT.Player(this.firstChild, {
       videoId: this.getAttribute("video"),
@@ -536,6 +540,7 @@ class YtAudio extends HTMLElement {
           clearInterval(this.timer);
           if (e.data === YT.PlayerState.PLAYING) {
             this.playing = true;
+            this.querySelector("button")?.remove();
             this.dispatchEvent(new Event("play"));
             this.timer = setInterval(() => this.dispatchEvent(new Event("timeupdate")), 250);
           } else if (e.data !== YT.PlayerState.BUFFERING) this.playing = false;
