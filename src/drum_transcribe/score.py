@@ -50,9 +50,25 @@ def _rest_steps(a: Fraction, b: Fraction, fams: dict[int, bool]):
         a += step
 
 
+def _duration(ql: Fraction):
+    """Triplet lengths all count in eighth-note triplets (3:2, one beat).
+
+    Left to itself music21 gives a 2/3 its own quarter-triplet and a 1/6 a
+    16th-triplet; a beat mixing them never completes either tuplet, so no
+    brackets get written and MuseScore guesses wrong groups -> an overfull
+    bar ("Found: 49/48"), which its CLI refuses to load."""
+    from music21 import duration
+
+    if ql not in TRIPLET_QL:
+        return duration.Duration(ql)
+    d = duration.Duration(ql * Fraction(3, 2))
+    d.appendTuplet(duration.Tuplet(3, 2, "eighth"))
+    return d
+
+
 def events_to_score(events: list[Event], meter: int, title: str = ""):
     """Build a one-staff percussion score; returns a music21 Score."""
-    from music21 import clef, duration, instrument, metadata, note, percussion, stream
+    from music21 import clef, instrument, metadata, note, percussion, stream
     from music21 import meter as m21meter
 
     n_bars = max((e.bar for e in events), default=1)
@@ -108,14 +124,14 @@ def events_to_score(events: list[Event], meter: int, title: str = ""):
                         n.noteheadParenthesis = True
                     notes.append(n)
                 obj = notes[0] if len(notes) == 1 else percussion.PercussionChord(notes)
-                obj.duration = duration.Duration(ql)
+                obj.duration = _duration(ql)
                 for at, step in _rest_steps(cursor, pos, fams):
-                    voice.insert(at, note.Rest(quarterLength=step))
+                    voice.insert(at, note.Rest(duration=_duration(step)))
                 voice.insert(pos, obj)
                 cursor = pos + ql
             if voice.notes:
                 for at, step in _rest_steps(cursor, Fraction(meter), fams):
-                    voice.insert(at, note.Rest(quarterLength=step))
+                    voice.insert(at, note.Rest(duration=_duration(step)))
                 m.insert(0, voice)
         if not m.voices:
             m.insert(0, note.Rest(quarterLength=meter))
