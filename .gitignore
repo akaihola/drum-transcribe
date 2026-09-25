@@ -27,3 +27,4 @@ vendor/
 .gpu-known-hosts
 .build-ctx-gpu/
 .wrangler/
+.build-ctx-web/
