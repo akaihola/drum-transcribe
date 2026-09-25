@@ -204,7 +204,8 @@ STYLE = """
               font-family: var(--serif); }
   .popcard { background: var(--card); border: 1px solid var(--hairline);
              border-radius: 8px; box-shadow: 0 6px 24px rgba(35,32,25,.18);
-             padding: .8rem 1rem; font-size: .9rem; max-width: 26rem; }
+             padding: .8rem 1rem; font-size: .9rem; max-width: 26rem;
+             box-sizing: border-box; }
   .popcard a { display: block; margin: .25rem 0; }
   #gear-btn { position: fixed; top: 1rem; right: 4.2rem; width: 2.4rem; height: 2.4rem;
               border-radius: 50%; border: 1.5px solid var(--hairline);
@@ -489,6 +490,21 @@ function infoBtn(vname, key, id = key) {
     title="what is this?">i</button>
     <div popover id="i--${vname}--${id}" class="popcard">${INFO[key]}</div>`;
 }
+
+// An info note opens just above its button (below when there is no room
+// above), centred on it but kept inside the surrounding tab panel.
+document.addEventListener("toggle", e => {
+  const pop = e.target, btn = pop.previousElementSibling;
+  if (e.newState !== "open" || !btn?.classList.contains("minfo")) return;
+  const m = 8, b = btn.getBoundingClientRect();
+  const area = btn.closest(".tabpanel").getBoundingClientRect();
+  const lo = Math.max(area.left, 0) + m, hi = Math.min(area.right, innerWidth) - m;
+  Object.assign(pop.style, {inset: "auto", margin: 0, maxWidth: `min(26rem, ${hi - lo}px)`});
+  const p = pop.getBoundingClientRect();
+  const x = Math.min(Math.max(b.left + b.width / 2 - p.width / 2, lo), hi - p.width);
+  const y = b.top - p.height - m >= 0 ? b.top - p.height - m : b.bottom + m;
+  Object.assign(pop.style, {left: `${x}px`, top: `${y}px`});
+}, true);
 
 // Stands in for a player until its file exists; showProgress fills it in
 // from the server's estimates (task = src, drums, gpu or a pipeline name).
