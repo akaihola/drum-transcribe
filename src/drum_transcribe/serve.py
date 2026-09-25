@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import gate
 from .beats import BeatGrid, regularize
+from .export import PROBLEMS
 from .ingest import (
     AUDIO_EXTS,
     RUNNING,
@@ -152,6 +153,10 @@ STYLE = """
           color: var(--ink-quiet); text-decoration: none; }
   a.doc img, a.doc svg { width: 1.35rem; height: 1.35rem; }
   a.doc:hover { background: var(--paper); color: var(--teal-deep); }
+  a.doc.warn { position: relative; }
+  a.doc.warn::after { content: "!"; position: absolute; right: -2px; top: -2px;
+    width: .8rem; height: .8rem; border-radius: 50%; background: var(--signal);
+    color: #fff; font-size: .6rem; line-height: .8rem; text-align: center; }
   .stats { font-size: .85rem; color: var(--ink-quiet); max-width: 75ch; }
   .pending { color: var(--brass); font-style: italic; }
   .error { color: var(--signal); }
@@ -598,9 +603,13 @@ const FILE_LOGOS = {
   json: `{ }`,
 };
 
-function docIcon(file, label, url) {
-  return `<a class="doc" href="${url}" download
-    title="${file}: ${label} — click to download, or drag into a folder"
+// problems: MuseScore's complaints when it only saved the file when forced.
+function docIcon(file, label, url, problems) {
+  const warn = problems ? `\n\n⚠ MuseScore found problems and saved the file ` +
+    `anyway, so these bars may look wrong:\n${problems.replace(/[&"<]/g,
+    c => ({"&": "&amp;", '"': "&quot;", "<": "&lt;"})[c])}` : "";
+  return `<a class="doc${problems ? " warn" : ""}" href="${url}" download
+    title="${file}: ${label} — click to download, or drag into a folder${warn}"
     ondragstart="dragFile(event, '${file}', '${url}')"
     >${FILE_LOGOS[file.split(".").pop()] || FILE_LOGOS.json}</a>`;
 }
@@ -615,7 +624,8 @@ function soniRow(v, name) {
     (audioTag(url) || progBar(name));
   if (variant)
     inner += `<div class="docs dimmable">` + DOWNLOADS.map(([file, label]) =>
-      variant.files[file] ? docIcon(file, label, variant.files[file]) : "").join("") + `</div>`;
+      variant.files[file] ? docIcon(file, label, variant.files[file],
+        file === "score.mscz" && variant.mscz_problems) : "").join("") + `</div>`;
   inner += `</div>`;
   return `<div class="player soni ${url ? "" : "waiting"}" data-name="${name}"
     data-piece="${name}">${inner}</div>`;
@@ -1256,6 +1266,8 @@ def scan_output(root: Path) -> dict:
                               for f in variant_dir.iterdir() if f.is_file()},
                     "n_events": len(events),
                     "n_suspect": len(suspect),
+                    "mscz_problems": problems.read_text()
+                    if (problems := variant_dir / PROBLEMS).exists() else "",
                 })
             # Would barline repair change the tracker's raw grid? If yes, the
             # page offers the "uneven bars are real" opt-out checkbox.

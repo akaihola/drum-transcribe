@@ -91,7 +91,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     print(marker(f"running pipeline: {args.variant}"), flush=True)
     from .audition import write_audition_midi
     from .beats import BeatGrid, regularize, track_beats
-    from .export import to_mscz
+    from .export import PROBLEMS, to_mscz
     from .quantize import quantize, save_events
     from .score import write_musicxml
     from .separate import separate_drums, separate_kit_mdx23c
@@ -175,6 +175,12 @@ def run_pipeline(args: argparse.Namespace) -> int:
     mscz = to_mscz(vdir / "score.musicxml", vdir / "score.mscz")
     for p in sorted(vdir.iterdir()):
         print(f"   {p}")
+    if (vdir / PROBLEMS).exists():
+        print("   MuseScore found problems in the score:")
+        for line in (vdir / PROBLEMS).read_text().splitlines():
+            print(f"     {line}")
+        if mscz:
+            print("   score.mscz was saved anyway; those bars may look wrong.")
     if mscz is None:
         print("   (MuseScore conversion failed; score.mscz not written; "
               "MUSESCORE_CMD sets the command, default 'musescore')")
