@@ -232,6 +232,7 @@ STYLE = """
               font-size: 1.2rem; cursor: pointer;
               box-shadow: 0 2px 8px rgba(35,32,25,.12); }
   #help-btn:hover, #gh-link:hover { border-color: var(--ink-quiet); }
+  #help-btn, #gear-btn, #gh-link { z-index: 20; }
   #gh-link { position: fixed; bottom: 1rem; right: 1.2rem; width: 2.4rem;
              height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
              background: var(--card); color: var(--ink); display: grid;
