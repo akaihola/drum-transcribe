@@ -25,15 +25,18 @@ from .ingest import VARIANTS
 # expected seconds on the CPU as (fixed, per second of song), the same on
 # the GPU or None if no different). "pull" is worked out from the rented
 # host's download speed.
-_START = [("running pipeline", "Starting up", (1, 0), (10, 0)),
+_START = [("running pipeline", "Starting up", (1, 0), None),
           ("separating drums stem", "Loading the drums stem", (1, 0), None)]
+# on the GPU "writing outputs" also covers the upload of the variant's
+# files to the bucket (2 min for a 4.5 min song; adtof's, carrying the
+# recording and drums stem too, 4 min)
 _END = [("quantizing", "Fitting the hits onto the beat grid", (1, 0), None),
         ("writing outputs", "Writing the score and the sonification",
-         (1, .01), None)]
+         (1, .01), (30, .4))]
 _ADTOF = ("detecting drum hits", "ADTOF is reading the drum hits",
-          (1, .04), (3, .01))
+          (1, .04), (5, .06))
 _SPLIT = ("splitting kit", "Splitting the drums into six per-drum tracks",
-          (5, 6.5), (8, .2))
+          (5, 6.5), (8, .1))
 STEPS = {
     "src": [("downloading", "Downloading the recording", (10, 0), None),
             ("extracting audio", "Extracting the audio track", (3, .01), None)],
@@ -46,21 +49,21 @@ STEPS = {
              "Loading the transcription software onto the machine", "pull", None),
             ("checking the GPU", "Checking that the GPU works", (10, 0), None),
             ("running ", "Fetching the recording onto the machine", (8, 0), None)],
-    "drums": [("running pipeline", "Starting up", (1, 0), (10, 0)),
+    "drums": [("running pipeline", "Starting up", (1, 0), None),
               ("separating drums stem",
                "Demucs is isolating the drums from the rest of the band",
-               (2, .34), (8, .03))],
+               (2, .34), (8, .045))],
     "adtof": [*_START,
-              ("tracking beats", "Finding the beats and barlines", (1, .03), (3, .01)),
+              ("tracking beats", "Finding the beats and barlines", (1, .03), (10, .05)),
               _ADTOF, *_END],
     "mdx23c": [*_START, _SPLIT,
                ("detecting per-stem onsets", "Finding the hits in each per-drum track",
-                (1, .01), None), *_END],
+                (1, .01), (2, .035)), *_END],
     # fused runs after mdx23c, so the six tracks are already there
     "fused": [*_START, ("splitting kit", "Loading the six per-drum tracks", (1, 0), None),
               _ADTOF,
               ("refining with per-drum stems",
-               "Checking the hits against the per-drum tracks", (1, .01), None),
+               "Checking the hits against the per-drum tracks", (1, .01), (1, .02)),
               *_END],
 }
 NAMES = {"src": "the recording", "gpu": "the cloud GPU",
@@ -188,7 +191,7 @@ def _expect(step: tuple, seconds: float, gpu: bool, log: str) -> float:
     """Expected duration of one step in seconds."""
     if step[2] == "pull":
         down = re.findall(r"(\d+) Mbit/s", log)
-        return 45 + IMAGE_BITS / (float(down[-1]) * 1e6) * 2 if down else 240
+        return 45 + IMAGE_BITS / (float(down[-1]) * 1e6) * 6 if down else 480
     fixed, per = step[3] if gpu and step[3] else step[2]
     return max(1.0, fixed + per * seconds)
 

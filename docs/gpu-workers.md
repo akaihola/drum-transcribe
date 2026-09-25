@@ -175,9 +175,9 @@ Spot-market hardening, each rule paid for by a real failure (2026-09-20):
   sat in `actual_status=loading` with `intended_status=stopped` for 7 min
   (bid above the floor, GPU apparently taken) and would never have run.
   The ssh-wait loop now fails after 2 min of `intended_status=stopped`, so
-  `run-on-gpu.sh` retries on another host. Not yet confirmed that a
-  healthy spot rental never shows `stopped` briefly while loading — check
-  the logged status lines on the next run.
+  `run-on-gpu.sh` retries on another host. A healthy rental
+  (2026-09-25) logged only `loading` for its whole 8.5 min pull, never
+  `stopped`, so the rule doesn't trip on normal starts.
 - **No progress bars over the job stream** (`TQDM_DISABLE=1` in the
   worker): tqdm floods the ssh stream, and a slow log consumer (the
   CPU-throttled cloud container) can stall the job via backpressure.
@@ -221,6 +221,24 @@ Lessons from the first test run (2026-09-20, $0.04 total):
   `/proc/1/environ`, run `bash /app/deploy/vast-worker.sh` by hand.
 - GPU timings: both variants of a 4-min song ≈ 5 min total; mdx23c alone
   ≈ 1 min (vs ~40 min on the laptop CPU).
+
+Timed run (2026-09-25, 4.6 min song, all 3 variants, RTX 3090 at
+$0.152/h, 20 min wall clock, **$0.033**):
+
+| step | time |
+|---|---|
+| image pull (host at 861 Mbit/s) | 8.5 min |
+| GPU check + fetching the recording | 20 s |
+| adtof: Demucs 20 s, beats 25 s, ADTOF 36 s | 1.4 min |
+| mdx23c: MDX23C split 36 s, onsets 12 s | 0.9 min |
+| fused: ADTOF 13 s, refining 7 s | 0.4 min |
+| uploads to the bucket (after each variant) | 4 + 2 + 2 min |
+| syncing results to the laptop | 40 s |
+
+The GPU work itself is under 3 min; the per-variant uploads (~110 MB
+in total, mostly WAVs) take 8 min at this host's upload speed, and
+the image pull another 8.5. The progress bars' GPU estimates
+(`progress.py`) come from this run.
 
 Batching = a keep-alive session (`gpu-session.sh start`, then one `run`
 per song). Spot pause/outbid is safe: every stage is cached and uploads

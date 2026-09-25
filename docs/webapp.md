@@ -200,9 +200,11 @@ finished`/`ERROR:`), maps each marker to a task (`src`, `gpu`, `drums`,
 
 - **Expected step time** = fixed + per-song-second, CPU or GPU column,
   measured 2026-09-22 on atom (60 s clip: Demucs 0.34×, MDX23C 6.5×
-  song length, the rest seconds) and guessed for the GPU from the
-  gpu-workers.md figures — recalibrate from a timestamped GPU log. The
-  image-pull step is `45 s + 2 × 8 GB / host download speed`, the speed
+  song length, the rest seconds) and for the GPU from one timestamped
+  run on an RTX 3090 (2026-09-25, 4.6 min song; see gpu-workers.md §4).
+  On the GPU "writing outputs" includes the per-variant bucket upload,
+  the slowest step there. The
+  image-pull step is `45 s + 6 × 8 GB / host download speed`, the speed
   coming from the `instance …, host downloads at N Mbit/s` lines the
   ssh-wait loop logs (Vast reports no pull progress at all: its
   `status_msg` stays empty and `disk_usage` is -1 while loading).
