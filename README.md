@@ -106,9 +106,9 @@ version for comparison happens at the bottom of the page. Per version:
 - **downloadable files** as small icons beside each sonification player — click
   to download or drag into your file manager: MusicXML (opens directly in
   MuseScore), MIDI, the raw detection data (JSON), and a ready MuseScore
-  file when conversion succeeded — MuseScore 4's command-line converter
-  sometimes refuses files its own editor opens fine, so the .mscz icon can
-  be missing;
+  file when conversion succeeded — MuseScore's converter refuses a score
+  whose bars don't add up (e.g. after a badly detected beat), so the .mscz
+  icon can be missing;
 - the pipelines' **scores rendered on the page**, chosen with the selector
   above the score;
 - a **progress bar** in place of anything not ready yet, saying what is

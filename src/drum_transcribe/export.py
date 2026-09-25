@@ -5,10 +5,10 @@ on this NixOS laptop it is set to `, musescore` (comma) until MuseScore
 is installed properly. Never use `, mscore` — two nixpkgs packages
 provide `mscore` and comma picks unpredictably.
 
-Best-effort: MuseScore 4's headless importer aborts (silent exit 40) on
-warnings its GUI lets the user ignore, so conversion can fail even for
-schema-valid, fully voice-filled scores. MusicXML stays the primary
-deliverable; MuseScore opens it directly.
+Best-effort: MuseScore 4's CLI refuses scores that fail its corruption
+check (silent exit 40; the reason is in MuseScore's own log file, see
+docs/notation-musescore.md). MusicXML stays the primary deliverable;
+MuseScore opens it directly.
 """
 
 from __future__ import annotations
