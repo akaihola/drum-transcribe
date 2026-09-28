@@ -94,7 +94,8 @@ version for comparison happens at the bottom of the page. Per version:
   YouTube's own player, trimmed to a slim strip like the others: point the
   mouse at it to see its play/pause button and progress bar (YouTube hides
   them a few seconds after the mouse leaves). Clicking a bar and the
-  MuseScore plugin control it just like the other players;
+  MuseScore plugin control it just like the other players. Until the
+  recording has been downloaded, a progress bar stands in its place;
 - while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording

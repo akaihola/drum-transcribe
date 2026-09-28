@@ -173,7 +173,8 @@ and the presign step fall back to plain `python3`/`vastai`). See
   element a `display` (e.g. `form.create label { display: block }`) beats
   the bare attribute, which kept the create form's password field on show
   for everyone until 2026-09-28.
-- YouTube originals: when `v.youtube` is set, the original node holds a
+- YouTube originals: when `v.youtube` is set and the recording has been
+  downloaded (a progress bar until then), the original node holds a
   `<yt-audio video=ID>` custom element instead of `<audio>`. It wraps the
   IFrame API player behind the `<audio>` surface the page uses (`paused`,
   `currentTime`, `volume`, `play()`, `pause()`, dispatched `play` and a

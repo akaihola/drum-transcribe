@@ -779,7 +779,8 @@ function versionPieces(v) {
     err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
       failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
     src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"),
-              v.youtube ? `<yt-audio video="${v.youtube}"></yt-audio>` : audioTag(v.source)),
+              v.youtube && v.source ? `<yt-audio video="${v.youtube}"></yt-audio>`
+                                    : audioTag(v.source)),
     drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"),
                 audioTag(v.drums)),
   };
