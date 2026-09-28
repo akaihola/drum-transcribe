@@ -20,6 +20,7 @@ without it browsers heuristically cache and render stale scores), and
 | `POST /api/unlock` | `{password}` → scrypt check → bypass cookie (see Throttling) |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map (gated) |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run (gated) |
+| `POST /api/delete` | `{project, version}` → remove the version dir, and in the cloud its bucket objects (`gate.forget`, else the next cold start re-syncs them); refused while its job thread runs (gated) |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
@@ -37,7 +38,7 @@ this take seconds, but note it renumbers bars, which orphans feedback keys.
 ## Throttling (gate.py)
 
 Creation (`/api/create`, `/api/upload`) is throttled, and editing existing
-results (`/api/feedback`, `/api/rawbars`) need the unlock cookie outright,
+results (`/api/feedback`, `/api/rawbars`, `/api/delete`) need the unlock cookie outright,
 only where the `CREATE_PASSWORDS` env var is set — in practice the cloud
 container; the laptop server stays unlimited. Design notes (all forced by
 the serverless platform: scale-to-zero kills memory, instances don't share

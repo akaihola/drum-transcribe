@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import time
 from functools import partial
 from http.cookies import SimpleCookie
@@ -219,6 +220,10 @@ STYLE = """
   #gear-btn:hover { border-color: var(--ink-quiet); }
   #gear-btn svg { vertical-align: middle; }
   #gearmenu { position: fixed; inset: 3.9rem 1.2rem auto auto; margin: 0; }
+  .delver { display: block; margin: 1.4rem 0 0 auto; font: inherit; font-size: .85rem;
+            background: none; color: var(--ink-quiet); cursor: pointer;
+            border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
+  .delver:hover { color: var(--signal); border-color: var(--signal); }
   .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
   .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
   @media (max-width: 64rem) {
@@ -297,7 +302,8 @@ HELP_HTML = """
     <text x="15" y="55" font-size="12">players &middot; downloads &middot; scores of the selected version</text>
   </svg>
   <p>Each <b>version</b> of the piece (e.g. the backing track and the album
-  recording) has its own tab, with its own address to bookmark or share. Inside it, independent transcription
+  recording) has its own tab, with its own address to bookmark or share, and
+  a <b>Delete this version</b> button at the bottom. Inside it, independent transcription
   <b>pipelines</b> are compared: <b>adtof</b> (a neural network reading the
   drum mix; most reliable), <b>mdx23c</b> (splits the kit into six
   per-drum tracks first; can tell ride from crash but over-detects), and
@@ -351,8 +357,8 @@ HELP_HTML = """
   note, click again to edit or remove it. Clicking the score's title takes
   general feedback about the whole transcription. Feedback is stored with
   the other result files (feedback.json). On the public cloud site, saving
-  feedback or switching the meter asks for the site's password once per
-  browser.</p>
+  feedback, switching the meter or deleting a version asks for the site's
+  password once per browser.</p>
 </dialog>
 """
 
@@ -766,6 +772,14 @@ async function postGated(url, body) {
   return send();
 }
 
+async function deleteVersion(version) {
+  if (!confirm(`Delete the version "${version}" and all its results? ` +
+               "This cannot be undone.")) return;
+  const r = await postGated("/api/delete", { project: PROJECT, version });
+  if (r.ok) location.href = `/p/${PROJECT}`;
+  else alert("Deleting failed: " + ((await r.json()).error || r.statusText));
+}
+
 async function setRawBars(version, raw) {
   const r = await postGated("/api/rawbars", { project: PROJECT, version, raw });
   if (r.ok) pollProgress();
@@ -831,9 +845,10 @@ async function build() {
       <section data-song="${v.name}">${p.err}
       <div class="gpu" hidden>${IC_CLOUD}<b>cloud GPU</b>${progBar("gpu")}</div>
       <div class="flow">${p.src}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
-      `</div>${p.score}</section></div>`;
+      `</div>${p.score}</section>
+      <button class="delver" onclick="deleteVersion('${v.name}')">Delete this version</button></div>`;
   }
-  html += `<div class="tabpanel ${versions.length ? "" : "active"}" id="v--__add"></div></div>`;
+  html += `<div class="tabpanel ${shown ? "" : "active"}" id="v--__add"></div></div>`;
   app.innerHTML = html;
   const addform = document.getElementById("addform");
   document.getElementById("v--__add").appendChild(addform);
@@ -1455,6 +1470,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return
                 self._set_raw_bars(data)
                 self._send_json(200, {"ok": True})
+            elif path == "/api/delete":
+                if not self._may_edit():
+                    return
+                self._delete_version(data)
+                self._send_json(200, {"ok": True})
             elif path == "/api/seek":
                 bar = int(data["bar"])
                 SEEK.update(seq=SEEK["seq"] + 1, bar=bar,
@@ -1466,14 +1486,27 @@ class AppHandler(SimpleHTTPRequestHandler):
         except (ValueError, KeyError) as e:
             self._send_json(400, {"error": str(e)})
 
-    def _set_raw_bars(self, data: dict) -> None:
-        """Flip the keep-raw-bars flag for one version and regenerate results."""
-        parts = [data["project"], data["version"]]
+    def _existing_dir(self, *parts: str) -> Path:
+        """output/<project>/<version>[/<variant>], refusing anything else."""
         if not all(re.fullmatch(r"[a-z0-9-]+", p) for p in parts):
             raise ValueError("bad path component")
-        version_dir = self.root.joinpath(*parts)
-        if not version_dir.is_dir():
-            raise ValueError("no such version")
+        found = self.root.joinpath(*parts)
+        if not found.is_dir():
+            raise ValueError("no such version or pipeline")
+        return found
+
+    def _delete_version(self, data: dict) -> None:
+        """Remove one version with all its results (and its bucket copy)."""
+        version_dir = self._existing_dir(data["project"], data["version"])
+        if version_dir in RUNNING:
+            raise ValueError("it is still being processed — try again when "
+                             "it has finished")
+        gate.forget(version_dir)
+        shutil.rmtree(version_dir)
+
+    def _set_raw_bars(self, data: dict) -> None:
+        """Flip the keep-raw-bars flag for one version and regenerate results."""
+        version_dir = self._existing_dir(data["project"], data["version"])
         flag = version_dir / "keep-raw-bars"
         if data["raw"]:
             flag.touch()
@@ -1483,12 +1516,8 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def _save_feedback(self, data: dict) -> dict:
         """Set or delete one feedback entry; returns the variant's feedback map."""
-        parts = [data["project"], data["version"], data["variant"]]
-        if not all(re.fullmatch(r"[a-z0-9-]+", p) for p in parts):
-            raise ValueError("bad path component")
-        variant_dir = self.root.joinpath(*parts)
-        if not variant_dir.is_dir():
-            raise ValueError("no such variant")
+        variant_dir = self._existing_dir(data["project"], data["version"],
+                                         data["variant"])
         fb_file = variant_dir / "feedback.json"
         feedback = json.loads(fb_file.read_text()) if fb_file.exists() else {}
         key = str(data["key"])

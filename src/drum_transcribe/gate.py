@@ -97,6 +97,19 @@ def keep(path: Path) -> None:
         threading.Thread(target=_upload, args=(path,), daemon=True).start()
 
 
+def forget(version_dir: Path) -> None:
+    """In the cloud, delete a version from the bucket too — else the next
+    cold start's sync brings it back."""
+    if not enabled():
+        return
+    s3, bucket = _bucket()
+    prefix = f"{version_dir.parent.name}/{version_dir.name}/"
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket,
+                                                              Prefix=prefix):
+        for obj in page.get("Contents", []):
+            s3.delete_object(Bucket=bucket, Key=obj["Key"])
+
+
 @functools.cache
 def _bucket():
     """(boto3 client, bucket name) from the container's worker credentials."""

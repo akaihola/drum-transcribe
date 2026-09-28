@@ -74,8 +74,8 @@ be at most 100 MB.
 
 Because the cloud site is open to the whole internet, anyone may listen and
 read there, but it only accepts a few new pieces per day from unknown
-visitors, and *changing* anything — writing feedback, switching the meter —
-needs a password. If it asks for one, ask Antti — after typing it once, that
+visitors, and *changing* anything — writing feedback, switching the meter,
+deleting a version — needs a password. If it asks for one, ask Antti — after typing it once, that
 browser is remembered and never asks again. The laptop site never asks.
 
 **Main page**: your projects, plus a form to transcribe a new piece — upload
@@ -128,6 +128,9 @@ submitted, the new version's tab opens. Per version:
   orange with the feedback shown on hover; click again to edit or remove.
   Clicking the score title takes general feedback. Everything is saved in
   the variant's `feedback.json`;
+- a **Delete this version** button at the bottom, which removes the version
+  and all its results for good (it asks first, and waits until processing
+  has finished);
 - a **"?" help button** on every page opens illustrated instructions.
 
 ## Playing the recording from inside MuseScore
