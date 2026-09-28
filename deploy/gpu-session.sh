@@ -79,8 +79,10 @@ print(o['id'], round(o['min_bid']*1.25, 3))")
 
     stage "launching instance (idle self-destruct after $IDLE_MIN min)"
     WATCHDOG='touch /tmp/alive; while sleep 60; do [ $(( $(date +%s) - $(stat -c %Y /tmp/alive) )) -gt '$(( IDLE_MIN * 60 ))' ] && curl -fsS -X DELETE -H "Authorization: Bearer $CONTAINER_API_KEY" "https://console.vast.ai/api/v0/instances/$CONTAINER_ID/?api_key=$CONTAINER_API_KEY"; done'
+    # --ssh --direct: map port 22 on the host; without it `ports` has no
+    # 22/tcp and ssh_cmd falls back to the job-dropping proxy
     ID=$(vast create instance "$OFFER_ID" --image "$IMAGE" --disk 40 \
-        --onstart-cmd "$WATCHDOG" --bid_price "$BID" --raw \
+        --ssh --direct --onstart-cmd "$WATCHDOG" --bid_price "$BID" --raw \
         | python3 -c "import json,sys;print(json.load(sys.stdin)['new_contract'])")
     echo "$ID" > $STATE
 # shellcheck disable=SC2064  # expand $ID now on purpose

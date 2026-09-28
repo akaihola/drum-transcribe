@@ -162,7 +162,10 @@ Spot-market hardening, each rule paid for by a real failure (2026-09-20):
 
 - **ssh directly to the host's mapped port 22** (`public_ipaddr` +
   `ports["22/tcp"]`), never through `ssh*.vast.ai` — the proxy drops
-  long-lived connections mid-job. Proxy is fallback only.
+  long-lived connections mid-job. Proxy is fallback only. The port is
+  mapped only when the instance is created with `--ssh --direct`; until
+  2026-09-28 that flag was missing, so every session silently used the
+  proxy and a job died on `ssh4.vast.ai` 45 s in.
 - **Filter offers by `verified=true cuda_max_good>=12.9`** (the base
   image's CUDA), and still **assert `torch.cuda.is_available()` over ssh
   after start** — one "verified reliable" host had a driver that couldn't
