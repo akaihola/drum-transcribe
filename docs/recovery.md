@@ -26,7 +26,7 @@ done
 | `.secrets.throttle.env` | web app `CREATE_PASSWORDS` and `TOKEN_SECRET`; **`TOKEN_SECRET` cannot be recreated** — a new one logs every browser out of its password bypass |
 | `.secrets.worker-s3.json` | scoped S3 key for the results bucket (IAM application `drum-transcribe-worker`, expires 2027-03-31) |
 | `.secrets.cloudflare.env` | Cloudflare API token (Workers + DNS for `vempai.men`) and account ID — deploys the loading-page Worker, flips the `plokkaus` record |
-| `~/.config/scw/config.yaml` | main Scaleway API key, profile `drum-transcribe` — needed to push images and update the container |
+| `~/.config/scw/config.yaml` | main Scaleway API key, profile `drum-transcribe` — needed to push images and update the container; expires 2027-09-28 (the previous one lapsed silently, found at a failed push). After renewing, re-run `podman login rg.fr-par.scw.cloud -u nologin` with the new secret key |
 | `~/.config/vastai/vast_api_key` | Vast.ai API key |
 
 Why keep all of them, not just the irreplaceable one: updating the
