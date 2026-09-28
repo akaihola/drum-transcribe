@@ -65,10 +65,11 @@ start)
     rm -f $STATE $KNOWN_HOSTS  # new instance, new host key to pin
 
     stage "searching spot offers"
-    # cuda_max_good: host driver must support the image's CUDA 12.8;
-    # random among the 3 cheapest so a retry escapes a flaky host
+    # cuda_max_good: host driver must support the base image's CUDA 12.9
+    # (torch is cu128, but a 12.8-only driver hits error 804 on GeForce);
+    # random among the 5 cheapest so a retry escapes a flaky host
     OFFER=$(vast search offers \
-        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.8' \
+        'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.9' \
         --type=bid -o 'dph_total' --raw | python3 -c "
 import json,random,sys
 o = random.choice(json.load(sys.stdin)[:5])

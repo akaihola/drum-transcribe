@@ -163,10 +163,15 @@ Spot-market hardening, each rule paid for by a real failure (2026-09-20):
 - **ssh directly to the host's mapped port 22** (`public_ipaddr` +
   `ports["22/tcp"]`), never through `ssh*.vast.ai` — the proxy drops
   long-lived connections mid-job. Proxy is fallback only.
-- **Filter offers by `verified=true cuda_max_good>=12.8`** (the image's
-  CUDA), and still **assert `torch.cuda.is_available()` over ssh after
-  start** — one "verified reliable" host had a driver that couldn't run
-  CUDA 12.8 (error 804) and torch silently fell back to CPU.
+- **Filter offers by `verified=true cuda_max_good>=12.9`** (the base
+  image's CUDA), and still **assert `torch.cuda.is_available()` over ssh
+  after start** — one "verified reliable" host had a driver that couldn't
+  run the image's CUDA (error 804) and torch silently fell back to CPU.
+  The filter must match the base image's CUDA (12.9), not torch's build
+  (cu128): a driver that stops at 12.8 makes the container try NVIDIA's
+  forward-compatibility layer, which GeForce cards like the 3090 lack →
+  error 804. Filtering on 12.8 let such a host (driver 570.86) through
+  on 2026-09-28.
 - **Pick randomly among the 5 cheapest offers and retry `start` up to
   3×** (`run-on-gpu.sh`) — cheapest-first kept re-renting the same host
   that never finished pulling the image.
@@ -194,7 +199,7 @@ Manual steps, when debugging or doing something the wrapper doesn't:
 ```bash
 # find offers: 1×3090, reliable, fast downlink (fast image pull)
 uv run vastai search offers \
-  'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.8' \
+  'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.9' \
   --type=bid -o 'dph_total'
 
 # launch one song (worker env; see deploy/vast-worker.sh header)
