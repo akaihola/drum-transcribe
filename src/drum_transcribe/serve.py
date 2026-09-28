@@ -65,6 +65,7 @@ STYLE = """
   a { color: var(--teal-deep); }
   body > p, dialog#help p { max-width: 65ch; }
   summary { cursor: pointer; }
+  [hidden] { display: none !important; }  /* even where a rule sets display */
   :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
   .player { margin: 0; background: var(--card); border-radius: 8px;
             border: 1px solid var(--hairline); border-left: 4px solid var(--teal);
@@ -137,7 +138,6 @@ STYLE = """
   .gpu { display: flex; align-items: center; gap: .9rem; margin: .4rem 0 0;
          padding: .6rem .8rem; background: var(--card); border-radius: 8px;
          border: 1px solid var(--hairline); border-left: 4px solid var(--brass); }
-  .gpu[hidden] { display: none; }
   .gpu > b { font-weight: 500; white-space: nowrap; }
   .gpu .prog { flex: 1; }
   .arrived { animation: arrive .7s ease-out; }

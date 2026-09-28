@@ -169,6 +169,10 @@ and the presign step fall back to plain `python3`/`vastai`). See
   an `i` popover (`INFO`/`infoBtn`) explaining the artifact. Anything not
   ready has a progress bar (`progBar`) where its player will be; pipeline
   logs are in the `#gear-btn` popover.
+- `[hidden]` is forced to `display: none !important`: any rule giving an
+  element a `display` (e.g. `form.create label { display: block }`) beats
+  the bare attribute, which kept the create form's password field on show
+  for everyone until 2026-09-28.
 - YouTube originals: when `v.youtube` is set, the original node holds a
   `<yt-audio video=ID>` custom element instead of `<audio>`. It wraps the
   IFrame API player behind the `<audio>` surface the page uses (`paused`,
