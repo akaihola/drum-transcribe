@@ -297,7 +297,7 @@ HELP_HTML = """
     <text x="15" y="55" font-size="12">players &middot; downloads &middot; scores of the selected version</text>
   </svg>
   <p>Each <b>version</b> of the piece (e.g. the backing track and the album
-  recording) has its own tab. Inside it, independent transcription
+  recording) has its own tab, with its own address to bookmark or share. Inside it, independent transcription
   <b>pipelines</b> are compared: <b>adtof</b> (a neural network reading the
   drum mix; most reliable), <b>mdx23c</b> (splits the kit into six
   per-drum tracks first; can tell ride from crash but over-detects), and
@@ -413,7 +413,7 @@ async function submitCreate(form) {
       return false;
     }
     if (!resp.ok) throw new Error(d.error || resp.statusText);
-    location.href = `/p/${d.project}`;
+    location.href = `/p/${d.project}/${d.version}`;
   } catch (e) { status.textContent = ""; alert("Failed: " + e.message); }
   return false;
 }
@@ -467,7 +467,8 @@ __HELP__
 __CREATE_FORM__
 </div>
 <script>
-const PROJECT = decodeURIComponent(location.pathname.split("/").pop());
+// Each version has its own address, /p/<project>/<version>.
+const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);
 const DOWNLOADS = __DOWNLOADS__;
 const VARIANTS = __VARIANTS__;
 document.getElementById("title").textContent = PROJECT;
@@ -813,19 +814,20 @@ async function build() {
   const project = index.projects.find(p => p.name === PROJECT);
   const app = document.getElementById("app");
   const versions = project ? project.versions : [];
+  const shown = versions.find(v => v.name === VERSION) || versions[0];
   let html = `<span class="grouplbl">Versions</span>
     <div class="tabs vtabs"><div class="tabbar">` +
-    versions.map((v, i) =>
-      `<button class="${i ? "" : "active"}" data-target="v--${v.name}">${v.name}</button>`
+    versions.map(v =>
+      `<button class="${v === shown ? "active" : ""}" data-target="v--${v.name}">${v.name}</button>`
     ).join("") +
-    `<button class="add ${versions.length ? "" : "active"}"
+    `<button class="add ${shown ? "" : "active"}"
       data-target="v--__add">+ add a version</button>
       <label class="vol" title="volume of all players">volume
         <input type="range" min="0" max="1" step="0.01"
           value="${localStorage.volume ?? 1}" oninput="setVolume(this.value)"></label></div>`;
-  for (const [i, v] of versions.entries()) {
+  for (const v of versions) {
     const p = rendered[v.name] = versionPieces(v);
-    html += `<div class="tabpanel ${i ? "" : "active"}" id="v--${v.name}">
+    html += `<div class="tabpanel ${v === shown ? "active" : ""}" id="v--${v.name}">
       <section data-song="${v.name}">${p.err}
       <div class="gpu" hidden>${IC_CLOUD}<b>cloud GPU</b>${progBar("gpu")}</div>
       <div class="flow">${p.src}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
@@ -1200,6 +1202,10 @@ document.addEventListener("click", e => {
   for (const b of btn.closest(".tabbar").querySelectorAll("button"))
     b.classList.toggle("active", b === btn);
   const tabs = btn.closest(".tabs");
+  if (tabs.classList.contains("vtabs")) {
+    const v = btn.dataset.target.slice(3);
+    history.replaceState(null, "", `/p/${PROJECT}` + (v === "__add" ? "" : `/${v}`));
+  }
   for (const p of tabs.querySelectorAll(":scope > .tabpanel"))
     p.classList.toggle("active", p.id === btn.dataset.target);
   showPanel(tabs.querySelector(":scope > .tabpanel.active"));
@@ -1428,7 +1434,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 (link := version_dir / "source-url.txt").write_text(url + "\n")
                 gate.keep(link)
                 start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
-                self._send_json(200, {"project": version_dir.parent.name})
+                self._send_json(200, {"project": version_dir.parent.name,
+                                      "version": version_dir.name})
             elif path == "/api/unlock":
                 salt = gate.verify_password(str(data.get("password", "")))
                 if salt is None:
@@ -1521,7 +1528,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 f.write(chunk)
                 remaining -= len(chunk)
         start_version_job(version_dir, upload=upload, gpu=q.get("gpu") == "1")
-        self._send_json(200, {"project": version_dir.parent.name})
+        self._send_json(200, {"project": version_dir.parent.name,
+                              "version": version_dir.name})
 
     def _unlocked(self) -> bool:
         cookie = SimpleCookie(self.headers.get("Cookie", ""))

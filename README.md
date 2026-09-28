@@ -84,8 +84,10 @@ link, or a direct URL). Submitting creates the project page and starts all
 pipelines in the background; the project page shows their progress live.
 
 **Project page**: one piece, with every uploaded/linked version of it (say,
-the backing track and the album recording) in its own tab. Adding another
-version for comparison happens at the bottom of the page. Per version:
+the backing track and the album recording) in its own tab. Each tab has its
+own address, so a link or bookmark opens that version directly. Another
+version for comparison is added with the "+ add a version" tab; once
+submitted, the new version's tab opens. Per version:
 
 - players for the **original**, the **drums stem**, and each pipeline's
   **sonification**, laid out as a diagram whose arrows show what is made

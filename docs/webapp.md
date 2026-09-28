@@ -13,10 +13,10 @@ without it browsers heuristically cache and render stale scores), and
 | route | what |
 |---|---|
 | `GET /` | main page: project list + create form |
-| `GET /p/<project>` | project page: version tabs, players, scores, feedback |
+| `GET /p/<project>[/<version>]` | project page: version tabs, players, scores, feedback; opens `<version>`'s tab (else the first), and switching tabs rewrites the address (`history.replaceState`) |
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
-| `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job |
-| `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job |
+| `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job; answers the slugs `{project, version}` so the form can open the new tab |
+| `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job; same answer |
 | `POST /api/unlock` | `{password}` → scrypt check → bypass cookie (see Throttling) |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map (gated) |
 | `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run (gated) |
