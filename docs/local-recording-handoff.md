@@ -54,6 +54,24 @@ These are the user's settled requirements:
   again. Ordinary audio files are sufficient; no restoration package is required.
   Solo playback hears an imported mix without adding another backing layer.
 
+On 2026-09-30 the user compared three interface prototypes (transport dock,
+arrange view, console; kept on branch `prototype/recording-ui`) and settled the
+interface:
+
+- Use the arrange view as prototyped. A toolbar holds the transport, a
+  bar.beat and time counter, Undo, a whole-song or follow-16-bars view, one status
+  line, and a menu for export, import, latency correction and Clear. Below it are a bar
+  ruler, a Backing lane (source, level, meter) and a Your drums lane (record
+  arm, mute, solo, level, microphone gain and meter) showing recorded passages
+  as blocks. The flow-diagram cards choose the backing; they no longer carry
+  their own position controls.
+- Pressing Play with Record armed gives a two-bar lead-in on the song's beat
+  grid. In the middle of the song it is backing playback without a metronome.
+  Metronome clicks fill any part of the lead-in before the song starts, so
+  recording from the beginning gets a two-bar count-in.
+- Seeking disarms Record and returns the track to Play back, not Mute.
+- No automatic punch range by bars and no recorded-bar marks in the score.
+
 Use these implementation defaults unless the user changes them. They are proposed
 defaults, not additional decisions already made by the user:
 
