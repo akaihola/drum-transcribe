@@ -1,12 +1,17 @@
 # Web app internals (serve.py + ingest.py)
 
 Stdlib-only `ThreadingHTTPServer`; HTML/JS lives in template strings inside
-`serve.py`. No state besides the `output/` tree — every page render rescans
+`serve.py`. Server state stays in the `output/` tree — every page render rescans
 the filesystem (plus, for live progress, `ingest.RUNNING`: the version
 dirs whose job thread is alive in this process). All
 responses carry `Cache-Control: no-cache` (re-runs replace files in place;
 without it browsers heuristically cache and render stale scores), and
 `/files/**` supports byte ranges (Chromium won't seek audio otherwise).
+
+Browser-local drum recordings use IndexedDB and never enter server storage.
+Their transport, capture and export code is in explicitly served JavaScript
+modules under `src/drum_transcribe/static/`. See the local recording section
+below and [implementation results](local-recording-handoff.md#implementation-results).
 
 ## Routes
 
@@ -24,6 +29,7 @@ without it browsers heuristically cache and render stale scores), and
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
+| `GET /static/<asset>` | explicit image and recording-module allowlist, with their content types |
 | `GET /files/**` | static from the output root |
 
 `scan_output` reports `drumless`, the URL of
@@ -268,3 +274,104 @@ on narrow touchscreens. Stored text is attacker-controlled input:
 put it in the DOM via `textContent`/`.value` only — it was once interpolated
 into the edit menu's `innerHTML`, where `</textarea><img onerror=…>` ran as
 script for whoever clicked the note.
+
+## Browser-local drum recording
+
+`local-recording.js` adds one `Recording` per version once its source is ready,
+including when live progress supplies that source. On secure pages with
+AudioWorklet support, `practice-audio` replaces the native players and YouTube
+iframe with a "Use as backing" button; it keeps the media-element interface
+(`paused`, `currentTime`, `play()`, `volume`, events) that score highlighting,
+click-a-bar and MuseScore polling use. The one transport lives in the arrange
+view mounted after `.flow`: a toolbar (transport, bar.beat counter, Undo,
+whole-song/follow-16-bars view, status line, ⋯ menu with export, import,
+latency and Clear), a bar ruler, a Backing lane and a Your drums lane, all
+canvases whose static layer is cached per view and redrawn with the playhead
+every 50 ms tick. Clicking or dragging any canvas seeks. Takes are runs of
+segments sharing a `take` id (older data: the chunk id without its frame
+suffix). Saved takes are drawn from IndexedDB (`preview`) before the first
+user gesture creates the AudioContext. Space, R, M, S, Home and Ctrl/Cmd+Z act
+on the visible version unless focus is in a text field, select or dialog.
+Insecure pages keep the original players.
+Version changes stop/disarm recording and release the decoded backing. Refreshes
+rebind changed controls without replacing the track or active audio graph.
+Changed progress signatures invalidate the decoded backing for the next Play,
+while preserving the currently heard buffer. Undo-only chunks stay in memory
+during this visit and are not retained in IndexedDB.
+
+One 48 kHz AudioContext schedules the selected backing and nearby local chunks.
+It bounds derived tails to the source length and supplies silence for short
+backings. Local chunks are scheduled two seconds ahead, rather than creating
+sources for a whole song at once. A WaveShaper clips the sum to [-1,1] before
+the listening-only master gain. Solo silences backing during Play back; Mute
+and Record still play backing. Record never plays the local track or microphone.
+
+`recording-grid.js` turns beats.json into bars and beats, extended four bars
+before the first beat at the opening tempo. Play with Record armed sets `from`
+two bars before the record point (`leadStart`); `anchor` puts that song time
+0.05 s ahead, capture starts exactly at the record point, and `current()` runs
+from `from`, negative during a count-in. Oscillator clicks, accented on
+downbeats, are scheduled for beats before 0:00 on the listening path only; a
+lead-in reaching before 0:00 starts on the nearest downbeat. Pausing during
+the lead-in cancels the passage and keeps the record point. Without beats.json
+there is no lead-in. Seeking, song end, errors, interruptions and version
+changes disarm Record to Play back; only M mutes.
+
+`recording-worklet.js` batches 4096 captured samples with absolute audio frame
+positions. An 8192-frame pre-roll buffer covers slightly late start commands.
+It emits zero output, performs no storage/waveform/encoding work, and marks
+missing or non-finite input invalid. Each `CapturePassage` freezes its offset and
+song-clock anchor. Stop fixes the requested song interval before draining its
+bounded capture tail. Placement clips corrected samples to that interval.
+Incomplete capture preserves the prior audio. Changes of route or offset do
+not move earlier takes; no quantization is applied.
+
+`recording-core.js` stores a sparse interval map referencing immutable chunks.
+Replacing a passage splits surrounding references without copying the song.
+Silence replaces old audio too. Undo retains the last map during this visit.
+Import creates chunks at time zero with no capture correction and preserves
+remembered audition settings. It validates all samples and duration before
+replacing the track. Imports currently accept mono or stereo audio.
+
+`recording-store.js` stores chunks and min/max peaks separately from a track's
+interval map, source fingerprint and audition settings. One IndexedDB transaction
+publishes each edit and removes unused chunks. Web Locks holds a single writer
+per project/version until writes settle or the page closes. A second tab listens
+and downloads, but cannot edit. SHA-256 of the fetched source bytes detects
+changed sources, independent of bucket-sync timestamps. `sourceIdentity` in the
+server index is a size/mtime refresh signal; it is not the saved fingerprint.
+A changed source preserves the old track and length, blocks overwriting, and
+allows Play back with Solo for recovery before Clear.
+
+Clear invalidates queued operations and writes, aborts pending capture/export,
+releases microphone buffers and download URLs, deletes this key's storage after
+in-flight transactions, and resets samples, waveform, Undo and audition. It
+needs no backing fetch and does not recreate empty metadata on page exit.
+Storage failures leave audio in memory with a persistent status message; a read
+failure blocks persistence until Clear, preserving any unread saved data.
+
+`recording-export.js` requests 32768-frame batches, uses `recording-wav.js` to
+mix/clip/encode 16-bit PCM in a worker, and returns a full-song WAV Blob. It uses
+the last qualifying heard backing/gains/solo state with the latest track. Muted
+listening, Record and paused control changes do not update that state. Export
+has no master-volume input. The encoding still retains the resulting PCM file
+in memory, and decoding/import can temporarily hold both input and chunk data.
+Ten-minute desktop measurements are in the handoff; mobile support is untested.
+
+Standalone checks are under `checks/`. Run `node checks/recording-core.mjs`,
+`node checks/recording-grid.mjs` and `node checks/recording-worklet.mjs` for
+sample placement, bar/lead-in arithmetic and processor boundaries.
+The browser snippets run against the test fixture on port 8766 after initializing
+its audio with a real click. `recording-firefox.py` drives them in a fresh headless
+Firefox profile with a fake device microphone. On this laptop:
+
+```bash
+uv run --no-project --with selenium python checks/recording-firefox.py
+```
+
+PinchTab's regular click does not supply user activation in this setup; mouse
+down/up does. Bring its dedicated tab to the foreground before testing
+MuseScore polling, which intentionally stops on hidden, paused pages. The snippets include three-minute offline timing, exact middle
+replacement, WAV round trips, gain/clipping comparison, storage failures,
+interruption safety, no recording write requests, and source-change protection.
+They establish software behavior, not physical-device latency.

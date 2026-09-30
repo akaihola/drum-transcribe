@@ -1,9 +1,12 @@
 # Browser-local drum recording research
 
-Researched 2026-09-30. This is a feasibility assessment and a set of proposed
-defaults, not an approved implementation plan. Browser documentation and the
-current player code were inspected. No microphone or hardware latency measurements
-were made.
+Researched 2026-09-30. This assessment records the agreed behavior and proposed
+technical approach. Browser documentation and the current player code were
+inspected. No physical microphone or hardware latency measurements were made.
+The implementation and synthetic/fake-device results are now recorded in
+[the handoff](local-recording-handoff.md#implementation-results).
+The next step, implementation defaults, and acceptance checks are in
+[local-recording-handoff.md](local-recording-handoff.md).
 
 The requested recording track is feasible in current browsers. The work goes
 beyond adding a record button: accurate replacement of short passages needs a
@@ -78,10 +81,10 @@ Keep old passages until valid capture is committed, and offer Undo for the last
 replacement. Small edge fades may prevent clicks, but their extent must be bounded
 and should not blur drum attacks or change audio outside the replacement range.
 
-Pausing ends the current replacement interval. Seeking, changing project version,
-or an external MuseScore seek should end recording and disarm it under the proposed
-default. This prevents a seek from erasing an unintended passage. Continuing an
-armed recording after a seek is a separate behavior to decide before implementation.
+Seeking disarms Record, including seeking while paused and external MuseScore
+seeks. Finish any active replacement interval before moving the playhead. Pausing
+ends the current replacement interval. Changing project version should also end
+recording and disarm it under the proposed default.
 The existing MuseScore polling interval of one second is suitable for navigation,
 not precision timing or punching into a passage.
 
@@ -167,12 +170,14 @@ locally. No cloud audio processing is needed. See
 Browser-local persistence should use IndexedDB, with recordings identified by
 project, version, and a source identity strong enough to detect changed audio.
 Keep samples in chunks and store the replacement map, waveform peaks, and take
-offsets alongside them. An interrupted edit should leave either the prior passage
-or the complete committed replacement. A small canvas waveform showing recorded
-passages, empty regions, playhead, and active replacement range would be enough to
-start. Use min/max peaks so narrow drum attacks remain visible, and allow seeking
-without forcing a bar boundary. A live input oscilloscope alone would not show the
-saved song-length track.
+offsets alongside them. Recordings should survive reloads whenever browser storage
+allows it. Persist the remembered audition settings with the track so reloads also
+preserve download behavior. An interrupted edit should leave either the prior
+passage or the complete committed replacement. A small canvas waveform showing
+recorded passages, empty regions, playhead, and active replacement range would be
+enough to start. Use min/max peaks so narrow drum attacks remain visible, and allow
+seeking without forcing a bar boundary. A live input oscilloscope alone would not
+show the saved song-length track.
 
 Local storage belongs to one browser profile and one website origin, including
 scheme, hostname, and port. Laptop localhost and the cloud hostname therefore
@@ -183,6 +188,14 @@ download easy. See [browser storage and eviction](https://developer.mozilla.org/
 Do not put microphone samples in API requests, server logs, pipeline output, or
 bucket uploads. The current CDN-loaded scripts run in the page's origin; avoiding
 uploads is an application behavior, not isolation from all scripts in that page.
+
+Each project version's local recording track must have a Clear button for starting
+over and freeing storage. It should end any active recording, disarm Record, and
+delete that track's stored samples, edit history, waveform data, and remembered
+audition. Release its in-memory buffers and file references as well. Retaining the
+old take for Undo would defeat Clear's storage-freeing purpose. The next recording
+starts with the solo-download default. Clearing this local track must not delete
+the song version, backing audio, or transcription results.
 
 Memory matters more than the compressed file sizes suggest. At 48 kHz, ten minutes
 of mono float32 capture is 115.2 MB, and a stereo decoded backing is 230.4 MB.
@@ -203,36 +216,45 @@ download is a sensible first format. Mono 16-bit WAV at 48 kHz is 57.6 MB per te
 minutes; stereo is 115.2 MB. See
 [offline audio rendering](https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext).
 
-To meet the last-listened requirement, retain an audition snapshot when playback
-actually occurs. It needs the backing node identity, backing and recording gains,
-mute/solo state, timing correction, and any app-level master gain or effects.
-Moving a balance slider while paused must not silently change that snapshot.
-Before any audition, download the recording solo. Use the same mixing rules in
-listening and export, including peak protection if present; do not normalize only
-the download. Hardware headphone volume is outside the file and cannot be matched.
+The user settled the export behavior:
 
-Several details of that requirement still need a product decision:
+- Remember the final balance actually heard, including the backing node identity,
+  backing and recording gains, and solo state. Moving controls while paused does
+  not change these remembered settings. Balance changes during playback update
+  the final heard settings; export does not reproduce their history over time.
+- Listening with the recording muted is ignored. It does not replace the previous
+  remembered mix or solo. Before any qualifying audition, download the recording
+  solo.
+- After editing, download the latest recording with those remembered mix settings.
+  Export does not preserve an older audio revision. Use the latest track's stored
+  passage timing and compensation when rendering it.
+- Always download the whole song timeline, including leading silence and gaps.
+  The current playhead position and listened passage do not crop the file.
+- Master volume controls listening only and must not affect file loudness. Apply
+  the remembered track levels before the master-volume stage. Hardware headphone
+  volume also has no effect on the file.
 
-- Does an audition count only when the recorded track is audible, or does hearing
-  backing with the local track muted establish a backing-only download?
-- If balance changes during listening, does the file use the final balance or
-  reproduce the changes over time? Final heard settings are the simpler default.
-- After replacing a passage, should download contain the latest edited track with
-  the last heard mix settings, or preserve the exact older audio revision that was
-  heard? The former is simpler but needs a visible indication that new audio has
-  not been auditioned.
-- Is export the entire song timeline, preserving leading silence and empty
-  passages, or only a selected passage? The entire timeline is my proposed default.
-- Should the app's existing master volume change file loudness, or control
-  listening only? Literal last-listened matching suggests including app-level
-  gain, but this needs an explicit choice.
+Use the same track-mixing rules for listening and export, including peak protection
+if present, before the listening-only master gain. Do not normalize only the
+download. Independent backing and recording levels should support both solo
+endpoints and ordinary balance adjustment. Input gain must stay separate from
+listening balance.
 
-Other decisions before planning are whether the local track survives reloads,
-whether a downloaded solo can be imported to restore it or move devices, the
-meaning of seek while armed, behavior at song end, and whether a count-in is
-needed. A mix alone cannot restore an isolated editable drum track. Independent
-backing and recording levels should support both solo endpoints and ordinary
-balance adjustment. Input gain must stay separate from listening balance.
+Downloads must be importable into a local recording track, without uploading them.
+The user chose to load the finished audio as the recording track, including any
+backing already mixed into it. Import places it at song time zero and preserves
+leading silence and gaps. Already aligned imported samples should not receive
+microphone latency compensation again. The waveform and passage replacement
+operate on this combined audio. Replacing part of an imported mix therefore
+replaces both the previous drums and the baked-in backing in that interval.
+Solo playback hears the imported mix as downloaded; mixing in a player node adds
+that player's audio to the backing already present in the imported track.
+The download can remain an ordinary audio file with no separate restoration data.
+
+The implementation handoff proposes defaults for the remaining small choices:
+Record while paused arms until Play is pressed, song end stops and disarms
+recording, and the first implementation omits a count-in. These defaults allow
+implementation to start and remain open to user changes.
 
 Test microphone permission denial, unplugged devices, storage exhaustion,
 multiple tabs editing the same track, source replacement, and browser interruption.
@@ -243,6 +265,12 @@ can interrupt audio during calls, app switches, or screen locking; the
 describes these interruptions. Treat foreground recording as the initial supported
 case unless actual device tests establish more.
 
+Also verify persistence through reload, muted listening preserving the remembered
+mix, edits using the latest take with the prior mix, and identical export loudness
+at different master volumes. Check full-song download/import timing and that Clear
+removes stored track data, including undo data, and cannot be undone by a late
+storage write from the recording that was just stopped.
+
 Before committing to the full design, build a narrow experiment with one backing
 file, microphone capture, calibrated placement, and replacement of a short middle
 passage. Measure onset alignment at both ends of a long take, verify that untouched
@@ -251,3 +279,23 @@ render. Then check player switching, paused mode changes, score seeking, live UI
 refresh, and the intended desktop and mobile browsers. This experiment would
 resolve the main timing and memory uncertainties without building the whole
 interface first.
+
+## Implementation update
+
+The implementation kept the shared AudioContext and raw frame-timed AudioWorklet
+approach. The software timing experiment passed at both ends of a three-minute
+take before the larger UI was added. Passage replacement, silence, Undo and
+capture tails passed. A bounded 8192-frame pre-roll handles late start commands;
+only requested samples leave that buffer. Immutable chunk references avoid
+copying the whole track per edit, and local playback schedules two seconds ahead.
+IndexedDB transactions publish chunks and the interval map together. SHA-256 of
+source bytes detects source changes without relying on cloud-sync timestamps.
+
+Full-song WAV export uses bounded worker batches with the same hard clipping as
+listening before master volume. Import accepts ordinary mono/stereo audio,
+preserves its time-zero position and never applies microphone correction. The
+settled behavior above is unchanged. [The handoff results](local-recording-handoff.md#implementation-results)
+contain browser, timing, memory and failure checks. The adjustable 60 ms offset
+is an unmeasured guess. A wired hardware measurement is still needed to decide
+whether a separate click calibration function is necessary. Mobile and cloud
+HTTPS access remain untested.

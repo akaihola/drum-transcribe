@@ -93,12 +93,13 @@ submitted, the new version's tab opens. Per version:
 - players for the **original**, the **drums stem**, and each pipeline's
   **sonification**, laid out as a diagram whose arrows show what is made
   from what; one **volume** slider (top right) sets the volume of all of
-  them. For a version made from a **YouTube link**, the original plays in
-  YouTube's own player, trimmed to a slim strip like the others: point the
-  mouse at it to see its play/pause button and progress bar (YouTube hides
-  them a few seconds after the mouse leaves). Clicking a bar and the
-  MuseScore plugin control it just like the other players. Until the
-  recording has been downloaded, a progress bar stands in its place;
+  them. With local recording available, each box has a **Use as backing**
+  button instead of its own player: it chooses what the recording panel
+  below the diagram plays (see [Record your own drums](#record-your-own-drums-in-the-browser)).
+  The original uses the downloaded audio, including for YouTube links.
+  Where local recording is unavailable, each box keeps its own player, and
+  a YouTube original plays in YouTube's player. A progress bar appears until
+  the audio is ready;
 - a **without drums** player above the score, with a **Download FLAC** link.
   FLAC compresses audio without losing quality. The stereo, 24-bit track
   plays on Android and imports into Ableton Live. It has the same timing as
@@ -145,6 +146,88 @@ submitted, the new version's tab opens. Per version:
   and all its results for good (it asks first, and waits until processing
   has finished);
 - a **"?" help button** on every page opens illustrated instructions.
+
+## Record your own drums in the browser
+
+Each version can have one drum track of your own, recorded in the browser.
+On the laptop, open the app at [localhost:8765](http://localhost:8765/). The
+cloud site does not offer recording yet.
+
+Use desktop Chromium or Firefox, a device microphone and wired headphones.
+Recording needs localhost or a trusted HTTPS address. Ordinary HTTP from
+another machine keeps the original players available but cannot record.
+
+The recording panel sits under the diagram. It works like the arrange window
+of a recording program (a DAW): a bar with the buttons on top, a ruler with
+bar numbers, and one lane for the backing and one for your drums.
+
+- **Top bar**: ⏮ goes back to the start, ▶ plays and pauses, ● records. The
+  counter shows the bar and beat (`17.3` is bar 17, beat 3) and the time.
+  ↶ undoes the last recorded passage. **Whole song** shows the entire song;
+  **Follow 16 bars** zooms in around the playhead. The status line says what
+  you hear, or what ▶ will do next. The ⋯ button opens Export, Import,
+  Latency correction and Clear.
+- **Bars ruler**: click it, or either lane, to jump to that point.
+- **Backing** lane: what you play along to. Choose it in the lane or with
+  **Use as backing** in the diagram: the original, the track without drums,
+  the drums stem, or a sonification. You can switch while it plays. The
+  slider sets its level in decibels (0 dB leaves it unchanged, −6 dB is about
+  half as loud); the bar at the right edge is its level meter.
+- **Your drums** lane: your recording. Each recorded passage is a block
+  labelled with its bars. ● arms recording, **M** mutes your track, **S**
+  (solo) plays your track alone. The first slider is your track's level;
+  **mic** is how strongly the microphone is recorded. The meter at the right
+  shows the microphone while recording is armed. **CLIP** lights red when the
+  microphone overloads: lower the mic slider and click CLIP to reset it.
+
+Keyboard shortcuts: Space plays and pauses, R records, M mutes, S solos,
+Home goes back to the start, Ctrl+Z undoes the last passage.
+
+**Recording.** Press ● and then ▶ (or R, then Space). Playback starts two
+bars before the playhead so you can find the groove; recording starts exactly
+at the playhead. Where those two bars would reach back before the song
+starts, metronome clicks fill the gap, so recording from the very beginning
+gives you a two-bar count-in. Pressing ● while the song plays starts
+recording at once (punching in); pressing it again stops recording and the
+song keeps playing (punching out). Pause keeps recording armed for the next
+▶. Jumping anywhere else stops recording, and your track plays back again.
+The song's end stops both. You hear the backing, not the microphone.
+
+Recording replaces only the passage the playhead crosses, silence included:
+recording bars 17 to 20 leaves everything before and after in place. ↶
+restores the last replaced passage during this visit.
+
+**Export WAV** (in the ⋯ menu) always saves the whole song. It uses your
+latest recording with the mix you last listened to: the backing you chose and
+both levels, or your track alone if you last listened with Solo. The menu
+shows that mix. Changing sliders while paused, or listening with your track
+muted, does not change it. Before you have listened to your track with a
+backing, the file has your track alone. The volume slider at the top right
+only changes how loud you hear things, never the file.
+
+**Import audio** loads an ordinary mono or stereo audio file as your track,
+starting at 0:00 and keeping leading silence and gaps. Short files get
+silence at the end; files longer than the song are refused without changing
+your track. An imported finished mix keeps its backing inside your track, so
+use Solo to hear it by itself. Imported audio gets no latency correction.
+
+Your track and remembered mix stay in this browser when storage permits.
+Nothing is uploaded or added to transcription results. Another browser profile,
+address or port has separate recordings. Export a copy before relying on
+browser storage. Only one tab can edit a version; close that tab and reload
+another to transfer editing. **Clear your track** asks first, then removes
+this version's audio, Undo and remembered mix, including pending writes. Other
+versions and pipeline results stay intact.
+
+**Latency correction** (in the ⋯ menu) places new microphone samples earlier on the song timeline.
+Its **60 ms default is an unmeasured starting guess**. It belongs to each take,
+so adjusting it never shifts older passages. Check it with a known click or
+loopback recording on your own wired setup. The temporary microphone buffer
+holds at most 171 ms and discards samples outside the requested passage.
+Software timing passed the checks in Chromium and Firefox. Physical microphone
+and headphone latency, mobile behavior and the HTTPS cloud path still need
+measurement. [The implementation notes](docs/local-recording-handoff.md#implementation-results)
+record the timing and memory evidence.
 
 ## Playing the recording from inside MuseScore
 

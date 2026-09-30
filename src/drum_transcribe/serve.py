@@ -44,6 +44,12 @@ DOWNLOADS = [
 ]
 UPLOAD_EXTS = AUDIO_EXTS | {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 
+STATIC_ASSETS = {f"/static/{name}" for name in (
+    "musescore.svg", "musicxml.png", "local-recording.js",
+    "recording-core.js", "recording-worklet.js", "recording-store.js",
+    "recording-wav.js", "recording-export.js", "recording-grid.js",
+)}
+
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
 # at /style). Teal is reserved for "sound happens here".
 FONTS = """
@@ -232,6 +238,85 @@ STYLE = """
   .delver { display: block; margin: 1.4rem 0 0 auto; font: inherit; font-size: .85rem;
             background: none; color: var(--ink-quiet); cursor: pointer;
             border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
+  /* local recording: arrange view (toolbar, bar ruler, backing and drum lanes) */
+  .local-recording { margin: 1.2rem 0; background: var(--card); border: 1px solid var(--hairline); border-radius: 8px; }
+  .local-recording button { font: inherit; color: var(--ink); cursor: pointer; }
+  .local-recording button:disabled { opacity: .35; cursor: default; }
+  .local-recording input { accent-color: var(--teal); }
+  .local-recording output { font-variant-numeric: tabular-nums; }
+  .local-recording svg { width: 18px; height: 18px; fill: currentColor; }
+  .rec-bar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem;
+    padding: .55rem .8rem; border-bottom: 1px solid var(--hairline); }
+  .rec-key { width: 40px; height: 40px; flex: none; display: inline-grid; place-items: center; padding: 0;
+    border-radius: 50%; border: 1px solid var(--hairline); background: var(--card); }
+  .rec-key:hover:not(:disabled) { border-color: var(--ink-quiet); }
+  .local-recording .play { background: var(--teal); border-color: var(--teal); color: white; }
+  .local-recording .rec { color: var(--signal); }
+  .local-recording.armed .rec { animation: rec-blink 1s steps(1) infinite; }
+  @keyframes rec-blink { 50% { background: var(--signal); border-color: var(--signal); color: white; } }
+  @media (prefers-reduced-motion: reduce) { .local-recording.armed .rec { animation: none; background: #F6D6D2; } }
+  .rec-count { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
+    background: var(--paper); border: 1px solid var(--hairline); }
+  .rec-count b { font-size: 1.5rem; line-height: 1.1; min-width: 3.2em; }
+  .rec-count span, .rec-bar output { font-size: .85rem; color: var(--ink-quiet); }
+  .local-recording.recording .rec-count { border-color: var(--signal); }
+  .local-recording.recording .rec-count b, .local-recording.armed [data-status] { color: var(--signal); }
+  .rec-view { display: flex; border: 1px solid var(--hairline); border-radius: 999px; overflow: hidden; }
+  .rec-view button { border: 0; background: none; padding: .25rem .8rem; font-size: .82rem; color: var(--ink-quiet); }
+  .rec-view [aria-pressed=true] { background: var(--ink); color: white; }
+  .rec-bar [data-status] { flex: 1 1 16rem; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rec-menu { position: absolute; z-index: 20; top: calc(100% + 4px); right: .6rem; width: 23rem; display: grid;
+    padding: .35rem; background: var(--card); border: 1px solid var(--hairline); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(35,32,25,.18); }
+  .rec-menu > * { display: grid; gap: .1rem; text-align: left; background: none; border: 0; border-radius: 6px; padding: .5rem .65rem; }
+  .rec-menu > button:hover { background: var(--paper); }
+  .rec-menu span, .rec-menu output { font-size: .8rem; color: var(--ink-quiet); }
+  .rec-menu input { width: 4.5em; font: inherit; font-size: .85rem; }
+  .rec-menu .danger b { color: var(--signal); }
+  .rec-grid { display: grid; grid-template-columns: 19rem 1fr; }
+  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text; touch-action: none; }
+  .rec-grid canvas[data-draw=ruler] { height: 26px; }
+  .rec-grid canvas[data-draw=track] { height: 110px; border-bottom: 0; }
+  .rec-head { position: relative; display: grid; gap: .3rem; align-content: start; padding: .45rem 1.9rem .45rem .6rem;
+    font-size: .85rem; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); border-left: 4px solid transparent; }
+  .rec-head.ruler { color: var(--ink-quiet); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; padding-top: .3rem; }
+  .rec-head.you { border-bottom: 0; border-radius: 0 0 0 8px; }
+  .local-recording.armed .rec-head.you { border-left-color: var(--signal); background: #FFF7F6; }
+  .rec-head > b { display: flex; justify-content: space-between; align-items: center; }
+  .rec-head select { font: inherit; font-size: .85rem; padding: .15rem .3rem; border: 1px solid var(--hairline);
+    border-radius: 6px; background: var(--paper); color: var(--ink); }
+  .rec-fader { display: flex; align-items: center; gap: .4rem; }
+  .rec-fader input { flex: 1; min-width: 0; }
+  .rec-fader output { font-size: .8rem; color: var(--ink-quiet); min-width: 4.4em; }
+  .rec-fader span { color: var(--ink-quiet); width: 1.8rem; }
+  .rec-t { width: 26px; height: 22px; display: inline-grid; place-items: center; padding: 0; margin-left: .25rem;
+    border-radius: 5px; border: 1px solid var(--hairline); background: var(--paper); font-size: .75rem; font-weight: 700; }
+  .local-recording .rec-t { color: var(--ink-quiet); }
+  .local-recording .rec-t.rec { color: var(--signal); }
+  .local-recording.recording .rec { animation: none; background: var(--signal); border-color: var(--signal); color: white; }
+  .rec-t svg { width: 12px; height: 12px; }
+  .local-recording [data-action=mute][aria-pressed=true] { background: var(--brass); border-color: var(--brass); color: white; }
+  .local-recording [data-action=solo][aria-pressed=true] { background: var(--teal); border-color: var(--teal); color: white; }
+  .local-recording .rec-clip { font-size: .6rem; font-weight: 700; letter-spacing: .06em; padding: .2rem .3rem;
+    border-radius: 3px; border: 1px solid var(--hairline); background: var(--paper); color: #CFC8BB; }
+  .local-recording .rec-clip.on { background: var(--signal); border-color: var(--signal); color: white; }
+  .rec-meter { position: absolute; right: .5rem; top: .5rem; bottom: .5rem; width: 8px; overflow: hidden;
+    border-radius: 2px; background: #EEEAE2; }
+  .rec-meter i { position: absolute; inset: 0; clip-path: inset(calc(100% - var(--lv, 0) * 100%) 0 0 0);
+    background: linear-gradient(0deg, #2E9E5B 0 75%, #D9A400 75% 94%, var(--signal) 94%); }
+  .rec-meter::after { content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0 3px, var(--card) 3px 4px); }
+  /* flow-diagram cards choose the backing */
+  practice-audio, .soniline > practice-audio:first-child { flex: 0 0 auto; margin-right: auto; }
+  practice-audio button { display: inline-flex; align-items: center; gap: .45rem; font: inherit; font-size: .85rem;
+    color: var(--ink-quiet); background: var(--card); border: 1px solid var(--hairline); border-radius: 999px;
+    padding: .2rem .8rem .2rem .45rem; margin-top: .3rem; cursor: pointer; }
+  practice-audio button::before { content: ""; width: .8rem; height: .8rem; box-sizing: border-box;
+    border-radius: 50%; border: 2px solid currentColor; }
+  practice-audio button:hover { border-color: var(--teal); color: var(--teal-deep); }
+  practice-audio.on button { color: white; background: var(--teal); border-color: var(--teal); }
+  practice-audio.on button::before { background: white; border-color: white; box-shadow: inset 0 0 0 2px var(--teal); }
+  .player:has(practice-audio.on) { box-shadow: 0 0 0 2px var(--teal); background: #F1F7F8; }
   .delver:hover { color: var(--signal); border-color: var(--signal); }
   .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
   .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
@@ -240,6 +325,7 @@ STYLE = """
     .flow > .player, .flow > .node-src,
     .flow > .soni[data-name="fused"] { grid-column: auto; }
     svg.arrows { display: none; }
+    .rec-grid { grid-template-columns: 12rem 1fr; }
   }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
@@ -364,6 +450,24 @@ HELP_HTML = """
   conversion succeeded. The round plug is <b>MIDI</b>, which plays the
   transcription; the { } braces are JSON files with the raw detection
   data.</p>
+
+  <h3>Local drum recording</h3>
+  <p>Each version can keep your own drum track in this browser. Use wired
+  headphones. Choose what to play along to with <b>Use as backing</b> in the
+  diagram or in the Backing lane below it. Press &#9679; and then &#9654; (or R,
+  then Space): playback starts two bars early and recording starts at the
+  playhead. From the very beginning you get a two-bar metronome count-in.
+  Pressing &#9679; while playing punches in at once; pressing it again punches
+  out. Pause keeps recording armed; jumping elsewhere disarms it. Only the
+  passage the playhead crosses is replaced, and &#8630; undoes the last one.
+  M mutes your track, S plays it alone. You never hear the microphone itself.</p>
+  <p>The &#8943; menu exports the whole song as a WAV with the mix you last
+  listened to (the menu shows it), imports an audio file as your track, sets
+  the latency correction (60&nbsp;ms is a starting guess, not a measurement)
+  and clears your track. The volume slider changes only what you hear.
+  Recordings are separate for each address, port and browser profile, and
+  need HTTPS or localhost. Keys: Space play/pause, R record, M mute, S solo,
+  Home back to start, Ctrl+Z undo.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Turn on <b>Comment on symbols</b> above the score. Tap or click a note
@@ -494,6 +598,7 @@ __HELP__
 <div id="addform" hidden>
 __CREATE_FORM__
 </div>
+<script type="module" src="/static/local-recording.js"></script>
 <script>
 // Each version has its own address, /p/<project>/<version>.
 const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);
@@ -512,7 +617,7 @@ const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
   A6 6 0 0 0 6.6 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>`;
 
 const INFO = {
-  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. For a YouTube link this is YouTube's own player; point at it to see its controls.",
+  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. Local recording plays the downloaded audio. Where local recording is unavailable, a YouTube link uses YouTube's own player.",
   drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
   drumless: "The rest of the band, with the drums removed by Demucs. Play along on your own kit. Some drum sound may remain. Download the lossless FLAC to play on Android or import into Ableton Live.",
   sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
@@ -582,7 +687,7 @@ class YtAudio extends HTMLElement {
     this.innerHTML = `<div></div><button title="play"></button>`;
     this.lastChild.onclick = () => this.play();
     this.playing = false;
-    ytApi.then(() => this.yt = new YT.Player(this.firstChild, {
+    ytApi.then(() => { if (!this.isConnected) return; this.yt = new YT.Player(this.firstChild, {
       videoId: this.getAttribute("video"),
       playerVars: { playsinline: 1, rel: 0 },
       events: {
@@ -602,8 +707,9 @@ class YtAudio extends HTMLElement {
           } else if (e.data !== YT.PlayerState.BUFFERING) this.playing = false;
         },
       },
-    }));
+    }); });
   }
+  disconnectedCallback() { clearInterval(this.timer); this.yt?.destroy(); }
   get paused() { return !this.playing; }
   get readyState() { return 1; }  // seeks before the player is ready are queued
   get currentTime() { return this.ready ? this.yt.getCurrentTime() : this.start ?? 0; }
@@ -614,7 +720,7 @@ class YtAudio extends HTMLElement {
   pause() { this.playing = false; if (this.ready) this.yt.pauseVideo(); }
 }
 customElements.define("yt-audio", YtAudio);
-const MEDIA = "audio, yt-audio";
+const MEDIA = "audio, yt-audio, practice-audio";
 
 function dragFile(e, name, url) {
   e.dataTransfer.setData("DownloadURL",
@@ -771,6 +877,7 @@ function drawArrows(panel) {
 // only for the visible version, to spare bandwidth).
 function showPanel(panel) {
   drawArrows(panel);
+  panel?.querySelector("section[data-song]")?.recording?.loadMetadata();
   panel?.querySelectorAll("audio").forEach(a => a.preload = "metadata");
 }
 window.addEventListener("resize", () =>
@@ -819,7 +926,7 @@ function versionPieces(v) {
     err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
       failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
     src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"),
-              v.youtube && v.source ? `<yt-audio video="${v.youtube}"></yt-audio>`
+              v.youtube && v.source && !(isSecureContext && window.AudioWorkletNode) ? `<yt-audio video="${v.youtube}"></yt-audio>`
                                     : audioTag(v.source)),
     drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"),
                 audioTag(v.drums)),
@@ -893,6 +1000,7 @@ async function build() {
   setVolume(localStorage.volume ?? 1);
   renderScores(app);
   for (const v of versions) {
+    if (v.source) new LocalRecording.Recording(app.querySelector(`section[data-song="${v.name}"]`), v, PROJECT);
     loadBars(v);
     showProgress(v.name, v.progress);
     progSigs[v.name] = v.progress.sig;
@@ -1002,6 +1110,11 @@ async function refreshVersion(name) {
       fresh.querySelector(`[data-target="${tab}"]`)?.click();
       renderScores(fresh);
     }
+  }
+  const section = panel.querySelector("section[data-song]");
+  if (v.source) {
+    if (section.recording) section.recording.update(v);
+    else new LocalRecording.Recording(section, v, PROJECT);
   }
   setVolume(localStorage.volume ?? 1);
   showProgress(name, v.progress);
@@ -1187,8 +1300,12 @@ function seekToBar(section, bar) {
   const hit = (barTimes[section.dataset.song] || []).find(b => b.bar === bar);
   const audios = [...section.querySelectorAll(MEDIA)];
   const audio = audios.find(a => !a.paused) ||
-                lastAudio[section.dataset.song] || audios[0];
+                (audios.includes(lastAudio[section.dataset.song]) ? lastAudio[section.dataset.song] : null) || audios[0];
   if (!hit || !audio) return;
+  if (section.recording?.supported) {
+    section.recording.run(async () => { await section.recording.ready(); await section.recording.seek(Math.max(0,hit.t-.1)); await section.recording.play(); });
+    return;
+  }
   const t = Math.max(0, hit.t - 0.1);
   if (audio.readyState) { audio.currentTime = t; audio.play(); }
   else {  // metadata not loaded yet: it must arrive before seeking works
@@ -1270,7 +1387,8 @@ async function pollSeek() {
       seekBoot = s.boot;
       if (seekSeq !== null && s.seq !== seekSeq) {
         if (!s.playing)
-          document.querySelectorAll(MEDIA).forEach(a => a.pause());
+          { document.querySelectorAll(MEDIA).forEach(a => a.pause());
+            document.querySelectorAll("section[data-song]").forEach(s => { if (s.recording) s.recording.deactivate(); }); }
         else {
           const section =
             document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
@@ -1293,6 +1411,9 @@ document.addEventListener("click", e => {
     b.classList.toggle("active", b === btn);
   const tabs = btn.closest(".tabs");
   if (tabs.classList.contains("vtabs")) {
+    document.querySelectorAll("section[data-song]").forEach(s => {
+      if (s.dataset.song !== btn.dataset.target.slice(3) && s.recording) s.recording.deactivate();
+    });
     const v = btn.dataset.target.slice(3);
     history.replaceState(null, "", `/p/${PROJECT}` + (v === "__add" ? "" : `/${v}`));
   }
@@ -1382,6 +1503,8 @@ def scan_output(root: Path) -> dict:
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
+                "sourceIdentity": f"{sources[0].name}:{sources[0].stat().st_size}:"
+                f"{sources[0].stat().st_mtime_ns}" if sources else None,
                 "youtube": youtube_id(vdir),
                 "beats": f"{rel}/beats.json",
                 "irregular": irregular,
@@ -1446,7 +1569,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
-        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png)", path):
+        elif path in STATIC_ASSETS:
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
