@@ -3,6 +3,8 @@
 Researched 2026-09-30. This assessment records the agreed behavior and proposed
 technical approach. Browser documentation and the current player code were
 inspected. No microphone or hardware latency measurements were made.
+The next step, implementation defaults, and acceptance checks are in
+[local-recording-handoff.md](local-recording-handoff.md).
 
 The requested recording track is feasible in current browsers. The work goes
 beyond adding a record button: accurate replacement of short passages needs a
@@ -247,9 +249,10 @@ Solo playback hears the imported mix as downloaded; mixing in a player node adds
 that player's audio to the backing already present in the imported track.
 The download can remain an ordinary audio file with no separate restoration data.
 
-Other decisions before planning are behavior at song end, whether a count-in is
-needed, and whether selecting Record while paused only arms it or also starts
-playback. The proposed paused behavior remains arming until Play is pressed.
+The implementation handoff proposes defaults for the remaining small choices:
+Record while paused arms until Play is pressed, song end stops and disarms
+recording, and the first implementation omits a count-in. These defaults allow
+implementation to start and remain open to user changes.
 
 Test microphone permission denial, unplugged devices, storage exhaustion,
 multiple tabs editing the same track, source replacement, and browser interruption.
