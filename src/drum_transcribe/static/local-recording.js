@@ -864,7 +864,8 @@ export class Recording {
     clearTimeout(this.auditionTimer);
     this.cancelExport();
     this.abortCapture("");
-    this.position = this.current();
+    this.position = Math.max(this.current(), this.recordFrom ?? 0);
+    this.recordFrom = null;
     this.playing = false;
     this.stopSources();
     this.disarm();
