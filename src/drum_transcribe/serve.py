@@ -477,6 +477,7 @@ __HELP__
 <div id="addform" hidden>
 __CREATE_FORM__
 </div>
+<script type="module" src="/static/local-recording.js"></script>
 <script>
 // Each version has its own address, /p/<project>/<version>.
 const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);
@@ -873,6 +874,7 @@ async function build() {
   setVolume(localStorage.volume ?? 1);
   renderScores(app);
   for (const v of versions) {
+    if (v.source) new LocalRecording.Recording(app.querySelector(`section[data-song="${v.name}"]`), v, PROJECT);
     loadBars(v);
     showProgress(v.name, v.progress);
     progSigs[v.name] = v.progress.sig;
@@ -1384,7 +1386,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
-        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png)", path):
+        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js)", path):
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
