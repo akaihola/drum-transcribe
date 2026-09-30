@@ -253,7 +253,6 @@ STYLE = """
   .local-recording .play { background: var(--teal); border-color: var(--teal); color: white; }
   .local-recording .rec { color: var(--signal); }
   .local-recording.armed .rec { animation: rec-blink 1s steps(1) infinite; }
-  .local-recording.recording .rec { animation: none; background: var(--signal); border-color: var(--signal); color: white; }
   @keyframes rec-blink { 50% { background: var(--signal); border-color: var(--signal); color: white; } }
   @media (prefers-reduced-motion: reduce) { .local-recording.armed .rec { animation: none; background: #F6D6D2; } }
   .rec-count { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
@@ -294,6 +293,7 @@ STYLE = """
     border-radius: 5px; border: 1px solid var(--hairline); background: var(--paper); font-size: .75rem; font-weight: 700; }
   .local-recording .rec-t { color: var(--ink-quiet); }
   .local-recording .rec-t.rec { color: var(--signal); }
+  .local-recording.recording .rec { animation: none; background: var(--signal); border-color: var(--signal); color: white; }
   .rec-t svg { width: 12px; height: 12px; }
   .local-recording [data-action=mute][aria-pressed=true] { background: var(--brass); border-color: var(--brass); color: white; }
   .local-recording [data-action=solo][aria-pressed=true] { background: var(--teal); border-color: var(--teal); color: white; }
