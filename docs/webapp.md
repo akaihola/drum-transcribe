@@ -237,16 +237,16 @@ at `SCORE_SCALE` (default 45, `localStorage.scoreScale`), as one tall page
 (`pageHeight` 60000, narrow margins: no page numbers or gaps in the
 scroll), with the "Percussion"/"Perc" staff labels stripped from the XML.
 
-Three layout prototypes are being evaluated (September 2026), each a
-`static/mobile-<a|b|c>.css` + `.js` loaded only on narrow screens and
-picked with `?m=a|b|c|off` (remembered in `localStorage.mobile`; a strip
-at the top of the page switches): **A "Signal path"** — one scroll,
-fold-out cards on a metro-map line; **B "Music stand"** — score first,
-transport dock, pipeline map in a source sheet, follows the playing bar;
-**C "Drum pads"** — bottom tabs (Listen/Score/Files/Record), pipeline as a
-pad grid. They decorate the desktop DOM rather than replacing it, and
-re-apply on the `rendered` event that `build` and `refreshVersion`
-dispatch. Once one is chosen, the others and the switch go.
+The phone layout ("drum pads", chosen from three prototypes in September
+2026) is `static/mobile.css` + `mobile.js`, loaded by a head script only on
+narrow screens (`html.mobile`). It decorates the desktop DOM rather than
+replacing it: the real players stay in the hidden `.flow`, and the pads,
+header, version `<select>`, bottom tabs (Listen/Score/Files/Record) and mini
+player drive them. Live refresh replaces `[data-piece]` elements, so the
+decoration is idempotent and re-runs on the `rendered` event that `build`
+and `refreshVersion` dispatch. In the Record tab the transport is one line
+(Undo moves into the ⋯ menu, the view switch is hidden; pinch zoom replaces
+it, see below).
 
 ## Live progress (progress.py)
 
@@ -306,7 +306,13 @@ view mounted after `.flow`: a toolbar (transport, bar.beat counter, Undo,
 whole-song/follow-16-bars view, status line, ⋯ menu with export, import,
 latency and Clear), a bar ruler, a Backing lane and a Your drums lane, all
 canvases whose static layer is cached per view and redrawn with the playhead
-every 50 ms tick. Clicking or dragging any canvas seeks. Takes are runs of
+every 50 ms tick. The counter uses tabular digits in fixed-width slots, so
+ticking never shifts the toolbar. A mouse seeks on press and drag. Touch
+seeks on a tap or a sideways drag (the lanes are `touch-action: pan-y`, so
+vertical swipes scroll the page), and two fingers pinch the time axis:
+`view` holds the zoomed `[t0, t1]` (null = the Whole song/Follow setting),
+anchored under the fingers' midpoint. `shownRange` pages the view to the
+playhead while playing or after a seek, never while the fingers pan. Takes are runs of
 segments sharing a `take` id (older data: the chunk id without its frame
 suffix). Saved takes are drawn from IndexedDB (`preview`) before the first
 user gesture creates the AudioContext. Space, R, M, S, Home and Ctrl/Cmd+Z act
@@ -375,7 +381,7 @@ the last qualifying heard backing/gains/solo state with the latest track. Muted
 listening, Record and paused control changes do not update that state. Export
 has no master-volume input. The encoding still retains the resulting PCM file
 in memory, and decoding/import can temporarily hold both input and chunk data.
-Ten-minute desktop measurements are in the handoff; mobile support is untested.
+Ten-minute desktop measurements are in the handoff; recording on a real phone is untested.
 
 Standalone checks are under `checks/`. Run `node checks/recording-core.mjs`,
 `node checks/recording-grid.mjs` and `node checks/recording-worklet.mjs` for

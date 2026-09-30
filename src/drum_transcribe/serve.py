@@ -370,7 +370,7 @@ STYLE = """
                         background: none; }
   #fbmenu .row button[data-act="save"] { background: var(--teal);
                                          border-color: var(--teal); color: #fff; }
-  /* phones, whichever layout prototype (or none) is on */
+  /* phones: the base; the drum-pads layout itself is static/mobile.css */
   @media (max-width: 40rem) {
     body { margin: .75rem; }
     form.create { padding: .8rem 1rem; box-sizing: border-box; max-width: none; }
@@ -407,6 +407,13 @@ HELP_HTML = """
 <dialog id="help">
   <button class="close" onclick="document.getElementById('help').close()">×</button>
   <h2>How to use this site</h2>
+  <p><b>On a phone</b> a piece opens with tabs along the bottom: <b>Listen</b>
+  shows each stage of the processing as a pad (tap one to hear it, tap
+  another to hear the same moment through it), <b>Score</b> has the notation
+  with &minus;/+ for its size, <b>Files</b> lists every download by name, and
+  <b>Record</b> appears where recording works. The version is chosen at the
+  top. Everything below also applies; where it says to point at something,
+  the phone shows the same information on the pad or in the Files list.</p>
 
   <h3>1. Start a transcription</h3>
   <p>On the front page, name the piece and this version of it, then either
@@ -499,6 +506,9 @@ HELP_HTML = """
   Recordings are separate for each address, port and browser profile, and
   need HTTPS or localhost. Keys: Space play/pause, R record, M mute, S solo,
   Home back to start, Ctrl+Z undo.</p>
+  <p>On a touch screen, pinch the lanes with two fingers to zoom in and out,
+  and tap or drag sideways to move the playhead. On a phone, Undo is in the
+  &#8943; menu.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Turn on <b>Comment on symbols</b> above the score. Tap or click a note
