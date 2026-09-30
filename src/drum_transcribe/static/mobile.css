@@ -1,26 +1,25 @@
-/* Prototype C, "Drum pads": see mobile-c.js. Everything is scoped to
-   html.m-c so the desktop page is never touched. */
-html.m-c { --tabs: calc(64px + env(safe-area-inset-bottom)); --wash: #EDE9E0; }
-html.m-c body { margin: 0; padding-bottom: calc(var(--tabs) + 24px);
+/* Phone layout, "drum pads": see mobile.js. Everything is scoped to
+   html.mobile so the desktop page is never touched. */
+html.mobile { --tabs: calc(64px + env(safe-area-inset-bottom)); --wash: #EDE9E0; }
+html.mobile body { margin: 0; padding-bottom: calc(var(--tabs) + 24px);
   -webkit-tap-highlight-color: transparent; }
-html.m-c.mp-on body { padding-bottom: calc(var(--tabs) + 100px); }
+html.mobile.mp-on body { padding-bottom: calc(var(--tabs) + 100px); }
 svg.mi { fill: none; stroke: currentColor; stroke-width: 1.7;
   stroke-linecap: round; stroke-linejoin: round; }
 svg.mi .f { fill: currentColor; stroke: none; }
-html.m-c nav.mproto { margin: 0; padding: 8px 16px 0; }
 
 /* ---- header: back, title, help, logs; the version picker as a pill ---- */
 .mhead { padding: 6px 6px 0 4px; }
 .mbar { display: flex; align-items: center; gap: 4px; min-height: 56px; }
-html.m-c #title { flex: 1; min-width: 0; margin: 0 4px; font-size: clamp(20px, 6vw, 26px);
+html.mobile #title { flex: 1; min-width: 0; margin: 0 4px; font-size: clamp(20px, 6vw, 26px);
   line-height: 1.1; }
-.mback, html.m-c #help-btn, html.m-c #gear-btn { position: static; flex: none; display: grid;
+.mback, html.mobile #help-btn, html.mobile #gear-btn { position: static; flex: none; display: grid;
   place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
   box-shadow: none; background: none; color: var(--ink); }
 .mback svg { width: 26px; height: 26px; }
-html.m-c #help-btn, html.m-c #gear-btn { border: 1.5px solid var(--hairline); background: var(--card); }
-html.m-c #help-btn { font: 500 20px/1 var(--serif); }
-html.m-c #gear-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
+html.mobile #help-btn, html.mobile #gear-btn { border: 1.5px solid var(--hairline); background: var(--card); }
+html.mobile #help-btn { font: 500 20px/1 var(--serif); }
+html.mobile #gear-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
 .vpick { position: relative; display: flex; align-items: center; height: 52px; margin: 6px 16px 0;
   padding: 0 20px; border: 1.5px solid var(--hairline); border-radius: 999px; background: var(--card); }
 .vpick span { font-size: 14px; color: var(--ink-quiet); }
@@ -30,20 +29,20 @@ html.m-c #gear-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
   border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg); pointer-events: none; }
 
 /* ---- the page's own version UI, replaced by the above ---- */
-html.m-c #app > .grouplbl, html.m-c .vtabs > .tabbar { display: none; }
-html.m-c .vtabs > .tabpanel.active { border: 0; border-radius: 0; background: none; padding: 0; }
-html.m-c section[data-song] { position: relative; }
+html.mobile #app > .grouplbl, html.mobile .vtabs > .tabbar { display: none; }
+html.mobile .vtabs > .tabpanel.active { border: 0; border-radius: 0; background: none; padding: 0; }
+html.mobile section[data-song] { position: relative; }
 /* the real players live on, invisibly, for the pads to drive */
-html.m-c .flow { position: absolute; top: 0; left: 0; width: 100%; height: 1px; margin: 0;
+html.mobile .flow { position: absolute; top: 0; left: 0; width: 100%; height: 1px; margin: 0;
   overflow: hidden; opacity: 0; pointer-events: none; }
-html.m-c [data-piece="err"] { margin: 16px 16px 0; font-size: 16px; }
-html.m-c .gpu { margin: 14px 16px 0; font-size: 16px; }
+html.mobile [data-piece="err"] { margin: 16px 16px 0; font-size: 16px; }
+html.mobile .gpu { margin: 14px 16px 0; font-size: 16px; }
 
 /* ---- tabs: which part of the version panel is on show ---- */
-html.m-c:not([data-mtab="listen"]) :is(.mlisten, .gpu, [data-piece="err"]),
-html.m-c:not([data-mtab="score"]) .stabs,
-html.m-c:not([data-mtab="files"]) :is(.mfiles, .delver),
-html.m-c:not([data-mtab="record"]) .local-recording { display: none !important; }
+html.mobile:not([data-mtab="listen"]) :is(.mlisten, .gpu, [data-piece="err"]),
+html.mobile:not([data-mtab="score"]) .stabs,
+html.mobile:not([data-mtab="files"]) :is(.mfiles, .delver),
+html.mobile:not([data-mtab="record"]) .local-recording { display: none !important; }
 .mtabs { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; display: flex;
   padding: 0 6px env(safe-area-inset-bottom); background: var(--card);
   border-top: 1px solid var(--hairline); box-shadow: 0 -2px 14px rgba(35,32,25,.07); }
@@ -55,7 +54,7 @@ html.m-c:not([data-mtab="record"]) .local-recording { display: none !important; 
 .mtabs [aria-current] { color: var(--ink); font-weight: 700; }
 .mtabs [aria-current] .tic { background: var(--wash); }
 .mtabs [data-tab="record"] .f { fill: var(--signal); }
-html.m-c.madd :is(.mtabs, .mplay) { display: none; }
+html.mobile.madd :is(.mtabs, .mplay) { display: none; }
 
 /* ---- Listen: the pad grid ---- */
 .mhint { margin: 12px 20px 14px; font-size: 15px; line-height: 1.35; color: var(--ink-quiet); }
@@ -144,28 +143,28 @@ svg.parrows { position: absolute; inset: 0; width: 100%; height: 100%; overflow:
 .mp-btn svg { width: 26px; height: 26px; }
 
 /* ---- Score: sticky toolbar, notation edge to edge ---- */
-html.m-c .scorehead { position: sticky; top: 0; z-index: 6; flex-wrap: wrap; gap: 8px;
+html.mobile .scorehead { position: sticky; top: 0; z-index: 6; flex-wrap: wrap; gap: 8px;
   margin: 0; padding: 10px 12px; background: var(--paper); border-bottom: 1px solid var(--hairline); }
-html.m-c .scorehead .grouplbl, html.m-c .scorehead:not(:has(.mzoom)) { display: none; }
-html.m-c .scorehead .seg { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; }
-html.m-c .scorehead .seg button { flex: 1; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 16px; }
-html.m-c .comment-toggle { display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+html.mobile .scorehead .grouplbl, html.mobile .scorehead:not(:has(.mzoom)) { display: none; }
+html.mobile .scorehead .seg { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; }
+html.mobile .scorehead .seg button { flex: 1; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 16px; }
+html.mobile .comment-toggle { display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
   font-size: 0; color: var(--ink); border-radius: 50%; }
-html.m-c .comment-toggle svg { width: 24px; height: 24px; }
-html.m-c .comment-toggle[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
-html.m-c body.comment-mode .scorehead::after { content: "Tap a note, rest or bar to comment on it. Tap the bubble again to stop.";
+html.mobile .comment-toggle svg { width: 24px; height: 24px; }
+html.mobile .comment-toggle[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
+html.mobile body.comment-mode .scorehead::after { content: "Tap a note, rest or bar to comment on it. Tap the bubble again to stop.";
   flex-basis: 100%; font-size: 14px; line-height: 1.35; color: var(--brass); }
 .mzoom { display: flex; gap: 4px; }
 .mzoom button { width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--hairline); border-radius: 50%;
   background: var(--card); font: 500 24px/1 var(--sans); color: var(--ink); cursor: pointer; }
-html.m-c .stabs > .meter { margin: 12px 16px; gap: 10px; }
-html.m-c .stabs > .meter::before { content: "Meter"; font-size: 15px; color: var(--ink-quiet); }
-html.m-c .meter .mseg { flex-wrap: nowrap; }
-html.m-c .meter .mopt { min-height: 44px; padding: 0 10px; }
-html.m-c .meter .mopt svg { width: 80px; height: auto; }
-html.m-c .meter .minfo { width: 44px; height: 44px; font-size: 18px; }
-html.m-c .stabs .score { border-radius: 0; border-width: 1px 0; }
-html.m-c .stabs .score.placeholder { margin: 16px; border-width: 1px; border-radius: 8px; font-size: 16px; }
+html.mobile .stabs > .meter { margin: 12px 16px; gap: 10px; }
+html.mobile .stabs > .meter::before { content: "Meter"; font-size: 15px; color: var(--ink-quiet); }
+html.mobile .meter .mseg { flex-wrap: nowrap; }
+html.mobile .meter .mopt { min-height: 44px; padding: 0 10px; }
+html.mobile .meter .mopt svg { width: 80px; height: auto; }
+html.mobile .meter .minfo { width: 44px; height: 44px; font-size: 18px; }
+html.mobile .stabs .score { border-radius: 0; border-width: 1px 0; }
+html.mobile .stabs .score.placeholder { margin: 16px; border-width: 1px; border-radius: 8px; font-size: 16px; }
 
 /* ---- Files: one big row per download ---- */
 .mfiles { padding: 4px 16px 0; }
@@ -185,36 +184,36 @@ html.m-c .stabs .score.placeholder { margin: 16px; border-width: 1px; border-rad
 .fname small.warn { color: var(--signal); }
 .frow > svg { flex: none; width: 24px; height: 24px; color: var(--teal-deep); }
 .fempty { margin: 0 4px; font-size: 15px; font-style: italic; color: var(--ink-quiet); }
-html.m-c .delver { width: calc(100% - 32px); min-height: 48px; margin: 32px 16px 8px;
+html.mobile .delver { width: calc(100% - 32px); min-height: 48px; margin: 32px 16px 8px;
   font-size: 16px; color: var(--signal); border-color: rgba(196,0,0,.35); }
 
-html.m-c #addform form.create { margin: 16px; border-radius: 12px; }
+html.mobile #addform form.create { margin: 16px; border-radius: 12px; }
 
 /* ---- Record: the arrange view, full width ---- */
-html.m-c .local-recording { margin: 12px 0 0; border-radius: 0; border-width: 1px 0; }
-html.m-c .rec-key { width: 48px; height: 48px; }
-html.m-c .rec-view button { min-height: 44px; font-size: 15px; }
-html.m-c .rec-bar output, html.m-c .rec-count span { font-size: 15px; }
-html.m-c .rec-menu { left: 8px; right: 8px; width: auto; }
+html.mobile .local-recording { margin: 12px 0 0; border-radius: 0; border-width: 1px 0; }
+html.mobile .rec-key { width: 48px; height: 48px; }
+html.mobile .rec-view button { min-height: 44px; font-size: 15px; }
+html.mobile .rec-bar output, html.mobile .rec-count span { font-size: 15px; }
+html.mobile .rec-menu { left: 8px; right: 8px; width: auto; }
 /* each lane's controls above its waveform, both full width; bar numbers
    between the backing controls and the backing waveform */
-html.m-c .rec-grid { grid-template-columns: 1fr; }
-html.m-c .rec-head.ruler { display: none; }
-html.m-c .rec-grid > .rec-head:nth-child(3) { order: -1; }
-html.m-c .rec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+html.mobile .rec-grid { grid-template-columns: 1fr; }
+html.mobile .rec-head.ruler { display: none; }
+html.mobile .rec-grid > .rec-head:nth-child(3) { order: -1; }
+html.mobile .rec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
   padding: 10px 40px 10px 16px; border-right: 0; font-size: 16px; }
-html.m-c .rec-head > b { flex: 1 0 auto; }
-html.m-c .rec-head select { flex: 1; min-height: 44px; font-size: 16px; }
-html.m-c .rec-fader { flex-basis: 100%; }
-html.m-c .rec-fader input { height: 32px; }
-html.m-c .rec-t { width: 44px; height: 38px; font-size: 15px; }
+html.mobile .rec-head > b { flex: 1 0 auto; }
+html.mobile .rec-head select { flex: 1; min-height: 44px; font-size: 16px; }
+html.mobile .rec-fader { flex-basis: 100%; }
+html.mobile .rec-fader input { height: 32px; }
+html.mobile .rec-t { width: 44px; height: 38px; font-size: 15px; }
 
 /* ---- sheets: info, help, pipeline logs, score feedback ---- */
-html.m-c :is(dialog.msheet, dialog#help) { width: 100%; max-width: none; max-height: 85dvh;
+html.mobile :is(dialog.msheet, dialog#help) { width: 100%; max-width: none; max-height: 85dvh;
   margin: auto 0 0; box-sizing: border-box; padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
   border: 0; border-radius: 20px 20px 0 0; background: var(--card); color: var(--ink);
   box-shadow: 0 -8px 30px rgba(35,32,25,.2); overflow-y: auto; }
-dialog.msheet::backdrop, html.m-c #gearmenu::backdrop { background: rgba(35,32,25,.4); }
+dialog.msheet::backdrop, html.mobile #gearmenu::backdrop { background: rgba(35,32,25,.4); }
 .grab { width: 40px; height: 5px; margin: 0 auto 10px; border-radius: 3px; background: var(--hairline); }
 dialog.msheet h3 { margin: 4px 0 10px; font-size: 26px; }
 dialog.msheet h4 { margin: 18px 0 4px; font: 700 16px var(--sans); }
@@ -224,29 +223,29 @@ dialog.msheet p { margin: 0 0 8px; font-size: 17px; line-height: 1.5; }
 .sh-status.absent { background: var(--paper); color: var(--ink-quiet); }
 .sh-close { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 1.5px solid var(--hairline);
   border-radius: 999px; background: none; font: 500 17px var(--sans); color: var(--ink); }
-html.m-c dialog#help .close { width: 44px; height: 44px; margin: -4px -10px 0 0; }
-html.m-c dialog#help h2 { margin-top: 4px; padding-top: 0; border-top: 0; }
-html.m-c #gearmenu { inset: auto 0 0 0; width: auto; max-width: none; margin: 0; box-sizing: border-box;
+html.mobile dialog#help .close { width: 44px; height: 44px; margin: -4px -10px 0 0; }
+html.mobile dialog#help h2 { margin-top: 4px; padding-top: 0; border-top: 0; }
+html.mobile #gearmenu { inset: auto 0 0 0; width: auto; max-width: none; margin: 0; box-sizing: border-box;
   padding: 16px 12px calc(16px + env(safe-area-inset-bottom)); border: 0; border-radius: 20px 20px 0 0;
   font-size: 17px; box-shadow: 0 -8px 30px rgba(35,32,25,.2); }
-html.m-c #gearmenu::before { content: "Pipeline logs"; display: block; padding: 0 8px 6px;
+html.mobile #gearmenu::before { content: "Pipeline logs"; display: block; padding: 0 8px 6px;
   font: 500 22px var(--serif); }
-html.m-c #gearmenu a { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 0;
+html.mobile #gearmenu a { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 0;
   padding: 0 8px; border-radius: 8px; text-decoration: none; }
-html.m-c #gearmenu #gh-link { position: static; width: auto; height: auto; justify-content: start;
+html.mobile #gearmenu #gh-link { position: static; width: auto; height: auto; justify-content: start;
   margin-top: 8px; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; box-shadow: none;
   background: none; color: var(--ink); text-decoration: none; }
-html.m-c #gh-link::after { content: "Source code on GitHub"; }
-html.m-c body > #gh-link { display: none; }  /* until the first build moves it into the menu */
+html.mobile #gh-link::after { content: "Source code on GitHub"; }
+html.mobile body > #gh-link { display: none; }  /* until the first build moves it into the menu */
 
-html.m-c #fbmenu { position: fixed !important; left: 0 !important; right: 0; top: auto !important;
+html.mobile #fbmenu { position: fixed !important; left: 0 !important; right: 0; top: auto !important;
   bottom: var(--tabs); z-index: 40; width: 100%; max-height: 72dvh; padding: 16px 20px 14px;
   border: 0; border-radius: 20px 20px 0 0; font-size: 17px; box-shadow: 0 -8px 30px rgba(35,32,25,.22); }
-html.m-c #fbmenu > b { display: block; margin-bottom: 4px; font: 500 22px var(--serif); }
-html.m-c #fbmenu label { display: flex; align-items: center; gap: 14px; min-height: 44px; margin: 0; }
-html.m-c #fbmenu input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: var(--brass); }
-html.m-c #fbmenu textarea { box-sizing: border-box; min-height: 64px; padding: 8px 12px; font-size: 17px; }
-html.m-c #fbmenu .row button { flex: 1; min-height: 48px; }
+html.mobile #fbmenu > b { display: block; margin-bottom: 4px; font: 500 22px var(--serif); }
+html.mobile #fbmenu label { display: flex; align-items: center; gap: 14px; min-height: 44px; margin: 0; }
+html.mobile #fbmenu input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: var(--brass); }
+html.mobile #fbmenu textarea { box-sizing: border-box; min-height: 64px; padding: 8px 12px; font-size: 17px; }
+html.mobile #fbmenu .row button { flex: 1; min-height: 48px; }
 
 @media (prefers-reduced-motion: reduce) {
   .pad, .pad.cur::after, .pad::before { transition: none; }

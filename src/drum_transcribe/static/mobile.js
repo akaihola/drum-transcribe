@@ -1,4 +1,4 @@
-// Prototype C, "Drum pads" (phones only; serve.py's head script loads it).
+// Phone layout, "drum pads" (phones only; serve.py's head script loads it).
 // A version is laid out like a drum machine's pad grid: tap a pad to hear
 // that stage of the pipeline, tap another to hear the same moment through
 // it. A bottom tab bar switches Listen · Score · Files (· Record), and a mini

@@ -48,7 +48,7 @@ STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
     "recording-wav.js", "recording-export.js", "recording-grid.js",
-    *(f"mobile-{m}.{ext}" for m in "abc" for ext in ("css", "js")),
+    "mobile.css", "mobile.js",
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -394,12 +394,6 @@ STYLE = """
     dialog#help svg { max-width: 100%; height: auto; }
     .rec-grid { grid-template-columns: 9.5rem 1fr; }
   }
-  nav.mproto { display: flex; gap: .3rem; align-items: center; overflow-x: auto;
-    font-size: .75rem; color: var(--ink-quiet); margin: -.4rem 0 .6rem;
-    white-space: nowrap; }
-  nav.mproto a { padding: .35rem .7rem; border-radius: 999px; text-decoration: none;
-    border: 1px dashed var(--hairline); color: var(--ink-quiet); }
-  nav.mproto a.on { border: 1px solid var(--ink); color: var(--ink); font-weight: 700; }
 """
 
 HELP_HTML = """
@@ -620,26 +614,14 @@ PROJECT_HTML = """<!DOCTYPE html>
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 <script>
-// Mobile layout prototypes (throwaway, phones only): ?m=a|b|c|off picks
-// one and this browser remembers it. Each is static/mobile-<m>.css + .js;
-// the page announces every (re)render of a version with a "rendered" event.
+// Phones get their own layout (static/mobile.css + .js, "drum pads"); the
+// page announces every (re)render of a version with a "rendered" event.
 const NARROW = matchMedia("(max-width: 40rem)").matches;
-const MOBILE = (() => {
-  const q = new URLSearchParams(location.search).get("m");
-  if (q) localStorage.mobile = q;
-  const m = localStorage.mobile || "a";
-  return NARROW && "abc".includes(m) ? m : null;
-})();
-if (MOBILE) {
-  document.documentElement.classList.add("mobile", `m-${MOBILE}`);
-  document.write(`<link rel="stylesheet" href="/static/mobile-${MOBILE}.css">
-    <script type="module" src="/static/mobile-${MOBILE}.js"><\\/script>`);
+if (NARROW) {
+  document.documentElement.classList.add("mobile");
+  document.write(`<link rel="stylesheet" href="/static/mobile.css">
+    <script type="module" src="/static/mobile.js"><\\/script>`);
 }
-if (NARROW) document.addEventListener("DOMContentLoaded", () =>
-  document.body.insertAdjacentHTML("afterbegin", `<nav class="mproto">prototype
-    ${[["a", "Signal path"], ["b", "Music stand"], ["c", "Drum pads"], ["off", "off"]]
-      .map(([k, t]) => `<a href="?m=${k}" class="${(MOBILE ?? "off") === k ? "on" : ""}">${t}</a>`)
-      .join("")}</nav>`));
 </script>
 </head>
 <body>
