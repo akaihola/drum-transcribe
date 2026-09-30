@@ -103,7 +103,7 @@
   await r.run(() => r.setMode("record"));
   navigator.mediaDevices.getUserMedia = getUserMedia;
   assert(
-    r.track.segments === before && r.mode === "mute",
+    r.track.segments === before && r.mode === "playback",
     "Permission denial changed valid work",
   );
   await r.clear();

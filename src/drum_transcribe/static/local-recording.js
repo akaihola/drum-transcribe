@@ -86,7 +86,7 @@ export class Recording {
     this.section = section;
     this.version = version;
     this.project = project;
-    this.mode = "mute";
+    this.mode = "playback";
     this.position = 0;
     this.playing = false;
     this.sources = [];
@@ -146,8 +146,7 @@ export class Recording {
           this.needsSourceReload = true;
           this.abortCapture("");
           await this.pause();
-          this.mode = "mute";
-          this.releaseMic();
+          this.disarm();
           this.sync();
           this.status(
             "The backing source changed. Your prior recording is preserved. Reload to use the new song length.",
@@ -274,10 +273,9 @@ export class Recording {
     this.resize.observe(this.ui);
     window.addEventListener("pagehide", () => {
       this.abortCapture("");
-      this.releaseMic();
       this.stopSources();
       this.playing = false;
-      this.mode = "mute";
+      this.disarm();
       clearTimeout(this.auditionTimer);
       this.persist();
       this.writes.finally(() => this.unlock?.()).catch(() => {});
@@ -315,9 +313,8 @@ export class Recording {
       } catch (e) {
         if (epoch !== this.epoch) return;
         await this.pause();
-        this.releaseMic();
         this.status(e.message);
-        this.mode = "mute";
+        this.disarm();
         this.sync();
       } finally {
         this.runningEpoch = null;
@@ -369,8 +366,7 @@ export class Recording {
             "Audio interrupted. The unfinished passage was kept.",
           );
           this.pause();
-          this.mode = "mute";
-          this.releaseMic();
+          this.disarm();
           this.sync();
         }
       });
@@ -669,8 +665,7 @@ export class Recording {
     if (epoch !== this.epoch) return;
     await this.pause();
     if (epoch !== this.epoch) return;
-    this.mode = "mute";
-    this.releaseMic();
+    this.disarm();
     this.track.replace(0, this.track.length, segments);
     this.edited();
     this.status(
@@ -705,8 +700,7 @@ export class Recording {
     this.position = this.current();
     this.playing = false;
     this.stopSources();
-    this.releaseMic();
-    this.mode = "mute";
+    this.disarm();
     this.cleared = true;
     if (this.track) {
       this.track.clear();
@@ -749,6 +743,10 @@ export class Recording {
         this.status(e.message);
       }
     }
+  }
+  disarm() {
+    if (this.mode === "record") this.mode = "playback";
+    this.releaseMic();
   }
   releaseMic() {
     if (this.stream)
@@ -864,8 +862,7 @@ export class Recording {
     this.armingEpoch = (this.armingEpoch ?? 0) + 1;
     return this.run(async () => {
       await this.pause();
-      this.mode = "mute";
-      this.releaseMic();
+      this.disarm();
       this.backing = null;
       this.backingKey = null;
       this.sync();
@@ -952,8 +949,7 @@ export class Recording {
           "Microphone disconnected. The prior passage was kept.",
         );
         this.pause();
-        this.mode = "mute";
-        this.releaseMic();
+        this.disarm();
         this.sync();
       };
   }
@@ -985,8 +981,7 @@ export class Recording {
     if (epoch !== this.epoch || arming !== this.armingEpoch) return;
     if (active && active !== this) {
       await active.pause();
-      active.mode = "mute";
-      active.releaseMic();
+      active.disarm();
       active.backing = null;
       active.backingKey = null;
       active.sync();
@@ -1170,8 +1165,7 @@ export class Recording {
   async seek(position) {
     const playing = this.playing;
     await this.pause();
-    this.mode = "mute";
-    this.releaseMic();
+    this.disarm();
     this.position = Math.max(0, Math.min(this.duration ?? 0, position));
     this.sync();
     if (playing) await this.play();
@@ -1191,8 +1185,7 @@ export class Recording {
     if (this.current() >= this.duration) {
       this.run(async () => {
         await this.pause();
-        this.mode = "mute";
-        this.releaseMic();
+        this.disarm();
         this.sync();
       });
     }

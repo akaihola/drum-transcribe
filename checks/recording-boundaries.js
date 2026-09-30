@@ -106,7 +106,7 @@
   await r.ctx.suspend();
   await new Promise((res) => setTimeout(res, 100));
   assert(
-    !r.playing && r.mode === "mute" && !r.stream,
+    !r.playing && r.mode === "playback" && !r.stream,
     "Audio interruption did not stop capture and playback",
   );
   assert(
@@ -119,11 +119,11 @@
   position.value = 40;
   position.dispatchEvent(new Event("input"));
   await r.queue;
-  assert(r.mode === "mute" && r.position === 40, "Player seek did not disarm");
+  assert(r.mode === "playback" && r.position === 40, "Player seek did not disarm");
   await r.setMode("record");
   seekToBar(r.section, 3);
   await r.queue;
-  assert(r.mode === "mute", "Score seek did not disarm");
+  assert(r.mode === "playback", "Score seek did not disarm");
   await r.pause();
   await r.setMode("record");
   await r.play();
@@ -131,7 +131,7 @@
   await new Promise((res) => setTimeout(res, 100));
   assert(
     !r.playing &&
-      r.mode === "mute" &&
+      r.mode === "playback" &&
       r.track.read(0, 48000).every((x) => x === 0.25),
     "Removed microphone erased audio",
   );
