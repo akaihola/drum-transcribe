@@ -121,6 +121,11 @@ viewed from anywhere without the laptop being on:
   from container env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY` — the worker's
   restricted key, set as secret env vars on the container, never baked into
   the image; `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET` are plain env vars).
+  The page's recording panel reads that audio with `fetch()`, so the bucket
+  has a CORS rule (set 2026-09-30 with the `drum-transcribe` profile's key)
+  allowing GET/HEAD from `https://plokkaus.vempai.men` and the container
+  endpoint only. Without it every player on the cloud site fails to load.
+  Check it with boto3 `get_bucket_cors` on `drum-transcribe-results`.
   Rented GPU hosts can put anything in that bucket, so the sync skips any
   object whose name would write outside `/app/output` (gpu-workers.md §3).
   The container scales to zero when idle, so each cold start re-syncs
@@ -144,7 +149,8 @@ viewed from anywhere without the laptop being on:
   ```bash
   rm -rf .build-ctx-web && mkdir .build-ctx-web && cp -a pyproject.toml src deploy .build-ctx-web/
   podman build -f .build-ctx-web/deploy/Dockerfile -t rg.fr-par.scw.cloud/drum-transcribe/webapp:test .build-ctx-web
-  podman push rg.fr-par.scw.cloud/drum-transcribe/webapp:test   # atom is logged in
+  , scw registry login program=podman --profile drum-transcribe  # login is lost on reboot
+  podman push rg.fr-par.scw.cloud/drum-transcribe/webapp:test
   rm -rf .build-ctx-web
   , scw container container redeploy <container-id> --profile drum-transcribe
   ```

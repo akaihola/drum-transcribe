@@ -291,3 +291,10 @@ Firefox runner passes every snippet, including a two-bar pre-roll before
 count-in that records nothing. `checks/recording-grid.mjs` covers bar
 numbering with a pickup, lead-in length and count-in clicks. Whether the
 clicks sound on time through real headphones has not been measured.
+
+Merged to `main` and deployed on 2026-09-30: the laptop service on 8765 and
+the cloud container. The cloud copy streams audio from bucket redirects, so
+the bucket got a CORS rule for the cloud site's origins (operations.md).
+In Chromium on the cloud site, choosing Without drums loaded a 7.6-minute
+FLAC through the redirect and playback ran. Recording on the cloud site and
+on phones is still untested.

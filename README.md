@@ -150,8 +150,9 @@ submitted, the new version's tab opens. Per version:
 ## Record your own drums in the browser
 
 Each version can have one drum track of your own, recorded in the browser.
-On the laptop, open the app at [localhost:8765](http://localhost:8765/). The
-cloud site does not offer recording yet.
+Recording works on the laptop at [localhost:8765](http://localhost:8765/) and
+on the cloud site at <https://plokkaus.vempai.men/>. Each of those keeps its
+own recordings. Phones and tablets have not been tried yet.
 
 Use desktop Chromium or Firefox, a device microphone and wired headphones.
 Recording needs localhost or a trusted HTTPS address. Ordinary HTTP from
@@ -224,9 +225,10 @@ Its **60 ms default is an unmeasured starting guess**. It belongs to each take,
 so adjusting it never shifts older passages. Check it with a known click or
 loopback recording on your own wired setup. The temporary microphone buffer
 holds at most 171 ms and discards samples outside the requested passage.
-Software timing passed the checks in Chromium and Firefox. Physical microphone
-and headphone latency, mobile behavior and the HTTPS cloud path still need
-measurement. [The implementation notes](docs/local-recording-handoff.md#implementation-results)
+Software timing passed the checks in Chromium and Firefox. On the cloud site,
+loading and playing the backing was checked in Chromium; recording there has
+not been tried yet. Physical microphone and headphone latency and mobile
+behavior still need measurement. [The implementation notes](docs/local-recording-handoff.md#implementation-results)
 record the timing and memory evidence.
 
 ## Playing the recording from inside MuseScore
