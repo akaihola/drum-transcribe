@@ -61,13 +61,14 @@ with webdriver.Firefox(options=options) as driver:
     evaluate(Path("checks/recording-capture.js").read_text())
     evaluate("""(async()=>{
       const r=document.querySelector('section[data-song=taustanauha]').recording;
+      const until=async ok=>{while(!ok())await new Promise(res=>setTimeout(res,20));};
       await r.seek(40); await r.setMode('record'); await r.play();
-      await new Promise(res=>setTimeout(res,1000)); await r.pause();
+      await until(()=>r.current()>41); await r.pause();
       const result={fakeDeviceCaptured:r.track.segments.length>0,pausedRecordArmed:r.mode==='record'};
-      await r.seek(46);result.seekDisarms=r.mode==='mute';await r.setMode('record');
+      await r.seek(46);result.seekDisarms=r.mode==='playback';await r.setMode('record');
       await r.seek(r.duration-.3);await r.setMode('record');await r.play();
-      await new Promise(res=>setTimeout(res,600)); await r.queue;
-      result.songEndStops=!r.playing && r.mode==='mute';
+      await until(()=>!r.playing); await r.queue;
+      result.songEndStops=!r.playing && r.mode==='playback';
       await r.writes;return result;
     })()""")
     first = driver.current_window_handle

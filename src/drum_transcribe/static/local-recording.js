@@ -378,6 +378,7 @@ export class Recording {
     this.timer = setInterval(() => this.tick(), 50);
   }
   act(action) {
+    this.messageUntil = 0; // a new action makes the last message stale
     const actions = {
       home: () => this.requestSeek(0),
       play: () => this.run(() => (this.playing ? this.pause() : this.play())),
@@ -447,11 +448,21 @@ export class Recording {
       return "The song file changed. Your track is kept: listen with Solo, export it, then Clear to start over.";
     if (this.writable === false)
       return "Another tab is editing this version. Close it and reload this page to record.";
-    const at = (t) => (this.grid ? `bar ${this.grid.barAt(t).bar}` : clock(t));
-    if (this.mode === "record")
-      return this.playing
-        ? `Recording since ${at((this.passage?.start ?? 0) / this.track.rate)} — only what the playhead crosses is replaced`
-        : `Armed — press Play (Space) to record from ${at(this.position)}`;
+    const at = (t) =>
+      !this.grid
+        ? clock(t)
+        : this.grid.barAt(t).bar < 1
+          ? "the start"
+          : `bar ${this.grid.barAt(t).bar}`;
+    if (this.mode === "record") {
+      if (!this.playing)
+        return `Armed — press Play (Space) to record from ${at(this.position)}${this.grid ? " after a two-bar lead-in" : ""}`;
+      const start = (this.passage?.start ?? 0) / this.track.rate,
+        now = this.current();
+      if (now < start)
+        return `${now < 0 ? "Count-in" : "Pre-roll"} — recording starts at ${at(start)}`;
+      return `Recording since ${at(start)} — only what the playhead crosses is replaced`;
+    }
     if (this.mode === "mute")
       return `Your track is muted · hearing ${label(this.selected)}`;
     if (this.solo) return "Your track solo";
@@ -1144,7 +1155,7 @@ export class Recording {
     return this.playing
       ? Math.min(
           this.duration,
-          Math.max(this.position, this.ctx.currentTime - this.anchor),
+          Math.max(this.from, this.ctx.currentTime - this.anchor),
         )
       : this.position;
   }
@@ -1250,7 +1261,13 @@ export class Recording {
     if (epoch !== this.epoch || arming !== this.armingEpoch) return;
     active = this;
     this.playing = true;
-    this.anchor = this.ctx.currentTime + 0.05 - this.position;
+    // Record starts after a two-bar lead-in; clicks fill any part before 0:00.
+    this.recordFrom = this.mode === "record" ? this.position : null;
+    this.from =
+      this.recordFrom !== null && this.grid
+        ? this.grid.leadStart(this.position)
+        : this.position;
+    this.anchor = this.ctx.currentTime + 0.05 - this.from;
     this.schedule();
     if (this.mode === "record") this.beginCapture();
     this.rememberAudition();
@@ -1308,8 +1325,24 @@ export class Recording {
         0,
         this.backingLevel(),
       );
+    for (const beat of this.grid?.clicks(this.current(), 0) ?? [])
+      this.click(beat);
     this.nextSegment = 0;
     this.scheduleLocal();
+  }
+  click({ t, pos }) {
+    const at = this.anchor + t;
+    if (at < this.ctx.currentTime) return;
+    const tone = this.ctx.createOscillator(),
+      level = this.ctx.createGain();
+    tone.frequency.value = pos === 1 ? 1760 : 1320;
+    level.gain.setValueAtTime(0.5, at);
+    level.gain.exponentialRampToValueAtTime(0.001, at + 0.05);
+    tone.connect(level).connect(this.clip);
+    tone.onended = () => level.disconnect();
+    tone.start(at);
+    tone.stop(at + 0.05);
+    this.sources.push(tone);
   }
   scheduleLocal() {
     if (this.mode !== "playback") return;
@@ -1338,7 +1371,7 @@ export class Recording {
   }
   beginCapture() {
     const rate = this.track.rate,
-      start = Math.round(this.current() * rate);
+      start = Math.round(Math.max(this.current(), this.recordFrom ?? 0) * rate);
     const offset = Math.round((this.offset * rate) / 1000),
       anchor = Math.round(this.anchor * rate);
     this.passage = new CapturePassage({
@@ -1358,6 +1391,10 @@ export class Recording {
   finishCapture() {
     if (!this.passage) return Promise.resolve();
     if (this.finishing) return this.finishing;
+    if (this.current() * this.track.rate <= this.passage.start) {
+      this.abortCapture(""); // stopped during the lead-in
+      return Promise.resolve();
+    }
     this.passage.end = Math.round(this.current() * this.track.rate);
     this.finishing = new Promise((resolve) => (this.finishResolve = resolve));
     this.capture.port.postMessage({
@@ -1397,7 +1434,8 @@ export class Recording {
     if (!this.playing) return;
     this.rememberAudition();
     const finishing = this.finishCapture();
-    this.position = this.current();
+    this.position = Math.max(this.current(), this.recordFrom ?? 0);
+    this.recordFrom = null;
     this.playing = false;
     this.stopSources();
     this.sync();
@@ -1432,7 +1470,8 @@ export class Recording {
     const t = this.current();
     if (this.grid) {
       const { bar, beat } = this.grid.barAt(t);
-      this.ui.querySelector("[data-bar]").textContent = `${bar}.${beat}`;
+      this.ui.querySelector("[data-bar]").textContent =
+        `${bar < 0 ? "−" : ""}${Math.abs(bar)}.${beat}`;
     }
     this.ui.querySelector("[data-time]").textContent =
       `${t < 0 ? "−" : ""}${clock(Math.abs(t))} / ${clock(this.duration ?? 0, false)}`;

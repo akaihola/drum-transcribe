@@ -20,11 +20,15 @@
     window.silentMicrophone = source;
     return destination.stream;
   };
+  if (!r.grid) throw Error("The fixture needs beats.json for the lead-in");
+  const bar = r.grid.barAt(40).bar,
+    twoBars = 2 * (r.grid.barStart(bar + 1) - r.grid.barStart(bar));
   await r.seek(40);
   r.offset = 60;
   await r.setMode("record");
   await r.play();
-  await new Promise((res) => setTimeout(res, 6200));
+  const preRoll = 40 - r.from;
+  while (r.current() < 46) await new Promise((res) => setTimeout(res, 20));
   const current = r.current;
   r.current = () => 46;
   await r.pause();
@@ -37,10 +41,24 @@
       .every((x) => x === 0.25),
     silenceReplaces: r.track.read(40 * rate, 6 * rate).every((x) => x === 0),
     pauseKeepsRecordArmed: r.mode === "record",
+    preRollTwoBars: Math.abs(preRoll - twoBars) < 0.001,
   };
   r.track.undoLast();
   result.undoExact = r.track.read(0, r.track.length).every((x) => x === 0.25);
   r.edited();
+  await r.seek(0);
+  await r.setMode("record");
+  const beats = () => r.grid.clicks(r.from, 0).length,
+    undo = r.track.undo;
+  await r.play();
+  result.countInClicks =
+    r.from < 0 &&
+    beats() > 0 &&
+    r.sources.filter((s) => s instanceof OscillatorNode).length === beats();
+  await new Promise((res) => setTimeout(res, 300));
+  await r.pause();
+  result.pauseInCountInKeepsPoint =
+    r.position === 0 && r.track.undo === undo && r.mode === "record";
   await r.setMode("mute");
   await r.play();
   r.offset = 0;
