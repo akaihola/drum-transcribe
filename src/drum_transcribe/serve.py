@@ -227,6 +227,19 @@ STYLE = """
   .delver { display: block; margin: 1.4rem 0 0 auto; font: inherit; font-size: .85rem;
             background: none; color: var(--ink-quiet); cursor: pointer;
             border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
+  .local-recording { border-top: 1px solid var(--hairline); padding: 1rem 0; margin: 1rem 0; }
+  .local-recording h3 { margin: 0; }
+  .local-recording p { max-width: 65ch; color: var(--quiet); }
+  .record-controls { display: flex; flex-wrap: wrap; gap: .7rem 1.2rem; align-items: center; }
+  .record-controls label { display: inline-flex; gap: .4rem; align-items: center; }
+  .record-controls input[type=number] { width: 5rem; }
+  .record-controls input[type=range] { width: 7rem; }
+  .local-recording > label { display: flex; gap: .7rem; margin: .6rem 0; }
+  .local-recording > label input { flex: 1; }
+  practice-audio { display: flex; gap: .4rem; align-items: center; width: 100%; }
+  practice-audio input { min-width: 2rem; flex: 1; width: 0; }
+  practice-audio output { font-variant-numeric: tabular-nums; font-size: .8rem; }
+  practice-audio button { padding: .15rem .6rem; }
   .delver:hover { color: var(--signal); border-color: var(--signal); }
   .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
   .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
@@ -598,7 +611,7 @@ class YtAudio extends HTMLElement {
   pause() { this.playing = false; if (this.ready) this.yt.pauseVideo(); }
 }
 customElements.define("yt-audio", YtAudio);
-const MEDIA = "audio, yt-audio";
+const MEDIA = "audio, yt-audio, practice-audio";
 
 function dragFile(e, name, url) {
   e.dataTransfer.setData("DownloadURL",
@@ -985,6 +998,7 @@ async function refreshVersion(name) {
       renderScores(fresh);
     }
   }
+  panel.querySelector("section[data-song]")?.recording?.update(v);
   setVolume(localStorage.volume ?? 1);
   showProgress(name, v.progress);
   loadBars(v);
@@ -1164,6 +1178,10 @@ function seekToBar(section, bar) {
   const audio = audios.find(a => !a.paused) ||
                 lastAudio[section.dataset.song] || audios[0];
   if (!hit || !audio) return;
+  if (section.recording) {
+    section.recording.run(async () => { await section.recording.ready(); await section.recording.seek(Math.max(0,hit.t-.1)); await section.recording.play(); });
+    return;
+  }
   const t = Math.max(0, hit.t - 0.1);
   if (audio.readyState) { audio.currentTime = t; audio.play(); }
   else {  // metadata not loaded yet: it must arrive before seeking works
@@ -1210,7 +1228,8 @@ async function pollSeek() {
       seekBoot = s.boot;
       if (seekSeq !== null && s.seq !== seekSeq) {
         if (!s.playing)
-          document.querySelectorAll(MEDIA).forEach(a => a.pause());
+          { document.querySelectorAll(MEDIA).forEach(a => a.pause());
+            document.querySelectorAll("section[data-song]").forEach(s => { if (s.recording) s.recording.run(async () => { await s.recording.pause(); s.recording.mode = "mute"; s.recording.sync(); }); }); }
         else {
           const section =
             document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
@@ -1233,6 +1252,11 @@ document.addEventListener("click", e => {
     b.classList.toggle("active", b === btn);
   const tabs = btn.closest(".tabs");
   if (tabs.classList.contains("vtabs")) {
+    document.querySelectorAll("section[data-song]").forEach(s => {
+      if (s.dataset.song !== btn.dataset.target.slice(3) && s.recording) s.recording.run(async () => {
+        await s.recording.pause(); s.recording.mode = "mute"; s.recording.sync();
+      });
+    });
     const v = btn.dataset.target.slice(3);
     history.replaceState(null, "", `/p/${PROJECT}` + (v === "__add" ? "" : `/${v}`));
   }
