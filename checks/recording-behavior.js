@@ -100,10 +100,11 @@
   navigator.mediaDevices.getUserMedia = async () => {
     throw new DOMException("Denied for test", "NotAllowedError");
   };
+  const mode = r.mode;
   await r.run(() => r.setMode("record"));
   navigator.mediaDevices.getUserMedia = getUserMedia;
   assert(
-    r.track.segments === before && r.mode === "playback",
+    r.track.segments === before && r.mode === mode,
     "Permission denial changed valid work",
   );
   await r.clear();
