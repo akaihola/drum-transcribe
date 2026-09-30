@@ -2,7 +2,9 @@
 
 Researched 2026-09-30. This assessment records the agreed behavior and proposed
 technical approach. Browser documentation and the current player code were
-inspected. No microphone or hardware latency measurements were made.
+inspected. No physical microphone or hardware latency measurements were made.
+The implementation and synthetic/fake-device results are now recorded in
+[the handoff](local-recording-handoff.md#implementation-results).
 The next step, implementation defaults, and acceptance checks are in
 [local-recording-handoff.md](local-recording-handoff.md).
 
@@ -277,3 +279,23 @@ render. Then check player switching, paused mode changes, score seeking, live UI
 refresh, and the intended desktop and mobile browsers. This experiment would
 resolve the main timing and memory uncertainties without building the whole
 interface first.
+
+## Implementation update
+
+The implementation kept the shared AudioContext and raw frame-timed AudioWorklet
+approach. The software timing experiment passed at both ends of a three-minute
+take before the larger UI was added. Passage replacement, silence, Undo and
+capture tails passed. A bounded 8192-frame pre-roll handles late start commands;
+only requested samples leave that buffer. Immutable chunk references avoid
+copying the whole track per edit, and local playback schedules two seconds ahead.
+IndexedDB transactions publish chunks and the interval map together. SHA-256 of
+source bytes detects source changes without relying on cloud-sync timestamps.
+
+Full-song WAV export uses bounded worker batches with the same hard clipping as
+listening before master volume. Import accepts ordinary mono/stereo audio,
+preserves its time-zero position and never applies microphone correction. The
+settled behavior above is unchanged. [The handoff results](local-recording-handoff.md#implementation-results)
+contain browser, timing, memory and failure checks. The adjustable 60 ms offset
+is an unmeasured guess. A wired hardware measurement is still needed to decide
+whether a separate click calibration function is necessary. Mobile and cloud
+HTTPS access remain untested.

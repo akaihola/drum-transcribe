@@ -1,15 +1,18 @@
 # Local drum recording implementation handoff
 
-The feature is ready to start implementation. Begin with a small working recording
-experiment to verify timing and passage replacement, then build out the complete
-track. Hardware latency and mobile memory use have not been measured. The existing
+The browser-local recording feature is implemented on `research/local-recording`.
+The timing experiment passed before the shared transport, storage and WAV work
+was added. [Implementation results](#implementation-results) below record the
+checks and remaining hardware, mobile and deployment work. Hardware latency and
+mobile memory use have not been measured. The existing
 research and the user's settled behavior are in
 [local-recording-research.md](local-recording-research.md).
 
 Continue in `/home/akaihola/prg/drum-transcribe-local-recording`, on branch
 `research/local-recording`. The research is committed as `39e8387`, and the settled
 requirements as `ab29343`. The original checkout at
-`/home/akaihola/prg/drum-transcribe` is clean. No recording code has been written.
+`/home/akaihola/prg/drum-transcribe` is clean. Recording code is now in `src/drum_transcribe/static/recording-*.js` and
+`local-recording.js`, integrated through `serve.py`.
 Read `AGENTS.md`, `CLAUDE.md`, `docs/webapp.md`, `docs/style-guide.md`, and
 `docs/operations.md` before editing. Use Bash for commands, keep `SHELL` set to
 Bash, and commit in small logical parts.
@@ -149,7 +152,7 @@ PYTHONPATH="$PWD/src" /home/akaihola/prg/drum-transcribe/.venv/bin/python \
   --host 0.0.0.0 --port 8766
 ```
 
-That command is provided for the next step; it has not been run. Treat the shared
+The worktree server is running on port 8766 using that command. Treat the shared
 output as fixtures when testing the recording feature. Serve a copied fixture tree
 if testing server-side edits. Do not restart the production service to test this
 worktree: its unit still points to the original checkout. Consult operations.md
@@ -181,3 +184,85 @@ Before calling the feature complete, verify:
 Report what was implemented, the timing and memory evidence, browser coverage,
 remaining limitations, and commits. Update this handoff and the research if the
 experiment changes the technical approach. Keep the user's settled behavior intact.
+
+## Implementation results
+
+Implemented and checked on 2026-09-30. The test app is at
+[localhost:8766](http://localhost:8766/p/dancing-through-life/taustanauha).
+The original service on 8765 and its output files were left in place. A copied
+fixture under `/tmp/drum-recording-pipeline-check` supplied the cached pipeline
+regression run; it completed with MusicXML, MIDI, sonification and MuseScore
+outputs using `MUSESCORE_CMD=', musescore'`.
+
+The implementation includes all six backing nodes, one per-version local track,
+Mute/Play back/Record, pause/resume arming, seek disarming, song-end stop, independent
+input and listening levels, Solo, waveform/playhead/range, input meter, last-passage
+Undo, IndexedDB persistence, Clear, remembered audition, whole-song PCM16 WAV
+export and mono/stereo import. YouTube originals use downloaded source audio in
+practice mode. Insecure pages retain native players and disable local controls.
+Clear works independently of backing availability. Browser storage failures keep
+memory intact and visibly distinguish unsaved data.
+
+| check | evidence |
+| --- | --- |
+| long-take software alignment | 180 seconds at 48 kHz through the actual AudioWorklet in Chromium and Firefox, simulated 60 ms delay, zero sample error at the first and last known onsets |
+| middle replacement | exact 00:40–00:46 silence replacement through the live capture graph; every earlier/later sample unchanged; Undo exact |
+| control timing | zero-offset Record switch while playing; late start/stop commands; 128- and 256-frame processing blocks; bounded tail; no microphone output |
+| backing timeline | source and without-drums FLAC both decode to 192.096 seconds; summed stems and all three decoded sonifications correlate at zero offset near the start and end; MDX23C tail is 644 ms longer and is bounded to the source; all nodes share one clock |
+| modes and interruptions | paused Record stays armed; player and score seeks disarm; fake device capture; song end stops/disarms; context suspension and removed input preserve prior audio |
+| existing integration | live refresh keeps the track, cursor and active buffer; next Play loads refreshed audio; visible-page MuseScore API seeks play/disarm and repeated-bar requests pause; score highlighting follows |
+| export semantics | paused controls and muted listening ignored; remembered without-drums backing retained; later edit used in export; full 9,220,608-frame song; byte-identical exports at master levels 0.1 and 1 |
+| audition/export comparison | same hard peak limit, including clipped samples; maximum decoded PCM16 difference from offline audition 0.0000451 |
+| imports | solo and finished-mix round trips aligned at time zero; leading silence and gaps kept; shorter imports padded; longer import rejected; no additional capture offset |
+| local storage | reload restoration; saved audition metadata; atomic updates; simulated quota failure preserves memory and committed chunks; second Firefox tab read-only; changed source blocks overwriting and preserves samples |
+| Clear | queued writes drained/invalidated; samples, peaks, Undo and audition removed; another version preserved; page exit cannot recreate cleared metadata; capture/export cancelled |
+| network | capture/import/storage checks issued only GET fetches; no microphone write request; recording modules have no upload path |
+| browser coverage | desktop automation in Chromium 144.0.7559.133 via PinchTab and Firefox 153.0.3 via Selenium with a fresh profile and fake microphone |
+
+The decoded fixture correlation check searched within 50 ms on a 16-frame,
+0.33 ms grid. All maxima were at zero. This checks relative artifact placement,
+not physical output/input delay.
+
+The worklet now retains an 8192-frame pre-roll buffer, about 171 ms at 48 kHz,
+so a start command that arrives just after its requested frame can still fill
+that frame. It is bounded, holds no older takes, and emits only the requested
+recording passage. Chunk transfers remain 4096 samples. Each take still freezes
+its correction; changing offset cannot alter old passages. No performance
+quantization or attack alignment was added.
+
+The source fingerprint is SHA-256 of the downloaded bytes. Server size/mtime
+metadata only signals a live source recheck. This avoids treating bucket-sync
+timestamps as changes to the underlying source. A changed source preserves the
+saved track's original length and offers Solo recovery before Clear.
+
+A ten-minute desktop export used 115,200,000 bytes of mono captured samples and
+230,400,000 bytes of decoded stereo backing. It produced a 115,200,044-byte
+stereo WAV in 1,452 ms. Export requests 32,768-frame batches, at most 524,288 bytes
+of temporary float sample data per batch, plus PCM encoding. Chromium's sampled
+JS heap reported about 216 MB before export and 439 MB afterward. These counters
+are approximate snapshots, not a process-memory or peak-memory measurement.
+The encoder still retains the finished WAV, and import can temporarily hold a
+decoded file and its chunks. Local playback schedules only two seconds of chunks
+ahead. Version changes release the previous decoded backing.
+
+Physical microphone/output delay and drift were not measured. The 10 ms target
+remains a hardware acceptance target. The 60 ms default is a displayed, adjustable
+guess; browser latency estimates are shown separately. A separate automatic click
+calibration function was not added without a representative wired measurement.
+Run that measurement before deciding whether estimates suffice or click calibration
+is needed. Opening a device microphone with processing disabled also needs a
+check on the user's actual device. Neither synthetic nor fake-device checks prove
+physical alignment.
+
+Mobile recording, mobile memory/export behavior, background/screen-lock behavior,
+and the cloud HTTPS/bucket download path remain unverified. Nothing was deployed
+to production. Browser persistence depends on the browser's storage policy;
+private profiles, eviction and site cleanup can remove it. The feature requests
+Web Locks and uses read-only behavior where a lock cannot be obtained. Undo is
+for this visit and is not restored after reload.
+
+The standalone checks in `checks/` reproduce the software checks. The Firefox
+runner uses a fake device; the Chromium snippets run after a trusted mouse click
+initializes the AudioContext. Keep shared output fixtures read-only. Future work
+should start with the real wired timing measurement and HTTPS origin check,
+then mobile memory tests, rather than adding more editing controls.
