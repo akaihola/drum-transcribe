@@ -44,6 +44,12 @@ DOWNLOADS = [
 ]
 UPLOAD_EXTS = AUDIO_EXTS | {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 
+STATIC_ASSETS = {f"/static/{name}" for name in (
+    "musescore.svg", "musicxml.png", "local-recording.js",
+    "recording-core.js", "recording-worklet.js", "recording-store.js",
+    "recording-wav.js", "recording-export.js",
+)}
+
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
 # at /style). Teal is reserved for "sound happens here".
 FONTS = """
@@ -229,8 +235,17 @@ STYLE = """
             border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
   .local-recording { border-top: 1px solid var(--hairline); padding: 1rem 0; margin: 1rem 0; }
   .local-recording canvas { display: block; width: 100%; background: var(--card); border: 1px solid var(--hairline); margin: .6rem 0; cursor: crosshair; }
+  .local-recording input { accent-color: var(--teal); }
+  .local-recording button, practice-audio button { font: inherit; font-size: .85rem;
+    border: 1.5px solid var(--hairline); border-radius: 999px; padding: .25rem .85rem;
+    background: var(--card); color: var(--ink); cursor: pointer; }
+  .local-recording button:disabled { opacity: .45; cursor: default; }
+  .local-recording button[data-action="play"] { background: var(--teal); color: white; border-color: var(--teal); }
+  .local-recording output[data-backing], .local-recording output[data-storage] { color: var(--ink-quiet); font-size: .9rem; }
+  .local-recording select, .local-recording input[type=number] { font: inherit; font-size: .9rem; }
+  practice-audio input { accent-color: var(--teal); }
   .local-recording h3 { margin: 0; }
-  .local-recording p { max-width: 65ch; color: var(--quiet); }
+  .local-recording p { max-width: 65ch; color: var(--ink-quiet); }
   .record-controls { display: flex; flex-wrap: wrap; gap: .7rem 1.2rem; align-items: center; }
   .record-controls label { display: inline-flex; gap: .4rem; align-items: center; }
   .record-controls input[type=number] { width: 5rem; }
@@ -368,6 +383,21 @@ HELP_HTML = """
   conversion succeeded. The round plug is <b>MIDI</b>, which plays the
   transcription; the { } braces are JSON files with the raw detection
   data.</p>
+
+  <h3>Local drum recording</h3>
+  <p>Each version can keep your own drum track in this browser. Choose a backing
+  player, select <b>Record</b>, then Play. Use wired headphones. There is no live
+  microphone echo. Pause keeps Record armed; any seek disarms it. Recording
+  replaces only the passage played, including silence. Undo restores the last
+  passage. Choose <b>Play back</b> to mix your take with a player, or enable Solo.</p>
+  <p>Download WAV saves the whole song with the last mix or solo you listened to
+  with your recording audible. Paused changes and muted listening are ignored.
+  Volume affects listening only. Import replaces the local track after checking
+  the file; a finished mix already includes its backing. Clear frees this
+  version's recording and remembered mix. Browser recordings are separate for
+  each address, port and browser profile. Recording needs HTTPS or localhost.
+  The 60 ms correction is a starting guess, not measured device latency. More
+  detail is in Recording help and timing below the players.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Point at any note or rest in a score: it turns blue. Click it to record
@@ -510,7 +540,7 @@ const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
   A6 6 0 0 0 6.6 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>`;
 
 const INFO = {
-  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. For a YouTube link this is YouTube's own player; point at it to see its controls.",
+  original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. Local recording plays the downloaded audio. Where local recording is unavailable, a YouTube link uses YouTube's own player.",
   drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
   drumless: "The rest of the band, with the drums removed by Demucs. Play along on your own kit. Some drum sound may remain. Download the lossless FLAC to play on Android or import into Ableton Live.",
   sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
@@ -580,7 +610,7 @@ class YtAudio extends HTMLElement {
     this.innerHTML = `<div></div><button title="play"></button>`;
     this.lastChild.onclick = () => this.play();
     this.playing = false;
-    ytApi.then(() => this.yt = new YT.Player(this.firstChild, {
+    ytApi.then(() => { if (!this.isConnected) return; this.yt = new YT.Player(this.firstChild, {
       videoId: this.getAttribute("video"),
       playerVars: { playsinline: 1, rel: 0 },
       events: {
@@ -600,8 +630,9 @@ class YtAudio extends HTMLElement {
           } else if (e.data !== YT.PlayerState.BUFFERING) this.playing = false;
         },
       },
-    }));
+    }); });
   }
+  disconnectedCallback() { clearInterval(this.timer); this.yt?.destroy(); }
   get paused() { return !this.playing; }
   get readyState() { return 1; }  // seeks before the player is ready are queued
   get currentTime() { return this.ready ? this.yt.getCurrentTime() : this.start ?? 0; }
@@ -769,6 +800,7 @@ function drawArrows(panel) {
 // only for the visible version, to spare bandwidth).
 function showPanel(panel) {
   drawArrows(panel);
+  panel?.querySelector("section[data-song]")?.recording?.loadMetadata();
   panel?.querySelectorAll("audio").forEach(a => a.preload = "metadata");
 }
 window.addEventListener("resize", () =>
@@ -817,7 +849,7 @@ function versionPieces(v) {
     err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
       failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
     src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"),
-              v.youtube && v.source ? `<yt-audio video="${v.youtube}"></yt-audio>`
+              v.youtube && v.source && !(isSecureContext && window.AudioWorkletNode) ? `<yt-audio video="${v.youtube}"></yt-audio>`
                                     : audioTag(v.source)),
     drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"),
                 audioTag(v.drums)),
@@ -999,7 +1031,11 @@ async function refreshVersion(name) {
       renderScores(fresh);
     }
   }
-  panel.querySelector("section[data-song]")?.recording?.update(v);
+  const section = panel.querySelector("section[data-song]");
+  if (v.source) {
+    if (section.recording) section.recording.update(v);
+    else new LocalRecording.Recording(section, v, PROJECT);
+  }
   setVolume(localStorage.volume ?? 1);
   showProgress(name, v.progress);
   loadBars(v);
@@ -1177,7 +1213,7 @@ function seekToBar(section, bar) {
   const hit = (barTimes[section.dataset.song] || []).find(b => b.bar === bar);
   const audios = [...section.querySelectorAll(MEDIA)];
   const audio = audios.find(a => !a.paused) ||
-                lastAudio[section.dataset.song] || audios[0];
+                (audios.includes(lastAudio[section.dataset.song]) ? lastAudio[section.dataset.song] : null) || audios[0];
   if (!hit || !audio) return;
   if (section.recording?.supported) {
     section.recording.run(async () => { await section.recording.ready(); await section.recording.seek(Math.max(0,hit.t-.1)); await section.recording.play(); });
@@ -1230,7 +1266,7 @@ async function pollSeek() {
       if (seekSeq !== null && s.seq !== seekSeq) {
         if (!s.playing)
           { document.querySelectorAll(MEDIA).forEach(a => a.pause());
-            document.querySelectorAll("section[data-song]").forEach(s => { if (s.recording) s.recording.run(async () => { await s.recording.pause(); s.recording.mode = "mute"; s.recording.sync(); }); }); }
+            document.querySelectorAll("section[data-song]").forEach(s => { if (s.recording) s.recording.deactivate(); }); }
         else {
           const section =
             document.querySelector('.tabpanel.active[id^="v--"] section[data-song]');
@@ -1254,9 +1290,7 @@ document.addEventListener("click", e => {
   const tabs = btn.closest(".tabs");
   if (tabs.classList.contains("vtabs")) {
     document.querySelectorAll("section[data-song]").forEach(s => {
-      if (s.dataset.song !== btn.dataset.target.slice(3) && s.recording) s.recording.run(async () => {
-        await s.recording.pause(); s.recording.mode = "mute"; s.recording.sync();
-      });
+      if (s.dataset.song !== btn.dataset.target.slice(3) && s.recording) s.recording.deactivate();
     });
     const v = btn.dataset.target.slice(3);
     history.replaceState(null, "", `/p/${PROJECT}` + (v === "__add" ? "" : `/${v}`));
@@ -1413,7 +1447,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
-        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js|recording-store\.js|recording-wav\.js|recording-export\.js)", path):
+        elif path in STATIC_ASSETS:
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
