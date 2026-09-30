@@ -256,9 +256,11 @@ STYLE = """
   .local-recording.armed .rec { animation: rec-blink 1s steps(1) infinite; }
   @keyframes rec-blink { 50% { background: var(--signal); border-color: var(--signal); color: white; } }
   @media (prefers-reduced-motion: reduce) { .local-recording.armed .rec { animation: none; background: #F6D6D2; } }
-  .rec-count { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
-    background: var(--paper); border: 1px solid var(--hairline); }
-  .rec-count b { font-size: 1.5rem; line-height: 1.1; min-width: 3.2em; }
+  /* tabular digits in fixed-width slots: the ticking counter never resizes */
+  .rec-count { flex: none; display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
+    background: var(--paper); border: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+  .rec-count b { font-size: 1.5rem; line-height: 1.1; width: 3.2em; }
+  .rec-count span { width: 13ch; }  /* "−10:00.0 / 10:00" */
   .rec-count span, .rec-bar output { font-size: .85rem; color: var(--ink-quiet); }
   .local-recording.recording .rec-count { border-color: var(--signal); }
   .local-recording.recording .rec-count b, .local-recording.armed [data-status] { color: var(--signal); }
