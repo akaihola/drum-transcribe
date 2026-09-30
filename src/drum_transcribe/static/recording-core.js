@@ -72,6 +72,7 @@ export class CapturePassage {
       start: lo,
       end: hi,
       offset: 0,
+      take: this.id,
       data,
       captureOffset: this.offset,
     });

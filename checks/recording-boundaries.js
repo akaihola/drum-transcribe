@@ -115,11 +115,9 @@
   );
   await r.ctx.resume();
   await r.setMode("record");
-  const position = r.ui.querySelector('[data-control="position"]');
-  position.value = 40;
-  position.dispatchEvent(new Event("input"));
+  r.requestSeek(40); // what a click on the ruler or a lane does
   await r.queue;
-  assert(r.mode === "playback" && r.position === 40, "Player seek did not disarm");
+  assert(r.mode === "playback" && r.position === 40, "Ruler seek did not disarm");
   await r.setMode("record");
   seekToBar(r.section, 3);
   await r.queue;

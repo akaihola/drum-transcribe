@@ -1,6 +1,59 @@
 import { LocalTrack, CapturePassage } from "./recording-core.js";
 import { loadTrack, saveTrack, clearTrack, peaks } from "./recording-store.js";
+import { BeatGrid } from "./recording-grid.js";
 let context, contextReady, active;
+const ICON = {
+  home: '<svg viewBox="0 0 24 24"><path d="M5 4h2.6v16H5zM20 4.5v15L9 12z"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M6 4h4.2v16H6zM13.8 4H18v16h-4.2z"/></svg>',
+  record: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>',
+  undo: '<svg viewBox="0 0 24 24"><path d="M9 7.5H4.5V3M5 8a8 8 0 1 1-.9 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+};
+const label = (key) =>
+  ({ src: "Original", drumless: "Without drums", drums: "Drums stem" })[key] ??
+  `${key} sonification`;
+const toDb = (gain) => (gain > 0 ? Math.max(-60, 20 * Math.log10(gain)) : -60);
+const fromDb = (db) => (db <= -60 ? 0 : 10 ** (db / 20));
+const dbText = (db) =>
+  db <= -60
+    ? "−∞ dB"
+    : `${db > 0 ? "+" : db < 0 ? "−" : ""}${Math.abs(db).toFixed(1)} dB`;
+const clock = (t, tenths = true) => {
+  const s = Math.max(0, t);
+  return `${Math.floor(s / 60)}:${(tenths ? (s % 60).toFixed(1).padStart(4, "0") : String(Math.floor(s % 60)).padStart(2, "0"))}`;
+};
+const envelopes = new WeakMap();
+// Backing waveform: loudest sample per 5 ms, computed once per decoded file.
+function envelope(buffer) {
+  let e = envelopes.get(buffer);
+  if (e) return e;
+  const step = Math.round(buffer.sampleRate / 200);
+  e = new Float32Array(Math.ceil(buffer.length / step));
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < data.length; i++) {
+      const k = (i / step) | 0,
+        v = Math.abs(data[i]);
+      if (v > e[k]) e[k] = v;
+    }
+  }
+  envelopes.set(buffer, e);
+  return e;
+}
+// Sizes a canvas for its CSS box; returns its context and CSS size.
+function fit(canvas) {
+  const w = canvas.clientWidth,
+    h = canvas.clientHeight,
+    d = devicePixelRatio;
+  if (canvas.width !== Math.round(w * d) || canvas.height !== Math.round(h * d)) {
+    canvas.width = Math.round(w * d);
+    canvas.height = Math.round(h * d);
+  }
+  const g = canvas.getContext("2d");
+  g.setTransform(d, 0, 0, d, 0, 0);
+  return [g, w, h];
+}
 async function fingerprint(bytes) {
   return (
     "sha256:" +
@@ -13,18 +66,9 @@ const MEDIA = "audio, yt-audio, practice-audio";
 class PracticeAudio extends HTMLElement {
   connectedCallback() {
     if (this.firstChild) return;
-    this.innerHTML = `<button type="button">Play</button><input type="range" aria-label="Song position" min="0" max="1" step="0.001" value="0"><output>0:00</output>`;
+    this.innerHTML = `<button type="button" aria-pressed="false">Use as backing</button>`;
     this.querySelector("button").onclick = () =>
-      this.owner.run(async () => {
-        if (this.owner.playing && this.owner.selected === this.dataset.backing)
-          await this.owner.pause();
-        else {
-          await this.owner.selectBacking(this.dataset.backing);
-          await this.owner.play();
-        }
-      });
-    this.querySelector("input").oninput = (e) =>
-      this.owner.requestSeek(+e.target.value);
+      this.owner.run(() => this.owner.selectBacking(this.dataset.backing));
   }
   get paused() {
     return !this.owner?.playing || this.owner.selected !== this.dataset.backing;
@@ -33,7 +77,7 @@ class PracticeAudio extends HTMLElement {
     return this.owner?.track ? 4 : 0;
   }
   get currentTime() {
-    return this.owner?.current() ?? 0;
+    return Math.max(0, this.owner?.current() ?? 0);
   }
   set currentTime(value) {
     this.owner.run(() => this.owner.seek(value));
@@ -54,14 +98,11 @@ class PracticeAudio extends HTMLElement {
     if (!this.paused) return this.owner.run(() => this.owner.pause());
   }
   update() {
-    this.querySelector("button").textContent = this.paused ? "Play" : "Pause";
-    const input = this.querySelector("input");
-    input.max = this.owner.duration ?? 1;
-    input.value = this.currentTime;
-    const format = (t) =>
-      `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
-    this.querySelector("output").textContent =
-      `${format(this.currentTime)} / ${format(this.owner.duration ?? 0)}`;
+    const on = this.owner.selected === this.dataset.backing,
+      button = this.querySelector("button");
+    this.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", on);
+    button.textContent = on ? "Backing" : "Use as backing";
   }
 }
 customElements.define("practice-audio", PracticeAudio);
@@ -101,6 +142,8 @@ export class Recording {
     this.writes = Promise.resolve();
     this.supported = isSecureContext && !!window.AudioWorkletNode;
     this.selected = "src";
+    this.zoom = "song";
+    this.waveVersion = 0;
     this.bindPlayers();
     this.mount();
     if (this.section.closest(".tabpanel").classList.contains("active"))
@@ -134,8 +177,10 @@ export class Recording {
     }
   }
   update(version) {
-    if (this.version.progress.sig !== version.progress.sig)
+    if (this.version.progress.sig !== version.progress.sig) {
       this.backingInvalidated = true;
+      this.gridUrl = null;
+    }
     if (this.version.sourceIdentity !== version.sourceIdentity && this.track) {
       this.run(async () => {
         const r = await fetch(version.source);
@@ -156,11 +201,34 @@ export class Recording {
     }
     this.version = version;
     this.bindPlayers();
+    this.loadGrid();
     this.sync();
   }
+  loadGrid() {
+    const url = this.version.beats;
+    if (!url || this.gridUrl === url) return;
+    this.gridUrl = url;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((beats) => {
+        this.grid = new BeatGrid(beats);
+        this.sync();
+      })
+      .catch(() => (this.gridUrl = null));
+  }
   loadMetadata() {
+    this.loadGrid();
     if (!this.supported || this.metadataRequested || this.track) return;
     this.metadataRequested = true;
+    // Show saved takes before audio starts; restore() loads them for editing.
+    loadTrack(this.key)
+      .then((saved) => {
+        if (!saved || this.track) return;
+        this.preview = saved;
+        this.duration ??= saved.length / saved.rate;
+        this.waveVersion++;
+      })
+      .catch(() => {});
     const audio = (this.metadata = new Audio(this.version.source));
     audio.preload = "metadata";
     const release = () => {
@@ -171,7 +239,6 @@ export class Recording {
     audio.onloadedmetadata = () => {
       if (!this.track && Number.isFinite(audio.duration)) {
         this.duration = audio.duration;
-        this.ui.querySelector('[data-control="position"]').max = this.duration;
         this.sync();
       }
       audio.onloadedmetadata = null;
@@ -201,75 +268,91 @@ export class Recording {
     if (this.bus) this.bus.gain.value = value;
   }
   mount() {
+    const fader = (key, min, max, name) =>
+      `<input type="range" data-control="${key}" min="${min}" max="${max}" step="0.5" aria-label="${name}"><output data-db="${key}"></output>`;
     this.ui = document.createElement("div");
     this.ui.className = "local-recording";
-    this.ui.innerHTML = `<h3>Your drum recording</h3>
-      <p>Record here with wired headphones. Audio stays in this browser.</p>
-      <div class="record-controls"><button data-action="play">Play</button>
-      <label>Local track <select data-control="mode"><option value="mute">Mute</option>
-      <option value="playback">Play back</option><option value="record">Record</option></select></label>
-      <output data-backing></output><label><input data-control="solo" type="checkbox"> Solo local track</label></div>
-      <div class="record-controls"><label>Backing level <input data-control="backingGain" type="range" min="0" max="1" step="0.01" value="1"></label>
-      <label>Recording level <input data-control="trackGain" type="range" min="0" max="1" step="0.01" value="1"></label>
-      <label>Microphone input level <input data-control="inputGain" type="range" min="0" max="4" step="0.05" value="1"></label>
-      <label>Capture correction, earlier by ms <input data-control="offset" type="number" min="0" max="1000" value="60"></label></div>
-      <label>Song position <input data-control="position" type="range" min="0" max="1" step="0.001" value="0"></label>
-      <canvas data-wave height="100" role="img" aria-label="Saved recording waveform and playhead"></canvas>
-      <div class="record-controls"><label>Microphone <meter data-meter min="0" max="1" high="0.95" value="0"></meter></label>
-      <button data-action="undo" disabled>Undo last passage</button><button data-action="clear">Clear local track</button></div>
-      <div class="record-controls"><button data-action="download">Download WAV</button>
-      <label>Import audio <input data-import type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a"></label></div>
-      <details><summary>Recording help and timing</summary><p>Use localhost or HTTPS, a device microphone and wired headphones. The 60 ms capture correction is an unmeasured starting value. Adjust it with a known click or loopback recording. Positive values place new microphone audio earlier; they never move older passages. There is no count-in or live microphone echo. A temporary microphone buffer holds up to 171 ms while the microphone is open, so a slightly late button command can still capture the requested starting samples. Unrequested samples are discarded.</p>
-      <p>Record while paused arms until Play. Pause keeps Record armed. Seeking disarms it. Recording replaces only the passage played, including silence. The source song sets the length.</p>
-      <p>Download contains the whole song with the last mix or solo you actually listened to with the recording audible. Paused changes and muted listening are ignored. Before that, download is solo. Volume changes listening only. Import replaces the track after validation and keeps leading silence and gaps. An imported mix already contains its backing; use Solo to hear it by itself.</p>
-      <p>Audio stays in this browser profile and website address, including its port. Browser cleanup or storage eviction can remove it. Download a copy before relying on it. Undo holds the last replaced passage during this visit. Clear frees this version's recording, waveform, Undo and remembered mix. Foreground desktop browsers are the initial target. Mobile and physical device latency have not been measured.</p><output data-estimates></output></details>
-      <output data-storage></output><br><output data-status role="status">Choose Record to enable the microphone. Play begins the passage.</output>`;
+    this.ui.innerHTML = `<div class="rec-bar">
+      <button class="rec-key" data-action="home" title="Back to start (Home)" aria-label="Back to start">${ICON.home}</button>
+      <button class="rec-key play" data-action="play" title="Play / pause (Space)" aria-label="Play">${ICON.play}</button>
+      <button class="rec-key rec" data-action="record" title="Record (R)" aria-label="Record" aria-pressed="false">${ICON.record}</button>
+      <div class="rec-count"><b data-bar>–</b><span data-time></span></div>
+      <button class="rec-key" data-action="undo" title="Undo last passage (Ctrl+Z)" aria-label="Undo last passage" disabled>${ICON.undo}</button>
+      <div class="rec-view"><button data-view="song">Whole song</button><button data-view="follow">Follow 16 bars</button></div>
+      <output data-status role="status"></output>
+      <output data-storage></output>
+      <button class="rec-key" data-action="menu" title="Export, import, latency, clear" aria-label="More" aria-expanded="false">${ICON.more}</button>
+      <div class="rec-menu" data-menu hidden>
+        <button data-action="download"><b>Export WAV</b><span data-heard></span></button>
+        <button data-action="import"><b>Import audio…</b><span>Replaces your track, starting at 0:00</span></button>
+        <label><b>Latency correction</b><span><input data-control="offset" type="number" min="0" max="1000" value="60"> ms earlier — lines new takes up with what you heard. 60 ms is a starting guess; check it with a click or loopback recording.</span><output data-estimates></output></label>
+        <button data-action="clear" class="danger"><b>Clear your track…</b><span>Removes this version's recording from this browser</span></button>
+      </div>
+      <input data-import type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" hidden>
+    </div>
+    <div class="rec-grid">
+      <div class="rec-head ruler">bars</div><canvas data-draw="ruler"></canvas>
+      <div class="rec-head"><b>Backing</b>
+        <select data-control="backing" aria-label="Backing"></select>
+        <label class="rec-fader">${fader("backingGain", -60, 6, "Backing level")}</label>
+        <span class="rec-meter" data-meter="backing"><i></i></span>
+      </div><canvas data-draw="backing"></canvas>
+      <div class="rec-head you"><b>Your drums <span>
+        <button class="rec-t rec" data-action="record" title="Record (R)" aria-label="Record" aria-pressed="false">${ICON.record}</button><button class="rec-t" data-action="mute" title="Mute (M)" aria-pressed="false">M</button><button class="rec-t" data-action="solo" title="Solo (S)" aria-pressed="false">S</button></span></b>
+        <label class="rec-fader">${fader("trackGain", -60, 6, "Your track level")}</label>
+        <label class="rec-fader"><span>mic</span>${fader("inputGain", -30, 12, "Microphone gain")}<button class="rec-clip" data-action="clip" title="The microphone clipped. Lower the mic gain; click to reset.">CLIP</button></label>
+        <span class="rec-meter" data-meter="mic"><i></i></span>
+      </div><canvas data-draw="track"></canvas>
+    </div>`;
     this.section.querySelector(".flow").after(this.ui);
-    this.ui.querySelector('[data-action="play"]').onclick = () =>
-      this.run(() => (this.playing ? this.pause() : this.play()));
-    this.ui.querySelector('[data-control="mode"]').onchange = (e) =>
-      this.run(() => this.setMode(e.target.value));
-    this.ui.querySelector('[data-control="offset"]').onchange = (e) =>
-      (this.offset = Math.max(0, Math.min(1000, +e.target.value || 0)));
-    this.ui.querySelector('[data-control="position"]').oninput = (e) =>
-      this.requestSeek(+e.target.value);
-    for (const key of ["backingGain", "trackGain", "solo", "inputGain"])
-      this.ui.querySelector(`[data-control="${key}"]`).oninput = (e) => {
-        this[key] = key === "solo" ? e.target.checked : +e.target.value;
-        if (key !== "inputGain") this.balance();
-        else if (this.inputLevel) this.inputLevel.gain.value = this.inputGain;
-      };
-    this.ui.querySelector('[data-action="download"]').onclick = () =>
-      this.run(() => this.download());
+    this.ui.onclick = (e) => {
+      const button = e.target.closest("[data-action], [data-view]");
+      if (!button) return;
+      if (button.dataset.view) {
+        this.zoom = button.dataset.view;
+        this.sync();
+      } else this.act(button.dataset.action);
+    };
+    this.ui.oninput = (e) => {
+      const key = e.target.dataset.control;
+      if (key === "inputGain") {
+        this.inputGain = fromDb(+e.target.value);
+        if (this.inputLevel) this.inputLevel.gain.value = this.inputGain;
+      } else if (key === "backingGain" || key === "trackGain") {
+        this[key] = fromDb(+e.target.value);
+        this.balance();
+      }
+      this.sync();
+    };
+    this.ui.onchange = (e) => {
+      const key = e.target.dataset.control;
+      if (key === "offset")
+        this.offset = Math.max(0, Math.min(1000, +e.target.value || 0));
+      if (key === "backing")
+        this.run(() => this.selectBacking(e.target.value)).then(() => this.sync());
+    };
     this.ui.querySelector("[data-import]").onchange = (e) => {
       const file = e.target.files[0];
       if (file) this.run(() => this.importAudio(file));
       e.target.value = "";
     };
-    this.ui.querySelector('[data-action="undo"]').onclick = () =>
-      this.run(async () => {
-        await this.ready();
-        this.requireWriter();
-        await this.pause();
-        this.track.undoLast();
-        this.edited();
-        this.sync();
-      });
-    this.ui.querySelector('[data-action="clear"]').onclick = () => {
-      this.epoch++;
-      this.clear().catch((e) => this.status(e.message));
-    };
-    this.ui.querySelector("[data-wave]").onclick = (e) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      this.run(async () => {
-        await this.ready();
-        await this.seek(((e.clientX - rect.left) / rect.width) * this.duration);
-      });
-    };
-    this.resize = new ResizeObserver(() => {
-      this.waveDirty = true;
-      this.drawWave();
+    for (const canvas of this.ui.querySelectorAll("canvas")) {
+      const seek = (e) => {
+        const r = canvas.getBoundingClientRect(),
+          [t0, t1] = this.shown ?? [];
+        if (t1 > t0)
+          this.requestSeek(t0 + ((e.clientX - r.left) / r.width) * (t1 - t0));
+      };
+      canvas.onpointerdown = (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        seek(e);
+      };
+      canvas.onpointermove = (e) => e.buttons && seek(e);
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".rec-menu, [data-action=menu]")) this.menu(false);
     });
+    this.resize = new ResizeObserver(() => this.draw());
     this.resize.observe(this.ui);
     window.addEventListener("pagehide", () => {
       this.abortCapture("");
@@ -281,27 +364,100 @@ export class Recording {
       this.writes.finally(() => this.unlock?.()).catch(() => {});
       this.writable = false;
     });
-    if (!this.supported) {
+    if (!this.supported)
       this.ui
         .querySelectorAll("button,input,select")
         .forEach((control) => (control.disabled = true));
-      this.status(
-        "Local recording needs HTTPS or localhost and a browser with AudioWorklet. The original players still work.",
-      );
-    }
     window.addEventListener("pageshow", (e) => {
       if (e.persisted)
         this.status(
           "Reload this page to reopen the local recording for editing.",
         );
     });
-    this.timer = setInterval(() => this.tick(), 100);
+    this.sync();
+    this.timer = setInterval(() => this.tick(), 50);
+  }
+  act(action) {
+    const actions = {
+      home: () => this.requestSeek(0),
+      play: () => this.run(() => (this.playing ? this.pause() : this.play())),
+      record: () =>
+        this.run(() =>
+          this.setMode(this.mode === "record" ? "playback" : "record"),
+        ),
+      mute: () =>
+        this.run(() => this.setMode(this.mode === "mute" ? "playback" : "mute")),
+      solo: () => {
+        this.solo = !this.solo;
+        this.balance();
+      },
+      undo: () =>
+        this.track?.undo &&
+        this.run(async () => {
+          await this.ready();
+          this.requireWriter();
+          await this.pause();
+          this.track.undoLast();
+          this.edited();
+        }),
+      menu: () => this.menu(this.ui.querySelector("[data-menu]").hidden),
+      download: () => this.run(() => this.download()),
+      import: () => this.ui.querySelector("[data-import]").click(),
+      clear: () => {
+        if (
+          !confirm(
+            "Clear your recording of this version? Export a WAV first if you want to keep it.",
+          )
+        )
+          return;
+        this.epoch++;
+        this.clear().catch((e) => this.status(e.message));
+      },
+      clip: () => (this.clipped = false),
+    };
+    if (action !== "menu" && action !== "import") this.menu(false);
+    actions[action]?.();
+    this.sync();
+  }
+  menu(open) {
+    this.ui.querySelector("[data-menu]").hidden = !open;
+    this.ui
+      .querySelector("[data-action=menu]")
+      .setAttribute("aria-expanded", open);
   }
   storageMessage(message) {
     this.ui.querySelector("[data-storage]").textContent = message;
   }
+  // Messages show for a while; otherwise the line says what Play will do.
   status(message) {
-    this.ui.querySelector("[data-status]").textContent = message;
+    this.message = message;
+    this.messageUntil = message ? performance.now() + 8000 : 0;
+    this.showStatus();
+  }
+  showStatus() {
+    const text =
+      performance.now() < this.messageUntil ? this.message : this.liveStatus();
+    const el = this.ui.querySelector("[data-status]");
+    if (el.textContent !== text) el.textContent = text;
+  }
+  liveStatus() {
+    if (!this.supported)
+      return "Recording needs HTTPS or localhost. The players above still work.";
+    if (this.sourceChanged)
+      return "The song file changed. Your track is kept: listen with Solo, export it, then Clear to start over.";
+    if (this.writable === false)
+      return "Another tab is editing this version. Close it and reload this page to record.";
+    const at = (t) => (this.grid ? `bar ${this.grid.barAt(t).bar}` : clock(t));
+    if (this.mode === "record")
+      return this.playing
+        ? `Recording since ${at((this.passage?.start ?? 0) / this.track.rate)} — only what the playhead crosses is replaced`
+        : `Armed — press Play (Space) to record from ${at(this.position)}`;
+    if (this.mode === "mute")
+      return `Your track is muted · hearing ${label(this.selected)}`;
+    if (this.solo) return "Your track solo";
+    return (this.track ?? this.preview)?.segments.length
+      ? `Hearing ${label(this.selected)} + your track`
+      : `Hearing ${label(this.selected)} · press Record (R) to start your track`;
   }
   run(fn) {
     const epoch = this.epoch;
@@ -352,7 +508,6 @@ export class Recording {
       this.duration = this.backing.duration;
       this.needsSourceReload = false;
       await this.restore(epoch);
-      this.ui.querySelector('[data-control="position"]').max = this.duration;
       this.bus = this.ctx.createGain();
       this.bus.gain.value = +(localStorage.volume ?? 1);
       // Listening and export use the same hard peak limit, before master volume.
@@ -360,6 +515,11 @@ export class Recording {
       this.clip.curve = new Float32Array([-1, 1]);
       this.clip.connect(this.bus);
       this.bus.connect(this.ctx.destination);
+      this.backingBus = this.ctx.createGain();
+      this.backingBus.connect(this.clip);
+      this.backingMeter = this.ctx.createAnalyser();
+      this.backingMeter.fftSize = 2048;
+      this.backingBus.connect(this.backingMeter);
       this.ctx.addEventListener("statechange", () => {
         if (this.ctx.state !== "running" && this.playing) {
           this.abortCapture(
@@ -405,6 +565,7 @@ export class Recording {
     try {
       const saved = await loadTrack(this.key);
       if (epoch !== this.epoch) return;
+      this.preview = null;
       if (saved) {
         this.cleared = false;
         if (saved.rate !== this.track.rate)
@@ -426,11 +587,6 @@ export class Recording {
           this.backingGain = this.audition.backingGain;
           this.trackGain = this.audition.trackGain;
           this.solo = this.audition.solo;
-          this.ui.querySelector('[data-control="backingGain"]').value =
-            this.backingGain;
-          this.ui.querySelector('[data-control="trackGain"]').value =
-            this.trackGain;
-          this.ui.querySelector('[data-control="solo"]').checked = this.solo;
         }
         this.storageMessage("Recording restored from browser storage.");
         this.status(
@@ -454,8 +610,8 @@ export class Recording {
       this.status(
         "Another tab is editing this version, or this browser has no track locks. Listening is available. Close the other tab and reload to record.",
       );
-    this.waveDirty = true;
-    this.drawWave();
+    this.waveVersion++;
+    this.sync();
   }
   requireWriter(allowChanged = false) {
     if (!this.writable)
@@ -491,8 +647,7 @@ export class Recording {
         if (epoch !== this.epoch) return;
         await saveTrack(this.key, state, segments);
         if (epoch === this.epoch) {
-          this.storageMessage("Saved in this browser.");
-          this.status("Saved in this browser.");
+          this.storageMessage("✓ saved in this browser");
         }
       })
       .catch((e) => {
@@ -508,8 +663,7 @@ export class Recording {
   edited() {
     this.cleared = false;
     for (const s of this.track.segments) peaks(s.data);
-    this.waveDirty = true;
-    this.drawWave();
+    this.waveVersion++;
     this.persist();
     this.sync();
   }
@@ -643,7 +797,8 @@ export class Recording {
       );
     if (buffer.numberOfChannels > 2)
       throw Error("Import mono or stereo audio. Nothing was changed.");
-    const segments = [];
+    const segments = [],
+      take = crypto.randomUUID();
     for (let start = 0; start < buffer.length; start += 65536) {
       const end = Math.min(buffer.length, start + 65536),
         channels = [];
@@ -659,7 +814,8 @@ export class Recording {
         start,
         end,
         offset: 0,
-        data: { id: crypto.randomUUID(), channels },
+        take,
+        data: { id: `${take}-${start}`, channels },
       });
     }
     if (epoch !== this.epoch) return;
@@ -707,24 +863,18 @@ export class Recording {
       this.track.length = this.sourceFrames;
       this.duration = this.sourceFrames / this.track.rate;
     }
-    this.audition = null;
+    this.audition = this.preview = null;
     this.sourceChanged = false;
     this.waveImage = null;
     this.backingGain = this.trackGain = 1;
     this.solo = false;
-    this.ui.querySelector('[data-control="backingGain"]').value = 1;
-    this.ui.querySelector('[data-control="trackGain"]').value = 1;
-    this.ui.querySelector('[data-control="solo"]').checked = false;
-    this.waveDirty = true;
-    const canvas = this.ui.querySelector("[data-wave]");
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    this.drawWave();
+    this.waveVersion++;
     this.sync();
     this.writes = this.writes.catch(() => {}).then(() => clearTrack(this.key));
     try {
       await this.writes;
       this.restoreFailed = false;
-      this.storageMessage("No saved local recording.");
+      this.storageMessage("");
       this.status("Local recording and remembered mix cleared.");
     } catch (e) {
       this.storageMessage(
@@ -765,67 +915,164 @@ export class Recording {
       this.inputLevel =
         null;
   }
-  drawWave() {
-    const canvas = this.ui?.querySelector("[data-wave]");
-    if (!canvas || !this.track) return;
-    const width = Math.max(1, Math.round(canvas.clientWidth)),
-      height = 100;
-    if (this.waveDirty || canvas.width !== width) {
-      canvas.width = width;
-      this.waveImage = document.createElement("canvas");
-      this.waveImage.width = width;
-      this.waveImage.height = height;
-      const g = this.waveImage.getContext("2d");
-      g.strokeStyle = "#0E7386";
-      g.fillStyle = "rgba(14,115,134,.08)";
-      for (const s of this.track.segments) {
-        g.fillRect(
-          (s.start / this.track.length) * width,
-          0,
-          ((s.end - s.start) / this.track.length) * width,
-          height,
-        );
-        const p = peaks(s.data);
-        g.beginPath();
-        for (
-          let b = Math.floor(s.offset / 256);
-          b < Math.ceil((s.offset + s.end - s.start) / 256);
-          b++
-        ) {
-          const x =
-            ((s.start + b * 256 - s.offset) / this.track.length) * width;
-          if (
-            x < (s.start / this.track.length) * width ||
-            x > (s.end / this.track.length) * width
-          )
-            continue;
-          g.moveTo(x, 50 - p[b * 2] * 45);
-          g.lineTo(x, 50 - p[b * 2 + 1] * 45);
-        }
-        g.stroke();
+  shownRange() {
+    const d = this.duration ?? 0;
+    if (this.zoom !== "follow" || !this.grid) return [0, d];
+    const { bar } = this.grid.barAt(Math.max(0, this.current())),
+      t0 = Math.max(0, this.grid.barStart(bar - 2)),
+      t1 = Math.min(d, this.grid.barStart(bar + 14));
+    return t1 > t0 ? [t0, t1] : [0, d];
+  }
+  // Recorded passages: runs of segments from one take or import.
+  takes() {
+    const out = [];
+    for (const s of (this.track ?? this.preview)?.segments ?? []) {
+      const id = s.take ?? s.data.id.replace(/-\d+$/, ""),
+        last = out.at(-1);
+      if (last?.id === id && last.end === s.start) {
+        last.end = s.end;
+        last.segments.push(s);
+      } else out.push({ id, start: s.start, end: s.end, segments: [s] });
+    }
+    return out;
+  }
+  draw() {
+    if (!this.duration || !this.ui.offsetWidth) return;
+    const [t0, t1] = (this.shown = this.shownRange()),
+      muted = this.mode === "mute",
+      key = [t0, t1, this.waveVersion, muted, this.solo, this.mode].join(),
+      refs = [this.backing, this.backingKey, this.grid];
+    for (const canvas of this.ui.querySelectorAll("canvas")) {
+      const [g, w, h] = fit(canvas),
+        x = (t) => ((t - t0) / (t1 - t0)) * w,
+        kind = canvas.dataset.draw;
+      if (!w) continue;
+      if (
+        canvas.layerKey !== key + w + h ||
+        refs.some((r, i) => r !== canvas.layerRefs?.[i])
+      ) {
+        canvas.layerKey = key + w + h;
+        canvas.layerRefs = refs;
+        canvas.layer ??= document.createElement("canvas");
+        canvas.layer.width = canvas.width;
+        canvas.layer.height = canvas.height;
+        const l = canvas.layer.getContext("2d");
+        l.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+        l.font = "11px 'Alegreya Sans', sans-serif";
+        l.textBaseline = "top";
+        this.drawGrid(l, x, t0, t1, w, h, kind === "ruler");
+        if (kind === "backing") this.drawBacking(l, x, t0, t1, w, h);
+        if (kind === "track") this.drawTakes(l, x, h, muted);
       }
-      this.waveDirty = false;
+      g.clearRect(0, 0, w, h);
+      g.drawImage(canvas.layer, 0, 0, w, h);
+      if (kind === "track" && this.passage)
+        this.drawPassage(g, x, h);
+      const t = this.current();
+      if (t >= t0 && t <= t1) {
+        g.fillStyle = this.passage ? "#C40000" : "#232019";
+        g.fillRect(Math.round(x(t)), 0, 1.5, h);
+      }
     }
-    const g = canvas.getContext("2d");
-    g.clearRect(0, 0, width, height);
-    if (this.waveImage) g.drawImage(this.waveImage, 0, 0);
-    if (this.passage) {
-      g.fillStyle = "rgba(166,99,0,.25)";
-      g.fillRect(
-        (this.passage.start / this.track.length) * width,
-        0,
-        ((this.current() - this.passage.start / this.track.rate) /
-          this.duration) *
-          width,
-        height,
-      );
+  }
+  drawGrid(g, x, t0, t1, w, h, labels) {
+    if (!this.grid) {
+      if (!labels) return;
+      const every = [1, 2, 5, 10, 15, 30, 60].find((s) => x(t0 + s) > 50) ?? 120;
+      g.fillStyle = "#6E675C";
+      for (let t = Math.ceil(t0 / every) * every; t <= t1; t += every) {
+        g.fillRect(Math.round(x(t)), 4, 1, h - 4);
+        g.fillText(clock(t, false), Math.round(x(t)) + 3, 5);
+      }
+      return;
     }
-    g.strokeStyle = "#232019";
-    const x = (this.current() / this.duration) * width;
-    g.beginPath();
-    g.moveTo(x, 0);
-    g.lineTo(x, height);
-    g.stroke();
+    const first = this.grid.barAt(t0).bar,
+      last = this.grid.barAt(t1).bar,
+      px = x(this.grid.barStart(first + 1)) - x(this.grid.barStart(first)),
+      every = [1, 2, 4, 8, 16, 32].find((n) => n * px > 34) ?? 64;
+    for (let bar = Math.max(1, first); bar <= last; bar++) {
+      const at = Math.round(x(this.grid.barStart(bar))),
+        major = bar === 1 || bar % every === 0;
+      if (labels) {
+        g.fillStyle = major ? "#232019" : "#B9B2A6";
+        g.fillRect(at, major ? 4 : h * 0.6, 1, major ? h - 4 : h * 0.4);
+        if (major) g.fillText(bar, at + 3, 5);
+      } else if (px > 3 || major) {
+        g.fillStyle = bar % 4 === 1 ? "rgba(35,32,25,.1)" : "rgba(35,32,25,.04)";
+        g.fillRect(at, 0, 1, h);
+      }
+    }
+  }
+  drawBacking(g, x, t0, t1, w, h) {
+    if (!this.backing || this.backingKey !== this.selected) {
+      g.fillStyle = "#6E675C";
+      g.fillText("The backing waveform appears once it has loaded.", 8, h / 2 - 6);
+      return;
+    }
+    const e = envelope(this.backing),
+      rate = e.length / this.backing.duration;
+    g.fillStyle =
+      this.solo && this.mode === "playback" ? "#DCD6CA" : "#8C8579";
+    for (let px = 0; px < w; px++) {
+      const k0 = Math.floor((t0 + (px / w) * (t1 - t0)) * rate),
+        k1 = Math.floor((t0 + ((px + 1) / w) * (t1 - t0)) * rate);
+      let m = 0;
+      for (let k = k0; k <= k1 && k < e.length; k++) m = Math.max(m, e[k]);
+      const half = Math.max(0.5, m * (h / 2 - 6));
+      g.fillRect(px, h / 2 - half, 1, half * 2);
+    }
+  }
+  drawTakes(g, x, h, muted) {
+    const rate = (this.track ?? this.preview)?.rate,
+      ink = muted ? "#A9A296" : "#0E7386";
+    for (const take of this.takes()) {
+      const a = x(take.start / rate),
+        b = x(take.end / rate);
+      if (b < 0 || a > g.canvas.width) continue;
+      g.fillStyle = muted ? "rgba(110,103,92,.1)" : "rgba(14,115,134,.1)";
+      g.fillRect(a, 0, b - a, h);
+      g.fillStyle = ink;
+      g.fillRect(a, 0, b - a, 2);
+      const from = take.start / rate,
+        to = (take.end - 1) / rate,
+        text = this.grid
+          ? `bars ${this.grid.barAt(from).bar}–${this.grid.barAt(to).bar}`
+          : `${clock(from, false)}–${clock(to, false)}`;
+      if (b - a > g.measureText(text).width + 10) g.fillText(text, a + 4, 5);
+      this.drawSegments(g, x, h, take.segments, ink);
+    }
+  }
+  drawSegments(g, x, h, segments, ink) {
+    const rate = (this.track ?? this.preview).rate,
+      mid = h / 2 + 8,
+      scale = h / 2 - 12;
+    g.fillStyle = ink;
+    for (const s of segments) {
+      const p = peaks(s.data),
+        step = Math.max(1, Math.floor((x(256 / rate) - x(0)) ** -1));
+      for (let b = Math.floor(s.offset / 256); b * 256 < s.offset + s.end - s.start; b += step) {
+        const t = (s.start + b * 256 - s.offset) / rate;
+        if (t < s.start / rate) continue;
+        let lo = 0,
+          hi = 0;
+        for (let k = b; k < b + step && k * 2 + 1 < p.length; k++) {
+          lo = Math.min(lo, p[k * 2]);
+          hi = Math.max(hi, p[k * 2 + 1]);
+        }
+        g.fillRect(x(t), mid - hi * scale, 1, Math.max(1, (hi - lo) * scale));
+      }
+    }
+  }
+  drawPassage(g, x, h) {
+    const rate = this.track.rate,
+      start = this.passage.start / rate,
+      now = this.current();
+    if (now <= start) return;
+    g.fillStyle = "rgba(196,0,0,.12)";
+    g.fillRect(x(start), 0, x(now) - x(start), h);
+    g.fillStyle = "#C40000";
+    g.fillRect(x(start), 0, x(now) - x(start), 2);
+    this.drawSegments(g, x, h, this.passage.parts, "#C40000");
   }
   async selectBacking(key) {
     const epoch = this.runningEpoch ?? this.epoch;
@@ -924,8 +1171,7 @@ export class Recording {
     this.stream = stream;
     const input = (this.input = this.ctx.createMediaStreamSource(stream));
     this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 256;
-    this.meterValues = new Float32Array(256);
+    this.analyser.fftSize = 2048;
     this.inputLevel = this.ctx.createGain();
     this.inputLevel.gain.value = this.inputGain;
     input.connect(this.inputLevel);
@@ -965,8 +1211,6 @@ export class Recording {
     } else this.releaseMic();
     if (epoch !== this.epoch || arming !== this.armingEpoch) return;
     this.mode = mode;
-    if (mode === "record" && !this.playing)
-      this.status("Record armed. Press Play to begin replacing this passage.");
     if (this.playing) {
       this.schedule();
       if (mode === "record") this.beginCapture();
@@ -1042,7 +1286,7 @@ export class Recording {
     const level = this.ctx.createGain();
     level.gain.value = gain;
     source.connect(level);
-    level.connect(this.clip);
+    level.connect(local ? this.clip : this.backingBus);
     const entry = { gain: level, local };
     this.gains.push(entry);
     this.sources.push(source);
@@ -1110,9 +1354,6 @@ export class Recording {
       id: this.passage.id,
       start: anchor + start + offset,
     });
-    this.status(
-      "Recording. Only the passage crossed by the playhead will change.",
-    );
   }
   finishCapture() {
     if (!this.passage) return Promise.resolve();
@@ -1170,47 +1411,113 @@ export class Recording {
     this.sync();
     if (playing) await this.play();
   }
+  meter(name, analyser) {
+    let level = 0;
+    if (analyser) {
+      analyser.getFloatTimeDomainData((this.levels ??= new Float32Array(2048)));
+      for (const v of this.levels) level = Math.max(level, Math.abs(v));
+    }
+    if (name === "mic" && level >= 1 && !this.clipped) {
+      this.clipped = true;
+      this.sync();
+    }
+    const db = level > 0 ? 20 * Math.log10(level) : -99;
+    this.ui
+      .querySelector(`[data-meter="${name}"]`)
+      .style.setProperty("--lv", Math.max(0, Math.min(1, (db + 48) / 48)));
+  }
   tick() {
-    if (this.analyser) {
-      this.analyser.getFloatTimeDomainData(this.meterValues);
-      this.ui.querySelector("[data-meter]").value = Math.min(
-        1,
-        Math.max(...this.meterValues.map(Math.abs)),
-      );
-    } else this.ui.querySelector("[data-meter]").value = 0;
-    this.drawWave();
+    this.meter("mic", this.analyser);
+    this.meter("backing", this.playing && this.backingMeter);
+    const t = this.current();
+    if (this.grid) {
+      const { bar, beat } = this.grid.barAt(t);
+      this.ui.querySelector("[data-bar]").textContent = `${bar}.${beat}`;
+    }
+    this.ui.querySelector("[data-time]").textContent =
+      `${t < 0 ? "−" : ""}${clock(Math.abs(t))} / ${clock(this.duration ?? 0, false)}`;
+    this.draw();
+    this.showStatus();
     if (!this.playing) return;
     this.scheduleLocal();
     this.rememberAudition();
-    if (this.current() >= this.duration) {
+    if (t >= this.duration) {
       this.run(async () => {
         await this.pause();
         this.disarm();
         this.sync();
       });
     }
-    this.ui.querySelector('[data-control="position"]').value = this.current();
-    this.section.querySelectorAll("practice-audio").forEach((a) => a.update());
     this.player()?.dispatchEvent(new Event("timeupdate"));
   }
   sync() {
-    this.ui.querySelector('[data-action="play"]').textContent = this.playing
-      ? "Pause"
-      : "Play";
-    this.ui.querySelector('[data-control="mode"]').value = this.mode;
-    this.ui.querySelector('[data-control="position"]').value = this.current();
-    this.section.querySelectorAll("practice-audio").forEach((a) => a.update());
-    this.ui.querySelector('[data-action="undo"]').disabled = !this.track?.undo;
-    this.ui.querySelector('[data-action="download"]').title = this.audition
-      ? this.audition.solo
-        ? "Whole song, recording solo"
-        : `Whole song, recording mixed with ${this.audition.backing}`
-      : "Whole song, recording solo before any audition";
-    this.ui.querySelector("[data-backing]").textContent =
-      "Backing: " +
-      ({ src: "original", drums: "drums stem", drumless: "without drums" }[
-        this.selected
-      ] ?? this.selected + " sonification");
+    const ui = this.ui,
+      armed = this.mode === "record",
+      play = ui.querySelector('[data-action="play"]');
+    if (play.dataset.playing !== String(this.playing)) {
+      play.innerHTML = this.playing ? ICON.pause : ICON.play;
+      play.dataset.playing = this.playing;
+      play.setAttribute("aria-label", this.playing ? "Pause" : "Play");
+    }
+    ui.classList.toggle("armed", armed);
+    ui.classList.toggle("recording", armed && this.playing);
+    for (const b of ui.querySelectorAll('[data-action="record"]'))
+      b.setAttribute("aria-pressed", armed);
+    ui.querySelector('[data-action="mute"]').setAttribute(
+      "aria-pressed",
+      this.mode === "mute",
+    );
+    ui.querySelector('[data-action="solo"]').setAttribute(
+      "aria-pressed",
+      this.solo,
+    );
+    ui.querySelector('[data-action="undo"]').disabled = !this.track?.undo;
+    ui.querySelector('[data-action="clip"]').classList.toggle("on", !!this.clipped);
+    for (const b of ui.querySelectorAll("[data-view]"))
+      b.setAttribute("aria-pressed", b.dataset.view === this.zoom);
+    const select = ui.querySelector('[data-control="backing"]'),
+      keys = Object.keys(this.backingFiles()).filter(
+        (k) => this.backingFiles()[k],
+      );
+    if (select.dataset.keys !== String(keys)) {
+      select.replaceChildren(...keys.map((k) => new Option(label(k), k)));
+      select.dataset.keys = keys;
+    }
+    select.value = this.selected;
+    for (const key of ["backingGain", "trackGain", "inputGain"]) {
+      const db = toDb(this[key]),
+        input = ui.querySelector(`[data-control="${key}"]`);
+      if (document.activeElement !== input) input.value = db;
+      ui.querySelector(`[data-db="${key}"]`).textContent = dbText(db);
+    }
+    const a = this.audition;
+    ui.querySelector("[data-heard]").textContent = !a
+      ? "Whole song · your track alone, since you haven't listened to it with a backing yet"
+      : a.solo
+        ? "Whole song · your track solo, as you last listened"
+        : `Whole song · ${label(a.backing)} ${dbText(toDb(a.backingGain))} + your track ${dbText(toDb(a.trackGain))}, as you last listened`;
+    this.section.querySelectorAll("practice-audio").forEach((p) => p.update());
+    this.showStatus();
   }
 }
+addEventListener("keydown", (e) => {
+  const r = document.querySelector(".tabpanel.active section[data-song]")
+      ?.recording,
+    key = e.key.toLowerCase(),
+    undo = (e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z";
+  if (
+    !r?.supported ||
+    e.defaultPrevented ||
+    e.altKey ||
+    ((e.ctrlKey || e.metaKey) && !undo) ||
+    e.target.closest?.("input:not([type=range]), select, textarea, [contenteditable], dialog, #fbmenu")
+  )
+    return;
+  const action = undo
+    ? "undo"
+    : { " ": "play", r: "record", m: "mute", s: "solo", home: "home" }[key];
+  if (!action) return;
+  e.preventDefault();
+  r.act(action);
+});
 window.LocalRecording = { Recording };

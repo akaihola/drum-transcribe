@@ -47,7 +47,7 @@ UPLOAD_EXTS = AUDIO_EXTS | {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
 STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
-    "recording-wav.js", "recording-export.js",
+    "recording-wav.js", "recording-export.js", "recording-grid.js",
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -238,29 +238,85 @@ STYLE = """
   .delver { display: block; margin: 1.4rem 0 0 auto; font: inherit; font-size: .85rem;
             background: none; color: var(--ink-quiet); cursor: pointer;
             border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
-  .local-recording { border-top: 1px solid var(--hairline); padding: 1rem 0; margin: 1rem 0; }
-  .local-recording canvas { display: block; width: 100%; background: var(--card); border: 1px solid var(--hairline); margin: .6rem 0; cursor: crosshair; }
+  /* local recording: arrange view (toolbar, bar ruler, backing and drum lanes) */
+  .local-recording { margin: 1.2rem 0; background: var(--card); border: 1px solid var(--hairline); border-radius: 8px; }
+  .local-recording button { font: inherit; color: var(--ink); cursor: pointer; }
+  .local-recording button:disabled { opacity: .35; cursor: default; }
   .local-recording input { accent-color: var(--teal); }
-  .local-recording button, practice-audio button { font: inherit; font-size: .85rem;
-    border: 1.5px solid var(--hairline); border-radius: 999px; padding: .25rem .85rem;
-    background: var(--card); color: var(--ink); cursor: pointer; }
-  .local-recording button:disabled { opacity: .45; cursor: default; }
-  .local-recording button[data-action="play"] { background: var(--teal); color: white; border-color: var(--teal); }
-  .local-recording output[data-backing], .local-recording output[data-storage] { color: var(--ink-quiet); font-size: .9rem; }
-  .local-recording select, .local-recording input[type=number] { font: inherit; font-size: .9rem; }
-  practice-audio input { accent-color: var(--teal); }
-  .local-recording h3 { margin: 0; }
-  .local-recording p { max-width: 65ch; color: var(--ink-quiet); }
-  .record-controls { display: flex; flex-wrap: wrap; gap: .7rem 1.2rem; align-items: center; }
-  .record-controls label { display: inline-flex; gap: .4rem; align-items: center; }
-  .record-controls input[type=number] { width: 5rem; }
-  .record-controls input[type=range] { width: 7rem; }
-  .local-recording > label { display: flex; gap: .7rem; margin: .6rem 0; }
-  .local-recording > label input { flex: 1; }
-  practice-audio { display: flex; gap: .4rem; align-items: center; width: 100%; }
-  practice-audio input { min-width: 2rem; flex: 1; width: 0; }
-  practice-audio output { font-variant-numeric: tabular-nums; font-size: .8rem; }
-  practice-audio button { padding: .15rem .6rem; }
+  .local-recording output { font-variant-numeric: tabular-nums; }
+  .local-recording svg { width: 18px; height: 18px; fill: currentColor; }
+  .rec-bar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem;
+    padding: .55rem .8rem; border-bottom: 1px solid var(--hairline); }
+  .rec-key { width: 40px; height: 40px; flex: none; display: inline-grid; place-items: center; padding: 0;
+    border-radius: 50%; border: 1px solid var(--hairline); background: var(--card); }
+  .rec-key:hover:not(:disabled) { border-color: var(--ink-quiet); }
+  .local-recording .play { background: var(--teal); border-color: var(--teal); color: white; }
+  .local-recording .rec { color: var(--signal); }
+  .local-recording.armed .rec { animation: rec-blink 1s steps(1) infinite; }
+  .local-recording.recording .rec { animation: none; background: var(--signal); border-color: var(--signal); color: white; }
+  @keyframes rec-blink { 50% { background: var(--signal); border-color: var(--signal); color: white; } }
+  @media (prefers-reduced-motion: reduce) { .local-recording.armed .rec { animation: none; background: #F6D6D2; } }
+  .rec-count { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
+    background: var(--paper); border: 1px solid var(--hairline); }
+  .rec-count b { font-size: 1.5rem; line-height: 1.1; min-width: 3.2em; }
+  .rec-count span, .rec-bar output { font-size: .85rem; color: var(--ink-quiet); }
+  .local-recording.recording .rec-count { border-color: var(--signal); }
+  .local-recording.recording .rec-count b, .local-recording.armed [data-status] { color: var(--signal); }
+  .rec-view { display: flex; border: 1px solid var(--hairline); border-radius: 999px; overflow: hidden; }
+  .rec-view button { border: 0; background: none; padding: .25rem .8rem; font-size: .82rem; color: var(--ink-quiet); }
+  .rec-view [aria-pressed=true] { background: var(--ink); color: white; }
+  .rec-bar [data-status] { flex: 1 1 16rem; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rec-menu { position: absolute; z-index: 20; top: calc(100% + 4px); right: .6rem; width: 23rem; display: grid;
+    padding: .35rem; background: var(--card); border: 1px solid var(--hairline); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(35,32,25,.18); }
+  .rec-menu > * { display: grid; gap: .1rem; text-align: left; background: none; border: 0; border-radius: 6px; padding: .5rem .65rem; }
+  .rec-menu > button:hover { background: var(--paper); }
+  .rec-menu span, .rec-menu output { font-size: .8rem; color: var(--ink-quiet); }
+  .rec-menu input { width: 4.5em; font: inherit; font-size: .85rem; }
+  .rec-menu .danger b { color: var(--signal); }
+  .rec-grid { display: grid; grid-template-columns: 19rem 1fr; }
+  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text; touch-action: none; }
+  .rec-grid canvas[data-draw=ruler] { height: 26px; }
+  .rec-grid canvas[data-draw=track] { height: 110px; border-bottom: 0; }
+  .rec-head { position: relative; display: grid; gap: .3rem; align-content: start; padding: .45rem 1.9rem .45rem .6rem;
+    font-size: .85rem; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); border-left: 4px solid transparent; }
+  .rec-head.ruler { color: var(--ink-quiet); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; padding-top: .3rem; }
+  .rec-head.you { border-bottom: 0; border-radius: 0 0 0 8px; }
+  .local-recording.armed .rec-head.you { border-left-color: var(--signal); background: #FFF7F6; }
+  .rec-head > b { display: flex; justify-content: space-between; align-items: center; }
+  .rec-head select { font: inherit; font-size: .85rem; padding: .15rem .3rem; border: 1px solid var(--hairline);
+    border-radius: 6px; background: var(--paper); color: var(--ink); }
+  .rec-fader { display: flex; align-items: center; gap: .4rem; }
+  .rec-fader input { flex: 1; min-width: 0; }
+  .rec-fader output { font-size: .8rem; color: var(--ink-quiet); min-width: 4.4em; }
+  .rec-fader span { color: var(--ink-quiet); width: 1.8rem; }
+  .rec-t { width: 26px; height: 22px; display: inline-grid; place-items: center; padding: 0; margin-left: .25rem;
+    border-radius: 5px; border: 1px solid var(--hairline); background: var(--paper); font-size: .75rem; font-weight: 700; }
+  .local-recording .rec-t { color: var(--ink-quiet); }
+  .local-recording .rec-t.rec { color: var(--signal); }
+  .rec-t svg { width: 12px; height: 12px; }
+  .local-recording [data-action=mute][aria-pressed=true] { background: var(--brass); border-color: var(--brass); color: white; }
+  .local-recording [data-action=solo][aria-pressed=true] { background: var(--teal); border-color: var(--teal); color: white; }
+  .local-recording .rec-clip { font-size: .6rem; font-weight: 700; letter-spacing: .06em; padding: .2rem .3rem;
+    border-radius: 3px; border: 1px solid var(--hairline); background: var(--paper); color: #CFC8BB; }
+  .local-recording .rec-clip.on { background: var(--signal); border-color: var(--signal); color: white; }
+  .rec-meter { position: absolute; right: .5rem; top: .5rem; bottom: .5rem; width: 8px; overflow: hidden;
+    border-radius: 2px; background: #EEEAE2; }
+  .rec-meter i { position: absolute; inset: 0; clip-path: inset(calc(100% - var(--lv, 0) * 100%) 0 0 0);
+    background: linear-gradient(0deg, #2E9E5B 0 75%, #D9A400 75% 94%, var(--signal) 94%); }
+  .rec-meter::after { content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0 3px, var(--card) 3px 4px); }
+  /* flow-diagram cards choose the backing */
+  practice-audio, .soniline > practice-audio:first-child { flex: 0 0 auto; margin-right: auto; }
+  practice-audio button { display: inline-flex; align-items: center; gap: .45rem; font: inherit; font-size: .85rem;
+    color: var(--ink-quiet); background: var(--card); border: 1px solid var(--hairline); border-radius: 999px;
+    padding: .2rem .8rem .2rem .45rem; margin-top: .3rem; cursor: pointer; }
+  practice-audio button::before { content: ""; width: .8rem; height: .8rem; box-sizing: border-box;
+    border-radius: 50%; border: 2px solid currentColor; }
+  practice-audio button:hover { border-color: var(--teal); color: var(--teal-deep); }
+  practice-audio.on button { color: white; background: var(--teal); border-color: var(--teal); }
+  practice-audio.on button::before { background: white; border-color: white; box-shadow: inset 0 0 0 2px var(--teal); }
+  .player:has(practice-audio.on) { box-shadow: 0 0 0 2px var(--teal); background: #F1F7F8; }
   .delver:hover { color: var(--signal); border-color: var(--signal); }
   .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }
   .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
@@ -269,6 +325,7 @@ STYLE = """
     .flow > .player, .flow > .node-src,
     .flow > .soni[data-name="fused"] { grid-column: auto; }
     svg.arrows { display: none; }
+    .rec-grid { grid-template-columns: 12rem 1fr; }
   }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
