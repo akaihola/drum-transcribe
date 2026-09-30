@@ -229,6 +229,25 @@ and the presign step fall back to plain `python3`/`vastai`). See
   whose HTML changed — never one with a playing `<audio>` — after
   running their bars to 100 %. A new score keeps the selected score tab.
 
+## Phones (max-width 40rem)
+
+Pages carry a viewport meta (without it phones laid them out 980 px wide
+and shrank everything). `renderScores` engraves for the score's real width
+at `SCORE_SCALE` (default 45, `localStorage.scoreScale`), as one tall page
+(`pageHeight` 60000, narrow margins: no page numbers or gaps in the
+scroll), with the "Percussion"/"Perc" staff labels stripped from the XML.
+
+Three layout prototypes are being evaluated (September 2026), each a
+`static/mobile-<a|b|c>.css` + `.js` loaded only on narrow screens and
+picked with `?m=a|b|c|off` (remembered in `localStorage.mobile`; a strip
+at the top of the page switches): **A "Signal path"** — one scroll,
+fold-out cards on a metro-map line; **B "Music stand"** — score first,
+transport dock, pipeline map in a source sheet, follows the playing bar;
+**C "Drum pads"** — bottom tabs (Listen/Score/Files/Record), pipeline as a
+pad grid. They decorate the desktop DOM rather than replacing it, and
+re-apply on the `rendered` event that `build` and `refreshVersion`
+dispatch. Once one is chosen, the others and the switch go.
+
 ## Live progress (progress.py)
 
 Every stage line in `pipeline.log` is `== what == <UTC time>`
