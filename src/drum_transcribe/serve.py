@@ -625,7 +625,7 @@ const MOBILE = (() => {
 if (MOBILE) {
   document.documentElement.classList.add("mobile", `m-${MOBILE}`);
   document.write(`<link rel="stylesheet" href="/static/mobile-${MOBILE}.css">
-    <script type="module" src="/static/mobile-${MOBILE}.js"><\/script>`);
+    <script type="module" src="/static/mobile-${MOBILE}.js"><\\/script>`);
 }
 if (NARROW) document.addEventListener("DOMContentLoaded", () =>
   document.body.insertAdjacentHTML("afterbegin", `<nav class="mproto">prototype
@@ -1196,7 +1196,10 @@ async function renderScores(root) {
                   pageWidth: NARROW ? Math.round((box - 18) * 100 / SCORE_SCALE) : 2100,
                   svgAdditionalAttribute: ["measure@n"] });
   for (const el of root.querySelectorAll(".score[data-url]")) {
-    const xml = await fetch(el.dataset.url).then(r => r.text());
+    let xml = await fetch(el.dataset.url).then(r => r.text());
+    // Phones: the "Percussion"/"Perc" staff labels would eat a quarter of the width.
+    if (NARROW) xml = xml.replace(/<part-name>[^<]*<\\/part-name>/g, "<part-name></part-name>")
+      .replace(/<(part|instrument)-abbreviation>[^<]*<\\/\\1-abbreviation>/g, "");
     tk.loadData(xml);
     let svg = "";
     for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
