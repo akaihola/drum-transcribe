@@ -48,6 +48,7 @@ STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
     "recording-wav.js", "recording-export.js",
+    "recording-prototype.js", "recording-prototype.css",  # PROTOTYPE
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -522,6 +523,7 @@ __HELP__
 __CREATE_FORM__
 </div>
 <script type="module" src="/static/local-recording.js"></script>
+<script type="module" src="/static/recording-prototype.js"></script>
 <script>
 // Each version has its own address, /p/<project>/<version>.
 const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);
