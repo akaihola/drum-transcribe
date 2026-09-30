@@ -165,16 +165,17 @@ function drawPadArrows(grid) {
   const mid = (p, q) => (p.b + q.t) / 2 + 4.5;
   const down = (p, q) => `<path d="M${x(p, q)} ${p.b + 5}V${q.t - 6}"/>`;
   const text = (tx, ty, anchor, t) => `<text x="${tx}" y="${ty}" text-anchor="${anchor}">${t}</text>`;
-  const x1 = d.r - 18, x2 = m.l + 18;
+  // drums stem forks: straight down to adtof, an elbow across to mdx23c
+  const xd = x(d, a), xm = (m.l + m.r) / 2, ym = (d.b + m.t) / 2, r = 8;
   grid.querySelector("svg.parrows")?.remove();
   grid.insertAdjacentHTML("beforeend", `<svg class="parrows" aria-hidden="true">
     <defs><marker id="pa" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
       orient="auto"><path d="M0 0 L8 4 L0 8 z"/></marker></defs>
     <g class="lines">${down(s, d)}${down(s, l)}${down(d, a)}
-      <path d="M${x1} ${d.b + 5}L${x2} ${m.t - 6}"/>${down(a, f)}${down(m, f)}</g>
+      <path d="M${xd} ${d.b + 5}V${ym - r}Q${xd} ${ym} ${xd + r} ${ym}H${xm - r}Q${xm} ${ym} ${xm} ${ym + r}V${m.t - 6}"/>${down(a, f)}${down(m, f)}</g>
     ${text((x(s, d) + x(s, l)) / 2, mid(s, d), "middle", "Demucs")}
     ${text(x(d, a) - 9, mid(d, a), "end", "ADTOF")}
-    ${text((x1 + x2) / 2 + 14, mid(d, m) - 2, "start", "MDX23C")}
+    ${text((xd + xm) / 2, ym - 7, "middle", "MDX23C")}
     ${text(x(a, f) - 9, mid(a, f), "end", "hits")}
     ${text(x(m, f) + 9, mid(m, f), "start", "6 drum tracks")}</svg>`);
 }

@@ -137,7 +137,8 @@ svg.parrows { position: absolute; inset: 0; width: 100%; height: 100%; overflow:
 .mp-name b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 16px; }
 .mp-name .tic svg { display: block; width: 22px; height: 22px; color: var(--teal); }
 .mp-time { font-size: 14px; color: var(--ink-quiet); font-variant-numeric: tabular-nums; }
-.mplay input { grid-column: 1 / 3; width: 100%; height: 30px; margin: 0; accent-color: var(--teal); }
+.mplay input { grid-column: 1 / 3; width: 100%; height: 44px; margin: -7px 0; /* 44 px to hit, 30 to see */
+  accent-color: var(--teal); }
 .mp-btn { grid-row: 1 / 3; grid-column: 3; width: 52px; height: 52px; display: grid; place-items: center;
   padding: 0; border: 0; border-radius: 50%; background: var(--teal); color: #fff; cursor: pointer; }
 .mp-btn svg { width: 26px; height: 26px; }
