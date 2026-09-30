@@ -1179,7 +1179,7 @@ function seekToBar(section, bar) {
   const audio = audios.find(a => !a.paused) ||
                 lastAudio[section.dataset.song] || audios[0];
   if (!hit || !audio) return;
-  if (section.recording) {
+  if (section.recording?.supported) {
     section.recording.run(async () => { await section.recording.ready(); await section.recording.seek(Math.max(0,hit.t-.1)); await section.recording.play(); });
     return;
   }
@@ -1413,7 +1413,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
-        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js|recording-store\.js)", path):
+        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js|recording-store\.js|recording-wav\.js|recording-export\.js)", path):
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
