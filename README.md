@@ -149,9 +149,9 @@ submitted, the new version's tab opens. Per version:
 
 ## Record your own drums in the browser
 
-The `research/local-recording` branch adds one local drum track per version.
-The test app runs at [localhost:8766](http://localhost:8766/p/dancing-through-life/taustanauha).
-These changes have not been deployed to the usual laptop or cloud site.
+Each version can have one drum track of your own, recorded in the browser.
+On the laptop, open the app at [localhost:8765](http://localhost:8765/). The
+cloud site does not offer recording yet.
 
 Use desktop Chromium or Firefox, a device microphone and wired headphones.
 Recording needs localhost or a trusted HTTPS address. Ordinary HTTP from
