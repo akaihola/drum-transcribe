@@ -185,7 +185,7 @@ STYLE = """
   .tabpanel svg { max-width: 100%; height: auto; }
   .score { background: var(--card); border: 1px solid var(--hairline);
            border-radius: 8px; padding: .5rem; }
-  g.measure.now * { fill: var(--teal); stroke: var(--teal); }
+  g.measure.now * { color: var(--teal); fill: var(--teal); stroke: var(--teal); }
   .score svg { cursor: pointer; }
   form.create { border: 1px solid var(--hairline); background: var(--card);
                 border-radius: 8px; padding: 1rem 1.5rem; max-width: 34rem; margin: 1rem 0; }
@@ -201,6 +201,11 @@ STYLE = """
   .scorehead { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
                margin: 1.6rem 0 1.1rem; }
   .scorehead .grouplbl { margin: 0; }
+  .comment-toggle { font: inherit; cursor: pointer; min-height: 44px;
+    padding: .4rem .8rem; border: 1.5px solid var(--hairline);
+    border-radius: 999px; background: none; color: var(--ink-quiet); }
+  .comment-toggle[aria-pressed="true"] { border-color: var(--brass);
+    color: var(--brass); background: rgba(166,99,0,.1); }
   .meter { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
   .meter .mopt { padding: .3rem .55rem; }
   .meter .mopt svg { display: block; }
@@ -255,12 +260,17 @@ STYLE = """
   dialog#help .close { float: right; border: none; background: none;
                        font-size: 1.4rem; cursor: pointer; color: var(--ink-quiet); }
   .score g.note, .score g.rest, .score g.pgHead { cursor: pointer; }
-  .score g.fb * { fill: var(--brass); stroke: var(--brass); }
-  .score g.note:hover *, .score g.rest:hover *,
-  .score g.pgHead:hover * { fill: var(--teal-deep); stroke: var(--teal-deep); }
+  .score g.note.fb *, .score g.rest.fb *, .score g.pgHead.fb *,
+  .score g.measure.fb > g.barLine *, .score g.measure.fb > g.mNum * {
+    color: var(--brass); fill: var(--brass); stroke: var(--brass); }
+  .comment-mode .score g.note:hover *, .comment-mode .score g.rest:hover *,
+  .comment-mode .score g.pgHead:hover * {
+    color: var(--brass); fill: var(--brass); stroke: var(--brass); }
   #fbmenu { position: absolute; z-index: 10; background: var(--card);
             border: 1px solid var(--hairline); border-radius: 8px; padding: .8rem 1rem;
-            box-shadow: 0 6px 24px rgba(35,32,25,.18); font-size: .9rem; }
+            box-shadow: 0 6px 24px rgba(35,32,25,.18); font-size: .9rem;
+            box-sizing: border-box; width: min(22rem, calc(100vw - 1rem));
+            max-height: calc(100dvh - 1rem); overflow-y: auto; }
   #fbmenu label { display: block; margin: .15rem 0; }
   #fbmenu textarea { font: inherit; width: 100%; margin-top: .4rem;
                      border: 1.5px solid var(--hairline); border-radius: 8px; }
@@ -334,8 +344,8 @@ HELP_HTML = """
   <p>While any player is playing, the bar you are hearing is
   <span style="color:#0E7386"><b>highlighted in teal</b></span> in the scores
   of the same version.</p>
-  <p>It also works the other way: <b>click an empty spot in any bar</b> (not
-  on a note — that records feedback) and the recording plays from that bar.
+  <p>It also works the other way: <b>tap or click anywhere in any bar</b>,
+  including a note or rest, and the recording plays from that bar.
   It uses whichever player is already playing, or the one you listened to
   last, or the original.</p>
 
@@ -356,11 +366,18 @@ HELP_HTML = """
   data.</p>
 
   <h3>6. Giving feedback on the score</h3>
-  <p>Point at any note or rest in a score: it turns blue. Click it to record
-  what is wrong there (extra note, missing note, wrong rhythm&hellip; or
-  free text). Notes with saved feedback are tinted orange; hover to read the
-  note, click again to edit or remove it. Clicking the score's title takes
-  general feedback about the whole transcription. Feedback is stored with
+  <p>Turn on <b>Comment on symbols</b> above the score. Tap or click a note
+  or rest to record what is wrong there (extra note, missing note, wrong
+  rhythm&hellip; or free text). Tap empty space in a bar to comment on the
+  whole bar, such as a wrong time signature or a missing symbol. These
+  touches never start playback. Turn the switch off to play from bars again.</p>
+  <p>With a mouse, <b>right-click reverses the action</b>: it opens a symbol
+  or bar comment in playback mode, and plays from the bar in comment mode.
+  This does not change the switch.</p>
+  <p>Notes with saved feedback are tinted orange; bars with feedback have
+  orange barlines. Hover to read the comment, or use the commenting action
+  again to edit or remove it. Commenting on the score's title takes general
+  feedback about the whole transcription. Feedback is stored with
   the other result files (feedback.json). On the public cloud site, saving
   feedback, switching the meter or deleting a version asks for the site's
   password once per browser.</p>
@@ -821,6 +838,9 @@ function versionPieces(v) {
     score += `<div class="tabbar seg">` + scored.map((x, j) =>
       `<button class="${j ? "" : "active"}" data-target="s--${v.name}--${x.name}">${x.name}</button>`
     ).join("") + `</div>`;
+  if (scored.length)
+    score += `<button class="comment-toggle" type="button"
+      aria-pressed="false">Comment on symbols</button>`;
   score += meterCtl(v) + `</div>`;
   if (scored.length)
     score += scored.map((x, j) =>
@@ -996,6 +1016,9 @@ function setVolume(vol) {
 }
 
 async function renderScores(root) {
+  // Keep mode state out of the cached HTML used to detect changed results.
+  root.querySelectorAll(".comment-toggle").forEach(btn =>
+    btn.setAttribute("aria-pressed", String(commentMode)));
   await vrvReady;
   const tk = new verovio.toolkit();
   tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
@@ -1012,12 +1035,13 @@ async function renderScores(root) {
 }
 
 // ---- score feedback -------------------------------------------------------
-// A symbol is addressed as "<bar>:<index of note/rest within the bar>", or
-// "title" for the whole transcription; entries live in the variant's
-// feedback.json next to the other result files.
+// A symbol is addressed as "<bar>:<index of note/rest within the bar>",
+// a whole bar as "bar:<bar>", or the transcription as "title".
+// Entries live in the variant's feedback.json next to the other result files.
 const FB_LABELS = ["extra note", "missing note(s)", "wrong rhythm",
                    "wrong drum", "wrong time signature"];
 const fbMaps = {};  // panel id -> feedback map
+let commentMode = false;  // shared by every score for this page visit
 
 function fbContext(el) {
   const panel = el.closest('.tabpanel[id^="s--"]');
@@ -1027,6 +1051,7 @@ function fbContext(el) {
 
 function symbolKey(sym) {
   if (sym.classList.contains("pgHead")) return "title";
+  if (sym.classList.contains("measure")) return `bar:${sym.dataset.n}`;
   const measure = sym.closest("g.measure");
   const symbols = [...measure.querySelectorAll("g.note, g.rest")];
   return `${measure.dataset.n}:${symbols.indexOf(sym)}`;
@@ -1034,6 +1059,8 @@ function symbolKey(sym) {
 
 function findSymbol(scoreEl, key) {
   if (key === "title") return scoreEl.querySelector("g.pgHead");
+  if (key.startsWith("bar:"))
+    return scoreEl.querySelector(`g.measure[data-n="${key.slice(4)}"]`);
   const [bar, idx] = key.split(":");
   const measure = scoreEl.querySelector(`g.measure[data-n="${bar}"]`);
   return measure && [...measure.querySelectorAll("g.note, g.rest")][+idx];
@@ -1070,7 +1097,9 @@ function openFbMenu(sym, x, y) {
   const menu = document.createElement("div");
   menu.id = "fbmenu";
   menu.innerHTML =
-    `<b>${key === "title" ? "Feedback on this transcription" : "Feedback on this symbol"}</b>` +
+    `<b>${key === "title" ? "Feedback on this transcription" :
+      key.startsWith("bar:") ? `Feedback on bar ${sym.dataset.n}` :
+      "Feedback on this symbol"}</b>` +
     FB_LABELS.map(l => `<label><input type="checkbox" value="${l}"
       ${existing.labels.includes(l) ? "checked" : ""}> ${l}</label>`).join("") +
     `<textarea rows="2" placeholder="free text…"></textarea>
@@ -1083,6 +1112,11 @@ function openFbMenu(sym, x, y) {
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
   document.body.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${scrollX + Math.max(8,
+    Math.min(x - scrollX, innerWidth - r.width - 8))}px`;
+  menu.style.top = `${scrollY + Math.max(8,
+    Math.min(y - scrollY, innerHeight - r.height - 8))}px`;
   menu.addEventListener("click", async e => {
     const act = e.target.dataset?.act;
     if (!act) return;
@@ -1100,13 +1134,6 @@ function openFbMenu(sym, x, y) {
     menu.remove();
   });
 }
-
-document.addEventListener("click", e => {
-  if (e.target.closest("#fbmenu")) return;
-  document.getElementById("fbmenu")?.remove();
-  const sym = e.target.closest(".score g.note, .score g.rest, .score g.pgHead");
-  if (sym) openFbMenu(sym, e.pageX + 6, e.pageY + 6);
-});
 
 // While a version's audio plays, highlight the bar being heard in its scores.
 const barTimes = {};   // version name -> [{t, bar}]
@@ -1171,19 +1198,54 @@ function seekToBar(section, bar) {
   }
 }
 
-// Click a bar in a score: play from that bar.
-document.addEventListener("click", e => {
-  if (document.getElementById("fbmenu")) return;  // click just dismisses menu
+// One route for score gestures: touch/left-click follows the switch,
+// while the secondary mouse button reverses it without changing modes.
+function scoreGesture(e, commenting) {
+  if (e.target.closest("#fbmenu")) return;
+  document.getElementById("fbmenu")?.remove();
   const score = e.target.closest(".score");
-  if (!score || e.target.closest("g.note, g.rest, g.pgHead")) return;
-  const section = score.closest("section[data-song]");
-  for (const m of score.querySelectorAll("g.measure[data-n]")) {
-    const r = m.getBoundingClientRect();
-    if (e.clientX >= r.left && e.clientX <= r.right &&
-        e.clientY >= r.top && e.clientY <= r.bottom)
-      return seekToBar(section, +m.dataset.n);
+  if (!score) return;
+  const sym = e.target.closest("g.note, g.rest, g.pgHead");
+  let measure = e.target.closest("g.measure[data-n]");
+  if (!measure && !sym?.classList.contains("pgHead")) {
+    measure = [...score.querySelectorAll("g.measure[data-n]")].find(m => {
+      const r = m.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right &&
+             e.clientY >= r.top && e.clientY <= r.bottom;
+    });
   }
-}, true);
+  if (commenting) {
+    const target = sym || measure;
+    if (target) openFbMenu(target, e.pageX + 6, e.pageY + 6);
+  } else if (measure) {
+    seekToBar(score.closest("section[data-song]"), +measure.dataset.n);
+  }
+}
+
+document.addEventListener("click", e => {
+  if (e.button !== 0) return;
+  const toggle = e.target.closest(".comment-toggle");
+  if (toggle) {
+    commentMode = !commentMode;
+    document.body.classList.toggle("comment-mode", commentMode);
+    document.querySelectorAll(".comment-toggle").forEach(btn =>
+      btn.setAttribute("aria-pressed", String(commentMode)));
+    document.getElementById("fbmenu")?.remove();
+    return;
+  }
+  scoreGesture(e, commentMode);
+});
+
+// Older browsers expose contextmenu as a MouseEvent; remember the pointer
+// so a touch long-press can never become the mouse playback override.
+let lastPointerType = "mouse";
+document.addEventListener("pointerdown", e => { lastPointerType = e.pointerType; });
+document.addEventListener("contextmenu", e => {
+  if (!e.target.closest(".score")) return;
+  e.preventDefault();
+  if ((e.pointerType || lastPointerType) === "mouse")
+    scoreGesture(e, !commentMode);
+});
 
 // The MuseScore plugin POSTs /api/seek {bar}; poll it and apply the state.
 // The server owns the play/pause toggle (repeated bar = pause), so every

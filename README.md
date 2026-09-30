@@ -107,8 +107,8 @@ submitted, the new version's tab opens. Per version:
   versions get this track when their pipeline runs again;
 - while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
-- **click any bar in a score** (an empty spot, not a note) and the recording
-  plays from that bar;
+- **tap or click anywhere in a bar**, including a note or rest, and the
+  recording plays from that bar when the comment switch is off;
 - a **meter switch** above the score, showing the detected time signature:
   by default the bar lines are straightened automatically; choose the
   changing-meter option only if the piece really changes meter, and the
@@ -129,12 +129,18 @@ submitted, the new version's tab opens. Per version:
   starting up (usually 2–5 minutes). Results swap in by themselves as they
   finish, without reloading. The **pipeline log** is behind the gear
   button (top right);
-- **feedback on the notation**: point at any note or rest (it turns blue),
-  click to record what is wrong (extra note, missing note, wrong rhythm,
-  wrong drum, wrong time signature, or free text). Flagged notes are tinted
-  orange with the feedback shown on hover; click again to edit or remove.
-  Clicking the score title takes general feedback. Everything is saved in
-  the variant's `feedback.json`;
+- **feedback on the notation**: turn on **Comment on symbols** above the
+  score, then tap a note or rest to comment on it, or empty staff space to
+  comment on the whole bar. This can flag extra or missing notes, wrong
+  rhythm, drum or time signature, or take free text. Commenting touches
+  never start playback. With a mouse, right-click reverses the action:
+  comment when the switch is off, play from the bar when it is on. Saved
+  symbol comments tint the symbol orange; bar comments tint its barlines.
+  Hover to read a comment, or use the commenting action again to edit or
+  remove it. Commenting on the score title takes general feedback.
+  The switch applies across score and version tabs during the page visit;
+  reloading starts in playback mode. Everything is saved in the variant's
+  `feedback.json`;
 - a **Delete this version** button at the bottom, which removes the version
   and all its results for good (it asks first, and waits until processing
   has finished);

@@ -139,10 +139,22 @@ and the presign step fall back to plain `python3`/`vastai`). See
   `section[data-song]`; bar times computed from `beats.json` (bar counter
   increments on `positions[i]==1`). Highlight only — auto-scroll was removed
   on user request.
-- Click-to-play: clicking an empty spot in a bar seeks the version's audio
-  to that bar and plays. Measures are hit-tested by `getBoundingClientRect`
-  at click time (hidden tabs have no layout, so rects can't be precomputed);
-  note/rest clicks keep opening the feedback menu instead. Player choice
+- Score interaction: playback is the default. Touch/left-click anywhere in
+  a bar, including notes/rests, seeks the version's audio to that bar and
+  plays. The `Comment on symbols` button toggles `commentMode`, reflected
+  by `aria-pressed` and the body's `comment-mode` class. It applies across
+  every version/variant for this page visit and survives live score refresh;
+  reloading resets to playback. In comment mode, touch/left-click opens
+  feedback for the symbol or, on empty staff space, the whole bar, without
+  seeking or starting audio. Right-click reverses the action without
+  changing the mode. A `contextmenu` handler suppresses the native menu
+  inside scores and checks the pointer type, falling back to the last
+  `pointerdown` for older browsers, so touch long-press never invokes the
+  mouse override. `scoreGesture` handles both routes and keeps feedback
+  menu controls out of score actions. Measures use the clicked element's
+  ancestor first, then `getBoundingClientRect` hit-testing for empty SVG
+  space (hidden tabs have no layout, so rects can't be precomputed).
+  Playback on the score title does nothing, since it has no bar. Player choice
   (in `seekToBar`): currently playing > last played (`play` events, capture)
   > first in section. `preload="none"` means seek must wait for
   `loadedmetadata`.
@@ -242,12 +254,17 @@ finished`/`ERROR:`), maps each marker to a task (`src`, `gpu`, `drums`,
 ## Feedback
 
 Stored per variant in `feedback.json`:
-`{"<bar>:<symbol-index>": {"labels": [...], "text": "..."}, "title": {...}}`
+`{"<bar>:<symbol-index>": {"labels": [...], "text": "..."}, "bar:<bar>": {...}, "title": {...}}`
 where symbol-index counts `g.note, g.rest` in document order within the
 measure — stable across reloads for identical score files, NOT stable if a
 pipeline re-run changes the notation. Empty labels+text deletes the entry.
-UI: hover → blue; saved → orange + SVG `<title>` tooltip; `g.pgHead` click
-= whole-transcription feedback. Stored text is attacker-controlled input:
+Existing symbol and title keys remain compatible. Whole-bar comments use
+`bar:<bar>` and attach to `g.measure`; they tint its barlines and bar number
+orange without recoloring its notes. Saved symbol comments tint the symbol
+orange. Both get an SVG `<title>` tooltip. Hovering symbols in comment mode
+also turns them orange. The commenting action on `g.pgHead` opens
+whole-transcription feedback. The menu stays within the viewport, including
+on narrow touchscreens. Stored text is attacker-controlled input:
 put it in the DOM via `textContent`/`.value` only — it was once interpolated
 into the edit menu's `innerHTML`, where `</textarea><img onerror=…>` ran as
 script for whoever clicked the note.
