@@ -48,6 +48,7 @@ STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
     "recording-wav.js", "recording-export.js", "recording-grid.js",
+    *(f"mobile-{m}.{ext}" for m in "abc" for ext in ("css", "js")),
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -327,6 +328,31 @@ STYLE = """
     svg.arrows { display: none; }
     .rec-grid { grid-template-columns: 12rem 1fr; }
   }
+  /* phones, whichever layout prototype (or none) is on */
+  @media (max-width: 40rem) {
+    body { margin: .75rem; }
+    form.create { padding: .8rem 1rem; box-sizing: border-box; max-width: none; }
+    form.create input[type=text], form.create input[type=password] {
+      min-height: 48px; box-sizing: border-box; font-size: 17px; }
+    form.create input[type=file] { min-height: 48px; max-width: 100%; }
+    form.create button { min-height: 48px; width: 100%; }
+    form.create label:has(input[type=checkbox]) { display: flex; gap: .6rem;
+      align-items: center; min-height: 48px; }
+    form.create input[type=checkbox] { width: 22px; height: 22px; }
+    ul.projects { padding: 0; list-style: none; }
+    ul.projects li { margin: 0; border-bottom: 1px solid var(--hairline); padding: .7rem 0; }
+    ul.projects a { font-size: 1.15rem; font-weight: 500; }
+    dialog#help { max-width: none; width: calc(100vw - 1.5rem); box-sizing: border-box;
+                  padding: 1rem 1.1rem; max-height: 88dvh; }
+    dialog#help svg { max-width: 100%; height: auto; }
+    .rec-grid { grid-template-columns: 9.5rem 1fr; }
+  }
+  nav.mproto { display: flex; gap: .3rem; align-items: center; overflow-x: auto;
+    font-size: .75rem; color: var(--ink-quiet); margin: -.4rem 0 .6rem;
+    white-space: nowrap; }
+  nav.mproto a { padding: .35rem .7rem; border-radius: 999px; text-decoration: none;
+    border: 1px dashed var(--hairline); color: var(--ink-quiet); }
+  nav.mproto a.on { border: 1px solid var(--ink); color: var(--ink); font-weight: 700; }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
               background: var(--card); color: var(--ink); font: inherit;
@@ -554,6 +580,7 @@ async function submitCreate(form) {
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style></head>
 <body>
 __HELP__
@@ -581,8 +608,31 @@ fetch("/api/index").then(r => r.json()).then(d => {
 
 PROJECT_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
+<script>
+// Mobile layout prototypes (throwaway, phones only): ?m=a|b|c|off picks
+// one and this browser remembers it. Each is static/mobile-<m>.css + .js;
+// the page announces every (re)render of a version with a "rendered" event.
+const NARROW = matchMedia("(max-width: 40rem)").matches;
+const MOBILE = (() => {
+  const q = new URLSearchParams(location.search).get("m");
+  if (q) localStorage.mobile = q;
+  const m = localStorage.mobile || "a";
+  return NARROW && "abc".includes(m) ? m : null;
+})();
+if (MOBILE) {
+  document.documentElement.classList.add("mobile", `m-${MOBILE}`);
+  document.write(`<link rel="stylesheet" href="/static/mobile-${MOBILE}.css">
+    <script type="module" src="/static/mobile-${MOBILE}.js"><\/script>`);
+}
+if (NARROW) document.addEventListener("DOMContentLoaded", () =>
+  document.body.insertAdjacentHTML("afterbegin", `<nav class="mproto">prototype
+    ${[["a", "Signal path"], ["b", "Music stand"], ["c", "Drum pads"], ["off", "off"]]
+      .map(([k, t]) => `<a href="?m=${k}" class="${(MOBILE ?? "off") === k ? "on" : ""}">${t}</a>`)
+      .join("")}</nav>`));
+</script>
 </head>
 <body>
 __HELP__
@@ -884,6 +934,7 @@ window.addEventListener("resize", () =>
   document.querySelectorAll(".vtabs > .tabpanel.active").forEach(drawArrows));
 
 let vrvReady;
+let SCORE_SCALE = +(localStorage.scoreScale || 45);  // phones; % of Verovio size
 
 // Changing existing results needs the unlock password where the server is
 // throttled (the public site). Ask for it when refused, then retry — the
@@ -1008,6 +1059,7 @@ async function build() {
   if (versions.some(v => v.progress.job === "running")) pollProgress();
   requestAnimationFrame(() =>
     showPanel(document.querySelector(".vtabs > .tabpanel.active")));
+  document.dispatchEvent(new Event("rendered"));
 }
 
 // ---- live progress ------------------------------------------------------
@@ -1120,6 +1172,7 @@ async function refreshVersion(name) {
   showProgress(name, v.progress);
   loadBars(v);
   if (panel.classList.contains("active")) showPanel(panel);
+  document.dispatchEvent(new Event("rendered"));
 }
 
 // One shared volume for every player, remembered across page loads.
@@ -1134,8 +1187,13 @@ async function renderScores(root) {
     btn.setAttribute("aria-pressed", String(commentMode)));
   await vrvReady;
   const tk = new verovio.toolkit();
-  tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
-                  pageWidth: 2100, footer: "none",
+  // Phones: engrave for the actual width at a readable size (SCORE_SCALE,
+  // adjustable), instead of shrinking a desktop-wide page.
+  const box = root.querySelector(".stabs")?.clientWidth ||
+              document.getElementById("app").clientWidth;
+  tk.setOptions({ scale: NARROW ? SCORE_SCALE : 35, adjustPageHeight: true,
+                  breaks: "smart", footer: "none",
+                  pageWidth: NARROW ? Math.round((box - 18) * 100 / SCORE_SCALE) : 2100,
                   svgAdditionalAttribute: ["measure@n"] });
   for (const el of root.querySelectorAll(".score[data-url]")) {
     const xml = await fetch(el.dataset.url).then(r => r.text());
