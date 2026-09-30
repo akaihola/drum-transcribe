@@ -328,31 +328,6 @@ STYLE = """
     svg.arrows { display: none; }
     .rec-grid { grid-template-columns: 12rem 1fr; }
   }
-  /* phones, whichever layout prototype (or none) is on */
-  @media (max-width: 40rem) {
-    body { margin: .75rem; }
-    form.create { padding: .8rem 1rem; box-sizing: border-box; max-width: none; }
-    form.create input[type=text], form.create input[type=password] {
-      min-height: 48px; box-sizing: border-box; font-size: 17px; }
-    form.create input[type=file] { min-height: 48px; max-width: 100%; }
-    form.create button { min-height: 48px; width: 100%; }
-    form.create label:has(input[type=checkbox]) { display: flex; gap: .6rem;
-      align-items: center; min-height: 48px; }
-    form.create input[type=checkbox] { width: 22px; height: 22px; }
-    ul.projects { padding: 0; list-style: none; }
-    ul.projects li { margin: 0; border-bottom: 1px solid var(--hairline); padding: .7rem 0; }
-    ul.projects a { font-size: 1.15rem; font-weight: 500; }
-    dialog#help { max-width: none; width: calc(100vw - 1.5rem); box-sizing: border-box;
-                  padding: 1rem 1.1rem; max-height: 88dvh; }
-    dialog#help svg { max-width: 100%; height: auto; }
-    .rec-grid { grid-template-columns: 9.5rem 1fr; }
-  }
-  nav.mproto { display: flex; gap: .3rem; align-items: center; overflow-x: auto;
-    font-size: .75rem; color: var(--ink-quiet); margin: -.4rem 0 .6rem;
-    white-space: nowrap; }
-  nav.mproto a { padding: .35rem .7rem; border-radius: 999px; text-decoration: none;
-    border: 1px dashed var(--hairline); color: var(--ink-quiet); }
-  nav.mproto a.on { border: 1px solid var(--ink); color: var(--ink); font-weight: 700; }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
               height: 2.4rem; border-radius: 50%; border: 1.5px solid var(--hairline);
               background: var(--card); color: var(--ink); font: inherit;
@@ -392,6 +367,39 @@ STYLE = """
                         background: none; }
   #fbmenu .row button[data-act="save"] { background: var(--teal);
                                          border-color: var(--teal); color: #fff; }
+  /* phones, whichever layout prototype (or none) is on */
+  @media (max-width: 40rem) {
+    body { margin: .75rem; }
+    form.create { padding: .8rem 1rem; box-sizing: border-box; max-width: none; }
+    form.create input[type=text], form.create input[type=password] {
+      min-height: 48px; box-sizing: border-box; font-size: 17px; }
+    form.create input[type=file] { min-height: 48px; max-width: 100%; font: inherit;
+      font-size: .9rem; color: var(--ink-quiet); }
+    form.create input[type=file]::file-selector-button { font: inherit; color: var(--ink);
+      min-height: 44px; padding: 0 1.1rem; margin-right: .7rem; border-radius: 999px;
+      border: 1.5px solid var(--hairline); background: var(--card); }
+    form.create button { min-height: 48px; width: 100%; }
+    form.create label:has(input[type=checkbox]) { display: flex; gap: .6rem;
+      align-items: center; min-height: 48px; }
+    form.create input[type=checkbox] { width: 22px; height: 22px; }
+    ul.projects { padding: 0; list-style: none; }
+    ul.projects li { position: relative; margin: 0; padding: .7rem 0;
+                     border-bottom: 1px solid var(--hairline); color: var(--ink-quiet); }
+    ul.projects a { font-size: 1.15rem; font-weight: 500; }
+    ul.projects a::after { content: ""; position: absolute; inset: 0; }  /* whole row taps */
+    #gh-link { position: absolute; top: 1rem; right: 4.2rem; }
+    #gear-btn { right: 7.2rem; }
+    dialog#help { max-width: none; width: calc(100vw - 1.5rem); box-sizing: border-box;
+                  padding: 1rem 1.1rem; max-height: 88dvh; }
+    dialog#help svg { max-width: 100%; height: auto; }
+    .rec-grid { grid-template-columns: 9.5rem 1fr; }
+  }
+  nav.mproto { display: flex; gap: .3rem; align-items: center; overflow-x: auto;
+    font-size: .75rem; color: var(--ink-quiet); margin: -.4rem 0 .6rem;
+    white-space: nowrap; }
+  nav.mproto a { padding: .35rem .7rem; border-radius: 999px; text-decoration: none;
+    border: 1px dashed var(--hairline); color: var(--ink-quiet); }
+  nav.mproto a.on { border: 1px solid var(--ink); color: var(--ink); font-weight: 700; }
 """
 
 HELP_HTML = """
