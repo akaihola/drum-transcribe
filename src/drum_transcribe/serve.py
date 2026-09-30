@@ -588,7 +588,7 @@ async function submitCreate(form) {
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style></head>
 <body>
 __HELP__
@@ -616,7 +616,7 @@ fetch("/api/index").then(r => r.json()).then(d => {
 
 PROJECT_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 <script>
