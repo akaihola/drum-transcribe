@@ -75,7 +75,6 @@ STYLE = """
                                   margin-bottom: .4rem; }
   .player figcaption b, .sonihead b { color: var(--ink); font-size: 1rem; }
   .player audio { display: block; width: 100%; height: 2rem; }
-  .drumless { margin-top: 1rem; }
   .drumless figcaption { display: flex; flex-wrap: wrap;
                         align-items: center; gap: .3rem; }
   .drumless figcaption b { white-space: nowrap; }
@@ -101,12 +100,12 @@ STYLE = """
   .ic { width: 1.25em; height: 1.25em; vertical-align: -.3em; margin-right: .25em; }
   .grouplbl { display: block; font-weight: 500; color: var(--ink-quiet);
               margin: 1.4rem 0 .4rem; }
-  /* Rows: original → drums stem; adtof, mdx23c; fused centred below both. */
+  /* Rows: original; Demucs outputs; adtof, mdx23c; fused. */
   .flow { position: relative; display: grid; margin: .8rem 0 0;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 3rem 4rem; align-items: start; }
   .flow > .player { grid-column: span 2; }
-  .flow > .soni[data-name="fused"] { grid-column: 2 / span 2; }
+  .flow > .node-src, .flow > .soni[data-name="fused"] { grid-column: 2 / span 2; }
   svg.arrows { position: absolute; inset: 0; overflow: visible;
                pointer-events: none; color: var(--ink-quiet); }
   .soniline { display: flex; align-items: center; gap: .6rem; }
@@ -233,7 +232,8 @@ STYLE = """
   .score.placeholder .prog { max-width: 30rem; margin-top: .5rem; }
   @media (max-width: 64rem) {
     .flow { grid-template-columns: 1fr; gap: 1rem; }
-    .flow > .player, .flow > .soni[data-name="fused"] { grid-column: auto; }
+    .flow > .player, .flow > .node-src,
+    .flow > .soni[data-name="fused"] { grid-column: auto; }
     svg.arrows { display: none; }
   }
   #help-btn { position: fixed; top: 1rem; right: 1.2rem; width: 2.4rem;
@@ -696,7 +696,8 @@ function meterCtl(v) {
   </div>`;
 }
 
-// Derivation arrows: original -(Demucs)-> drums stem -> adtof, mdx23c;
+// Derivation arrows: original -(Demucs)-> without drums and drums stem;
+// drums stem -> adtof, mdx23c;
 // both of those -> fused. Drawn as an SVG overlay from live element
 // positions, so it survives any wrapping; redrawn on tab switches and
 // resizes (hidden panels have no layout).
@@ -735,7 +736,7 @@ function drawArrows(panel) {
   const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
                       stroke-width="1.5" marker-end="url(#arr)"/>`;
   const at = sel => rel(flow.querySelector(sel));
-  const src = at(".node-src"), drums = at(".node-drums"),
+  const src = at(".node-src"), drumless = at(".drumless"), drums = at(".node-drums"),
         adtof = at('[data-name="adtof"]'), mdx = at('[data-name="mdx23c"]'),
         fused = at('[data-name="fused"]');
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -743,7 +744,8 @@ function drawArrows(panel) {
   svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
     markerWidth="6.5" markerHeight="6.5" orient="auto">
     <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>` +
-    link(src, drums, "Demucs") + link(drums, adtof, "ADTOF") +
+    link(src, drumless, "Demucs") + link(src, drums, "Demucs") +
+    link(drums, adtof, "ADTOF") +
     link(drums, mdx, "MDX23C") + link(adtof, fused, "hits") +
     link(mdx, fused, "6 drum tracks");
   flow.appendChild(svg);
@@ -855,8 +857,8 @@ async function build() {
     html += `<div class="tabpanel ${v === shown ? "active" : ""}" id="v--${v.name}">
       <section data-song="${v.name}">${p.err}
       <div class="gpu" hidden>${IC_CLOUD}<b>cloud GPU</b>${progBar("gpu")}</div>
-      <div class="flow">${p.src}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
-      `</div>${p.drumless}${p.score}</section>
+      <div class="flow">${p.src}${p.drumless}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
+      `</div>${p.score}</section>
       <button class="delver" onclick="deleteVersion('${v.name}')">Delete this version</button></div>`;
   }
   html += `<div class="tabpanel ${shown ? "" : "active"}" id="v--__add"></div></div>`;

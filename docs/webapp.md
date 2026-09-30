@@ -28,9 +28,10 @@ without it browsers heuristically cache and render stale scores), and
 
 `scan_output` reports `drumless`, the URL of
 `stems/htdemucs/*/no_drums.flac`, alongside `source` and `drums`. A separate
-"without drums" card above the score plays this FLAC and offers a download
-named `<project>-<version>-without-drums.flac`. It uses the same shared
-volume, score following and play-from-bar controls as the other audio.
+"without drums" card beside the drums stem in the flow diagram plays this
+FLAC and offers a download named `<project>-<version>-without-drums.flac`.
+It uses the same shared volume, score following and play-from-bar controls
+as the other audio.
 Its progress follows the Demucs step; its file also changes the progress
 signature so it appears during a running job without reloading the page.
 
@@ -161,8 +162,9 @@ and the presign step fall back to plain `python3`/`vastai`). See
   tabbar ends with a "+ add a version" tab whose panel adopts the
   server-rendered `#addform` node. Meter-switch buttons (`.mopt`) share the
   tabbar styling but have no `data-target`, so the tab handler skips them.
-- The project page is a flow diagram per version, three rows on a 4-column
-  grid: original —Demucs→ drums stem; drums stem —ADTOF→ adtof and
+- The project page is a flow diagram per version, four rows on a 4-column
+  grid: original centred at the top; original —Demucs→ without drums and
+  drums stem, side by side; drums stem —ADTOF→ adtof and
   —MDX23C→ mdx23c; both of those → fused (centred below; "hits" from ADTOF,
   "6 drum tracks" from the MDX23C kit split). Pipeline cards hold the
   sonification player (slimmed to 2rem) with small download tiles on the
