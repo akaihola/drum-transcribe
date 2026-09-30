@@ -1,6 +1,9 @@
 import {LocalTrack, CapturePassage} from './recording-core.js';
 import {loadTrack, saveTrack, clearTrack, peaks} from './recording-store.js';
 let context, contextReady, active;
+async function fingerprint(bytes) {
+  return 'sha256:' + [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 const MEDIA = 'audio, yt-audio, practice-audio';
 class PracticeAudio extends HTMLElement {
   connectedCallback() {
@@ -41,6 +44,7 @@ export class Recording {
     this.sources = []; this.offset = 60; this.inputGain = 1;
     this.backingGain = 1; this.trackGain = 1; this.solo = false;
     this.key = `${project}/${version.name}`; this.epoch = 0; this.writes = Promise.resolve();
+    this.supported = isSecureContext && !!window.AudioWorkletNode;
     this.selected = 'src'; this.bindPlayers(); this.mount();
   }
   backingFiles() {
@@ -48,6 +52,7 @@ export class Recording {
       ...Object.fromEntries(this.version.variants.map(v => [v.name,v.files['sonification.ogg']]))};
   }
   bindPlayers() {
+    if (!this.supported) return;
     for (const [key, url] of Object.entries(this.backingFiles())) {
       const node = this.section.querySelector(`[data-piece="${key}"]`);
       const old = node?.querySelector(MEDIA); if (!old || !url) continue;
@@ -59,8 +64,14 @@ export class Recording {
   }
   update(version) {
     if (this.version.sourceIdentity !== version.sourceIdentity && this.track) {
-      this.sourceChanged = true; this.abortCapture('The backing source changed. Download your take, then Clear to start with the new source.');
-      this.run(async () => { await this.pause(); this.mode = 'mute'; this.sync(); });
+      this.run(async () => {
+        const r = await fetch(version.source); if (!r.ok) throw Error('The updated source could not be checked.');
+        const identity = await fingerprint(await r.arrayBuffer());
+        if (identity !== this.sourceIdentity) {
+          this.sourceChanged = true; this.abortCapture(''); await this.pause(); this.mode = 'mute'; this.releaseMic(); this.sync();
+          this.status('The backing source changed. Your prior recording is preserved. Reload to use the new song length.');
+        }
+      });
     }
     this.version = version; this.bindPlayers(); this.sync();
   }
@@ -81,6 +92,12 @@ export class Recording {
       <canvas data-wave height="100" role="img" aria-label="Saved recording waveform and playhead"></canvas>
       <div class="record-controls"><label>Microphone <meter data-meter min="0" max="1" high="0.95" value="0"></meter></label>
       <button data-action="undo" disabled>Undo last passage</button><button data-action="clear">Clear local track</button></div>
+      <div class="record-controls"><button data-action="download">Download WAV</button>
+      <label>Import audio <input data-import type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a"></label></div>
+      <details><summary>Recording help and timing</summary><p>Use localhost or HTTPS, a device microphone and wired headphones. The 60 ms capture correction is an unmeasured starting value. Adjust it with a known click or loopback recording. Positive values place new microphone audio earlier; they never move older passages. There is no count-in or live microphone echo.</p>
+      <p>Record while paused arms until Play. Pause keeps Record armed. Seeking disarms it. Recording replaces only the passage played, including silence. The source song sets the length.</p>
+      <p>Download contains the whole song with the last mix or solo you actually listened to with the recording audible. Paused changes and muted listening are ignored. Before that, download is solo. Volume changes listening only. Import replaces the track after validation and keeps leading silence and gaps. An imported mix already contains its backing; use Solo to hear it by itself.</p>
+      <p>Audio stays in this browser profile and website address, including its port. Browser cleanup or storage eviction can remove it. Download a copy before relying on it. Undo holds the last replaced passage during this visit. Clear frees this version's recording, waveform, Undo and remembered mix. Foreground desktop browsers are the initial target. Mobile and physical device latency have not been measured.</p><output data-estimates></output></details>
       <output data-status role="status">Choose Record to enable the microphone. Play begins the passage.</output>`;
     this.section.querySelector('.flow').after(this.ui);
     this.ui.querySelector('[data-action="play"]').onclick = () => this.run(() => this.playing ? this.pause() : this.play());
@@ -89,7 +106,12 @@ export class Recording {
     this.ui.querySelector('[data-control="position"]').oninput = e => this.run(() => this.seek(+e.target.value));
     for (const key of ['backingGain','trackGain','solo','inputGain']) this.ui.querySelector(`[data-control="${key}"]`).oninput = e => {
       this[key] = key === 'solo' ? e.target.checked : +e.target.value;
-      if (key !== 'inputGain') this.balance();
+      if (key !== 'inputGain') this.balance(); else if (this.inputLevel) this.inputLevel.gain.value = this.inputGain;
+    };
+    this.ui.querySelector('[data-action="download"]').onclick = () => this.run(() => this.download());
+    this.ui.querySelector('[data-import]').onchange = e => {
+      const file = e.target.files[0]; if (file) this.run(() => this.importAudio(file));
+      e.target.value = '';
     };
     this.ui.querySelector('[data-action="undo"]').onclick = () => this.run(async () => {
       await this.ready(); this.requireWriter(); await this.pause(); this.track.undoLast(); this.edited(); this.sync();
@@ -101,6 +123,10 @@ export class Recording {
     };
     this.resize = new ResizeObserver(() => { this.waveDirty = true; this.drawWave(); }); this.resize.observe(this.ui);
     window.addEventListener('pagehide', () => { this.abortCapture(''); this.releaseMic(); this.stopSources(); this.playing = false; this.mode = 'mute'; clearTimeout(this.auditionTimer); this.persist(); this.unlock?.(); this.writable = false; });
+    if (!this.supported) {
+      this.ui.querySelectorAll('button,input,select').forEach(control=>control.disabled=true);
+      this.status('Local recording needs HTTPS or localhost and a browser with AudioWorklet. The original players still work.');
+    }
     this.timer = setInterval(() => this.tick(), 100);
   }
   status(message) { this.ui.querySelector('[data-status]').textContent = message; }
@@ -112,6 +138,7 @@ export class Recording {
     return this.queue;
   }
   async ready() {
+    if (!this.supported) throw Error('Local recording needs HTTPS or localhost and AudioWorklet support.');
     if (this.track && this.bus) { this.ctx = await audioContext(); return; }
     if (!this.loading) this.loading = this.initialize().finally(() => this.loading = null);
     return this.loading;
@@ -121,9 +148,10 @@ export class Recording {
     if (!this.track) {
       const r = await fetch(this.version.source); if (!r.ok) throw Error('Backing could not be loaded. Try again.');
       this.backingKey = 'src';
-      this.backing = await this.ctx.decodeAudioData(await r.arrayBuffer());
+      const encoded = await r.arrayBuffer(); this.sourceIdentity = await fingerprint(encoded);
+      this.backing = await this.ctx.decodeAudioData(encoded);
       this.track = new LocalTrack(this.ctx.sampleRate, this.backing.length);
-      this.duration = this.backing.duration;
+      this.sourceFrames = this.backing.length; this.duration = this.backing.duration;
       await this.restore();
       this.ui.querySelector('[data-control="position"]').max = this.duration;
       this.bus = this.ctx.createGain(); this.bus.gain.value = +(localStorage.volume ?? 1);
@@ -149,7 +177,9 @@ export class Recording {
       if (saved) {
         if (saved.rate !== this.track.rate) throw Error('Saved audio uses a different sample rate. Open it with the original audio settings.');
         this.track.segments = saved.segments; this.audition = saved.audition;
-        this.sourceChanged = saved.sourceIdentity !== this.version.sourceIdentity || saved.length !== this.track.length;
+        if (this.audition && this.backingFiles()[this.audition.backing]) this.selected = this.audition.backing;
+        this.sourceChanged = saved.sourceIdentity !== this.sourceIdentity || saved.length !== this.track.length;
+        if (this.sourceChanged) { this.track.length = saved.length; this.duration = saved.length/this.track.rate; }
         if (this.audition) {
           this.backingGain = this.audition.backingGain; this.trackGain = this.audition.trackGain; this.solo = this.audition.solo;
           this.ui.querySelector('[data-control="backingGain"]').value = this.backingGain;
@@ -169,7 +199,7 @@ export class Recording {
   persist() {
     if (!this.track || !this.writable || this.sourceChanged) return;
     const epoch = this.epoch, segments = this.track.segments, undo = this.track.undo;
-    const state = {rate:this.track.rate,length:this.track.length,sourceIdentity:this.version.sourceIdentity,audition:this.audition};
+    const state = {rate:this.track.rate,length:this.track.length,sourceIdentity:this.sourceIdentity,audition:this.audition};
     this.writes = this.writes.catch(() => {}).then(async () => {
       if (epoch !== this.epoch) return;
       await saveTrack(this.key,state,segments,undo);
@@ -178,10 +208,73 @@ export class Recording {
     return this.writes;
   }
   edited() { for (const s of this.track.segments) peaks(s.data); this.waveDirty = true; this.drawWave(); this.persist(); this.sync(); }
+  cancelExport() {
+    this.exportWorker?.terminate(); this.exportWorker = null; this.exportReject?.(Error('Download cancelled because the track was cleared.')); this.exportReject = null;
+    if (this.downloadUrl) URL.revokeObjectURL(this.downloadUrl); this.downloadUrl = null;
+  }
+  async createWav() {
+    await this.ready(); await this.pause();
+    const mix = this.audition ?? {backingGain:0,trackGain:1,solo:true};
+    let backing = null;
+    if (!mix.solo && mix.backingGain > 0) {
+      if (this.sourceChanged) throw Error('The backing source changed. Your remembered mix cannot be reproduced. Listen with Solo enabled, then download to save your recording alone.');
+      const url = this.backingFiles()[mix.backing]; if (!url) throw Error('The remembered backing is unavailable. Try again after processing finishes.');
+      if (this.backingKey === mix.backing) backing = this.backing;
+      else { const r = await fetch(url); if (!r.ok) throw Error('The remembered backing could not be loaded.'); const bytes = await r.arrayBuffer(); this.backing = null; this.backingKey = null; backing = await this.ctx.decodeAudioData(bytes); this.backing = backing; this.backingKey = mix.backing; }
+    }
+    const epoch = this.epoch, track = this.track;
+    const channels = Math.max(backing?.numberOfChannels ?? 1,...track.segments.map(s=>s.data.channels.length),1);
+    return new Promise((resolve,reject) => {
+      const worker = this.exportWorker = new Worker('/static/recording-export.js',{type:'module'}); this.exportReject = reject;
+      const finish = () => { worker.terminate(); this.exportWorker = null; this.exportReject = null; };
+      worker.onerror = e => { finish(); reject(Error(e.message || 'WAV encoding failed. Your recording is safe.')); };
+      worker.onmessage = ({data}) => {
+        if (epoch !== this.epoch) { finish(); reject(Error('Download cancelled.')); return; }
+        if (data.type === 'done') { finish(); resolve(data.blob); }
+        else if (data.type === 'error') { finish(); reject(Error(data.message)); }
+        else if (data.type === 'need') {
+          const recording = [], original = [];
+          for (let c=0;c<channels;c++) {
+            recording.push(track.read(data.frame,data.size,c));
+            original.push(backing ? backing.getChannelData(Math.min(c,backing.numberOfChannels-1)).slice(data.frame,data.frame+data.size) : new Float32Array(0));
+          }
+          worker.postMessage({type:'block',recording,backing:original},[...recording,...original].map(a=>a.buffer));
+          this.status(`Preparing whole-song WAV: ${Math.round(data.frame/track.length*100)}%.`);
+        }
+      };
+      worker.postMessage({type:'start',rate:track.rate,length:track.length,channels,backingGain:mix.solo ? 0 : mix.backingGain,trackGain:mix.trackGain});
+    });
+  }
+  async download() {
+    const blob = await this.createWav();
+    if (this.downloadUrl) URL.revokeObjectURL(this.downloadUrl);
+    this.downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = this.downloadUrl; link.download = `${this.project}-${this.version.name}-local-recording.wav`; link.click();
+    this.status('Whole-song WAV downloaded using the last heard recording mix, or solo before any audition.');
+  }
+  async importAudio(file) {
+    const epoch = this.epoch; await this.ready(); this.requireWriter();
+    const buffer = await this.ctx.decodeAudioData(await file.arrayBuffer());
+    if (buffer.length > this.track.length) throw Error(`This audio is longer than the ${this.duration.toFixed(2)} second song. Import a file that fits; nothing was changed.`);
+    if (buffer.numberOfChannels > 2) throw Error('Import mono or stereo audio. Nothing was changed.');
+    const segments = [];
+    for (let start=0;start<buffer.length;start+=65536) {
+      const end = Math.min(buffer.length,start+65536), channels = [];
+      for (let c=0;c<buffer.numberOfChannels;c++) {
+        const data = buffer.getChannelData(c).slice(start,end);
+        if (!data.every(Number.isFinite)) throw Error('This audio contains invalid samples. Nothing was changed.'); channels.push(data);
+      }
+      segments.push({start,end,offset:0,data:{id:crypto.randomUUID(),channels}});
+    }
+    if (epoch !== this.epoch) return;
+    await this.pause(); if (epoch !== this.epoch) return;
+    this.mode = 'mute'; this.releaseMic(); this.track.replace(0,this.track.length,segments); this.edited();
+    this.status('Audio imported at song time zero. Solo hears any backing already mixed into the file.');
+  }
   async clear() {
-    await this.ready(); this.requireWriter(true); this.epoch++; clearTimeout(this.auditionTimer);
+    await this.ready(); this.requireWriter(true); this.epoch++; clearTimeout(this.auditionTimer); this.cancelExport();
     this.abortCapture(''); this.position = this.current(); this.playing = false; this.stopSources(); this.releaseMic();
-    this.mode = 'mute'; this.track.clear(); this.audition = null; this.sourceChanged = false; this.waveImage = null;
+    this.mode = 'mute'; this.track.clear(); this.track.length = this.sourceFrames; this.duration = this.sourceFrames/this.track.rate; this.audition = null; this.sourceChanged = false; this.waveImage = null;
     this.backingGain = this.trackGain = 1; this.solo = false;
     this.ui.querySelector('[data-control="backingGain"]').value = 1;
     this.ui.querySelector('[data-control="trackGain"]').value = 1;
@@ -194,7 +287,7 @@ export class Recording {
   releaseMic() {
     if (this.stream) for (const t of this.stream.getTracks()) { t.onended = t.onmute = null; t.stop(); }
     this.input?.disconnect(); this.capture?.disconnect(); this.analyser?.disconnect();
-    this.stream = this.input = this.capture = this.analyser = null;
+    this.inputLevel?.disconnect(); this.stream = this.input = this.capture = this.analyser = this.inputLevel = null;
   }
   drawWave() {
     const canvas = this.ui?.querySelector('[data-wave]'); if (!canvas || !this.track) return;
@@ -234,8 +327,9 @@ export class Recording {
     this.rememberAudition();
   }
   rememberAudition() {
-    if (!this.playing || this.mode !== 'playback' || this.trackGain <= 0 || !this.track?.segments.length) return;
-    this.audition = {backing:this.selected,backingGain:this.solo ? 0 : this.backingGain,trackGain:this.trackGain,solo:this.solo};
+    if (!this.playing || this.current() <= this.position + .005 || this.mode !== 'playback' || this.trackGain <= 0 || !this.track?.segments.length) return;
+    const audition = {backing:this.selected,backingGain:this.solo ? 0 : this.backingGain,trackGain:this.trackGain,solo:this.solo};
+    if (JSON.stringify(audition) === JSON.stringify(this.audition)) return; this.audition = audition;
     clearTimeout(this.auditionTimer); this.auditionTimer = setTimeout(() => this.persist(),250);
   }
   current() { return this.playing ? Math.min(this.duration, Math.max(this.position, this.ctx.currentTime - this.anchor)) : this.position; }
@@ -249,14 +343,17 @@ export class Recording {
     this.stream = stream;
     const input = this.input = this.ctx.createMediaStreamSource(stream);
     this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 256; this.meterValues = new Float32Array(256);
-    input.connect(this.analyser);
+    this.inputLevel = this.ctx.createGain(); this.inputLevel.gain.value = this.inputGain;
+    input.connect(this.inputLevel); this.inputLevel.connect(this.analyser);
     this.capture = new AudioWorkletNode(this.ctx, 'drum-capture', {outputChannelCount:[1]});
-    input.connect(this.capture); this.capture.connect(this.ctx.destination);
+    this.inputLevel.connect(this.capture); this.capture.connect(this.ctx.destination);
     this.capture.port.onmessage = ({data}) => {
       if (data.id !== this.passage?.id) return;
       if (data.type === 'samples') this.passage.add(data);
       if (data.type === 'done') this.completeCapture();
     };
+    const settings = stream.getAudioTracks()[0].getSettings();
+    this.ui.querySelector('[data-estimates]').textContent = `Browser estimates, not calibration: base ${Math.round(this.ctx.baseLatency*1000)} ms, output ${Math.round((this.ctx.outputLatency ?? 0)*1000)} ms, input ${settings.latency === undefined ? 'unknown' : Math.round(settings.latency*1000)+' ms'}. Speech processing: echo ${settings.echoCancellation ?? 'unknown'}, noise ${settings.noiseSuppression ?? 'unknown'}, automatic gain ${settings.autoGainControl ?? 'unknown'}.`;
     stream.getAudioTracks()[0].onended = stream.getAudioTracks()[0].onmute = () => {
       this.abortCapture('Microphone disconnected. The prior passage was kept.'); this.pause(); this.mode = 'mute'; this.sync();
     };
@@ -275,6 +372,8 @@ export class Recording {
     document.querySelectorAll('audio, yt-audio').forEach(a => a.pause());
     if (this.playing) return;
     if (this.passage) await this.finishCapture();
+    if (this.sourceChanged && !this.solo) throw Error('The source changed. Enable Solo to listen to and save your preserved recording. Reload and Clear to start with the new source.');
+    if (this.backingKey !== this.selected && !this.solo) await this.selectBacking(this.selected);
     if (this.position >= this.duration) this.position = 0;
     if (this.mode === 'record') { this.requireWriter(); await this.microphone(); }
     if (epoch !== this.epoch) return; active = this; this.playing = true; this.anchor = this.ctx.currentTime + .05 - this.position;
@@ -283,28 +382,38 @@ export class Recording {
   }
   stopSources() { for (const s of this.sources) { try { s.stop(); s.disconnect(); } catch {} } this.sources = []; for (const {gain} of this.gains ?? []) gain.disconnect(); this.gains = []; }
   player() { return this.section.querySelector(`practice-audio[data-backing="${this.selected}"]`); }
+  scheduleSource(buffer,start,end,offset,gain,local=false) {
+    const now = Math.max(this.ctx.currentTime+.005,this.anchor+this.current());
+    const lo = Math.max(this.current(),start,now-this.anchor), hi = Math.min(this.duration,end);
+    if (hi <= lo) return;
+    const source = this.ctx.createBufferSource(); source.buffer = buffer;
+    const level = this.ctx.createGain(); level.gain.value = gain; source.connect(level); level.connect(this.clip);
+    const entry = {gain:level,local}; this.gains.push(entry); this.sources.push(source);
+    source.onended = () => { source.disconnect(); level.disconnect(); this.sources = this.sources.filter(s=>s!==source); this.gains = this.gains.filter(g=>g!==entry); };
+    source.start(this.anchor+lo,offset+lo-start,hi-lo);
+  }
   schedule() {
-    this.stopSources(); this.gains = [];
-    const when = Math.max(this.ctx.currentTime + .005, this.anchor + this.current());
-    const position = Math.max(this.current(), when - this.anchor);
-    const source = (buffer, start, end, offset, gain, local = false) => {
-      const lo = Math.max(position, start), hi = Math.min(this.duration, end);
-      if (hi <= lo) return;
-      const s = this.ctx.createBufferSource(); s.buffer = buffer;
-      const g = this.ctx.createGain(); g.gain.value = gain; s.connect(g); g.connect(this.clip); this.gains.push({gain:g,local});
-      s.start(when + lo - position, offset + lo - start, hi - lo); this.sources.push(s);
-    };
-    source(this.backing,0,this.backing.duration,0,this.solo ? 0 : this.backingGain);
-    if (this.mode === 'playback') for (const s of this.track.segments) {
+    this.stopSources();
+    this.scheduleSource(this.backing,0,this.backing.duration,0,this.solo ? 0 : this.backingGain);
+    this.nextSegment = 0; this.scheduleLocal();
+  }
+  scheduleLocal() {
+    if (this.mode !== 'playback') return;
+    const position = this.current(), horizon = position+2;
+    while (this.nextSegment < this.track.segments.length) {
+      const s = this.track.segments[this.nextSegment];
+      if (s.start/this.track.rate > horizon) break;
+      this.nextSegment++;
+      if (s.end/this.track.rate <= position) continue;
       const buffer = this.ctx.createBuffer(s.data.channels.length,s.data.channels[0].length,this.ctx.sampleRate);
-      s.data.channels.forEach((c,i) => buffer.copyToChannel(c,i));
-      source(buffer,s.start/this.track.rate,s.end/this.track.rate,s.offset/this.track.rate,this.trackGain,true);
+      s.data.channels.forEach((c,i)=>buffer.copyToChannel(c,i));
+      this.scheduleSource(buffer,s.start/this.track.rate,s.end/this.track.rate,s.offset/this.track.rate,this.trackGain,true);
     }
   }
   beginCapture() {
     const rate = this.track.rate, start = Math.round(this.current()*rate);
     const offset = Math.round(this.offset * rate / 1000), anchor = Math.round(this.anchor*rate);
-    this.passage = new CapturePassage({id:crypto.randomUUID(),start,anchor,offset,gain:this.inputGain,length:this.track.length});
+    this.passage = new CapturePassage({id:crypto.randomUUID(),start,anchor,offset,gain:1,length:this.track.length});
     this.capture.port.postMessage({type:'start',id:this.passage.id,start:anchor+start+offset});
     this.status('Recording. Only the passage crossed by the playhead will change.');
   }
@@ -329,7 +438,7 @@ export class Recording {
   }
   abortCapture(message) { this.capture?.port.postMessage({type:'cancel'}); this.endCapture(); this.status(message); }
   async pause() {
-    if (!this.playing) return;
+    if (!this.playing) return; this.rememberAudition();
     const finishing = this.finishCapture(); this.position = this.current(); this.playing = false; this.stopSources(); this.sync(); await finishing;
   }
   async seek(position) {
@@ -339,9 +448,9 @@ export class Recording {
   tick() {
     if (this.analyser) {
       this.analyser.getFloatTimeDomainData(this.meterValues);
-      this.ui.querySelector('[data-meter]').value = Math.min(1,Math.max(...this.meterValues.map(Math.abs))*this.inputGain);
+      this.ui.querySelector('[data-meter]').value = Math.min(1,Math.max(...this.meterValues.map(Math.abs)));
     } else this.ui.querySelector('[data-meter]').value = 0;
-    this.drawWave(); if (!this.playing) return;
+    this.drawWave(); if (!this.playing) return; this.scheduleLocal(); this.rememberAudition();
     if (this.current() >= this.duration) { this.run(async () => { await this.pause(); this.mode = 'mute'; this.releaseMic(); this.sync(); }); }
     this.ui.querySelector('[data-control="position"]').value = this.current();
     this.section.querySelectorAll('practice-audio').forEach(a => a.update());

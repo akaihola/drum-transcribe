@@ -24,6 +24,7 @@ export async function loadTrack(key) {
 }
 export async function saveTrack(key, state, segments, undo) {
   const db = await openStore(), tx = db.transaction(['tracks','chunks'],'readwrite'), completed = done(tx);
+  try {
   const chunks = tx.objectStore('chunks'), refs = new Map([...segments,...(undo ?? [])].map(s=>[s.data.id,s.data]));
   // One transaction publishes the replacement map and all of its chunks.
   const cursor = chunks.openCursor(range(key)); cursor.onsuccess = () => {
@@ -33,9 +34,10 @@ export async function saveTrack(key, state, segments, undo) {
   for (const data of refs.values()) {
     // Existing immutable chunks need no new structured-clone copy.
     const k = [key,data.id], found = chunks.getKey(k);
-    found.onsuccess = () => { if (found.result === undefined) chunks.put(data,k); };
+    found.onsuccess = () => { try { if (found.result === undefined) chunks.put(data,k); } catch { tx.abort(); } };
   }
   tx.objectStore('tracks').put({...state,segments:segments.map(({data,...s})=>({...s,id:data.id}))},key);
+  } catch (error) { tx.abort(); await completed.catch(()=>{}); throw error; }
   await completed;
 }
 export async function clearTrack(key) {
