@@ -7,7 +7,8 @@ intermediate result is saved so mistakes can be found, heard, and fixed.
 
 1. **Isolate the drums.** A neural network ([Demucs][demucs]) separates the drum kit
    from the rest of the music, producing a "drums stem" — the same recording
-   with only the drums audible.
+   with only the drums audible. It also saves the rest of the band as a
+   **without-drums track** for playing along on your own kit.
 2. **Find the beat.** Another model ([beat_this][beat-this]) marks every beat and every
    bar line (downbeat) in time, like a conductor tapping along. The model
    sometimes stumbles for a stretch — doubling the tempo or hearing a bar
@@ -98,6 +99,12 @@ submitted, the new version's tab opens. Per version:
   them a few seconds after the mouse leaves). Clicking a bar and the
   MuseScore plugin control it just like the other players. Until the
   recording has been downloaded, a progress bar stands in its place;
+- a **without drums** player above the score, with a **Download FLAC** link.
+  FLAC compresses audio without losing quality. The stereo, 24-bit track
+  plays on Android and imports into Ableton Live. It has the same timing as
+  the original, so you can click a bar in the score to start there after
+  choosing this player. Separation can leave some drums audible. Older
+  versions get this track when their pipeline runs again;
 - while any player plays, the **bar being heard is highlighted in teal** in
   the scores;
 - **click any bar in a score** (an empty spot, not a note) and the recording
@@ -166,8 +173,9 @@ uv run drum-transcribe run song.mp3 --variant fused
 project needs the first time it runs.)
 
 Results land in `output/<project>/<version>/<variant>/`; the source
-recording, beat grid and drums stem are shared per version. Everything runs
-on a normal CPU; a 3-minute song takes a few minutes with adtof, while
+recording, beat grid, drums stem and without-drums track are shared per
+version. Everything runs on a normal CPU; a 3-minute song takes a few minutes
+with adtof, while
 mdx23c is much slower (roughly 10× the song length).
 
 For the slow mdx23c processing there is a shortcut: the same pipeline can

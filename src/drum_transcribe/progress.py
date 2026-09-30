@@ -83,8 +83,9 @@ def version_progress(vdir: Path, running: bool) -> dict:
     (queued, running, arriving, failed, stopped), a percentage, seconds
     until it is ready (None when that can't be told) and what it is doing.
     """
+    drumless = any(vdir.glob("stems/htdemucs/*/no_drums.flac"))
     ready = {"src": any(vdir.glob("source.*")),
-             "drums": any(vdir.glob("stems/htdemucs/*/drums.flac")),
+             "drums": any(vdir.glob("stems/htdemucs/*/drums.flac")) and drumless,
              **{v: (vdir / v / "sonification.ogg").exists() for v in VARIANTS}}
     log = vdir / "pipeline.log"
     text = log.read_text(errors="replace") if log.exists() else ""
@@ -101,8 +102,11 @@ def version_progress(vdir: Path, running: bool) -> dict:
     if job in ("stopped", "failed"):
         tasks = {t: {"state": job, "pct": 0, "eta": None, "activity": ""}
                  for t in ready if not ready[t]}
+    if not drumless and "drums" in tasks:
+        tasks["drumless"] = tasks["drums"]
     # changes whenever the page has something new to show
     results = [*vdir.glob("source.*"), *vdir.glob("stems/htdemucs/*/drums.flac"),
+               *vdir.glob("stems/htdemucs/*/no_drums.flac"),
                *vdir.glob("*/sonification.ogg"), *vdir.glob("*/score.musicxml"),
                vdir / "beats.json", vdir / "keep-raw-bars"]
     sig = " ".join([str(job), *(f"{f.relative_to(vdir)}@{f.stat().st_mtime_ns}"

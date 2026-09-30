@@ -75,6 +75,11 @@ STYLE = """
                                   margin-bottom: .4rem; }
   .player figcaption b, .sonihead b { color: var(--ink); font-size: 1rem; }
   .player audio { display: block; width: 100%; height: 2rem; }
+  .drumless { margin-top: 1rem; }
+  .drumless figcaption { display: flex; flex-wrap: wrap;
+                        align-items: center; gap: .3rem; }
+  .drumless figcaption b { white-space: nowrap; }
+  .drumless .download { margin-left: auto; white-space: nowrap; }
   /* Chromium: volume lives in the one shared slider (.vol), not per player */
   audio::-webkit-media-controls-mute-button,
   audio::-webkit-media-controls-volume-slider,
@@ -492,6 +497,7 @@ const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
 const INFO = {
   original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. For a YouTube link this is YouTube's own player; point at it to see its controls.",
   drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
+  drumless: "The rest of the band, with the drums removed by Demucs. Play along on your own kit. Some drum sound may remain. Download the lossless FLAC to play on Android or import into Ableton Live.",
   sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
   adtof: "A neural network trained to read a full drum mix straight into notes. The most reliable pipeline, and the first to finish.",
   mdx23c: "First splits the drums into six per-drum tracks (kick, snare, toms, hi-hat, ride, crash), then detects hits in each track separately. Can tell ride from crash, but tends to over-detect.",
@@ -535,9 +541,9 @@ const audioTag = url => url && `<audio controls preload="none" src="${url}"></au
 
 // One source/derived audio node in the flow diagram; a progress bar until
 // its player exists.
-function node(task, cls, icon, label, info, player) {
+function node(task, cls, icon, label, info, player, download = "") {
   return `<figure class="player node ${cls} ${player ? "" : "waiting"}" data-piece="${task}">
-    <figcaption>${icon}<b>${label}</b>${info}</figcaption>
+    <figcaption>${icon}<b>${label}</b>${info}${download}</figcaption>
     ${player || progBar(task)}
   </figure>`;
 }
@@ -798,6 +804,11 @@ function versionPieces(v) {
                                     : audioTag(v.source)),
     drums: node("drums", "node-drums", IC_DRUM, "drums stem", infoBtn(v.name, "drums"),
                 audioTag(v.drums)),
+    drumless: node("drumless", "drumless", IC_WAVE, "without drums",
+                  infoBtn(v.name, "drumless"), audioTag(v.drumless),
+                  v.drumless ? `<a class="download" href="${v.drumless}"
+                    download="${PROJECT}-${v.name}-without-drums.flac"
+                    title="Lossless audio for Android and Ableton Live">Download FLAC</a>` : ""),
   };
   for (const name of VARIANTS) pieces[name] = soniRow(v, name);
   const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
@@ -845,7 +856,7 @@ async function build() {
       <section data-song="${v.name}">${p.err}
       <div class="gpu" hidden>${IC_CLOUD}<b>cloud GPU</b>${progBar("gpu")}</div>
       <div class="flow">${p.src}${p.drums}` + VARIANTS.map(n => p[n]).join("") +
-      `</div>${p.score}</section>
+      `</div>${p.drumless}${p.score}</section>
       <button class="delver" onclick="deleteVersion('${v.name}')">Delete this version</button></div>`;
   }
   html += `<div class="tabpanel ${shown ? "" : "active"}" id="v--__add"></div></div>`;
@@ -1274,6 +1285,7 @@ def scan_output(root: Path) -> dict:
             rel = f"/files/{project_dir.name}/{vdir.name}"
             sources = sorted(vdir.glob("source.*"))
             drums = sorted(vdir.glob("stems/htdemucs/*/drums.flac"))
+            drumless = sorted(vdir.glob("stems/htdemucs/*/no_drums.flac"))
             log = vdir / "pipeline.log"
             variants = []
             for variant_dir in sorted(p for p in vdir.iterdir() if p.is_dir()):
@@ -1311,6 +1323,8 @@ def scan_output(root: Path) -> dict:
                 "irregular": irregular,
                 "raw_bars": (vdir / "keep-raw-bars").exists(),
                 "drums": f"{rel}/{drums[0].relative_to(vdir)}" if drums else None,
+                "drumless": f"{rel}/{drumless[0].relative_to(vdir)}"
+                if drumless else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
                 "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
                 "tracked": (vdir / "beats.json").exists(),

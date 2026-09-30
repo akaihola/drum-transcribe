@@ -5,7 +5,13 @@ musical simplification; every intermediate inspectable and re-runnable.
 
 ## Stages
 
-1. **Demucs htdemucs** two-stem split → drums stem (shared per version).
+1. **Demucs htdemucs** two-stem split → drums stem and without-drums
+   accompaniment, shared per version. `--other-method add` sums the model's
+   non-drum stems into `stems/htdemucs/source/no_drums.flac`. Both tracks
+   are saved as stereo, 24-bit FLAC at the model's 44.1 kHz sample rate.
+   Both must exist to reuse this stage's cache, so old drums-only results
+   get the accompaniment on their next run. The web app plays the
+   accompaniment and offers a lossless download for Android and Ableton Live.
 2. **beat_this** → `beats_raw.json` (tracker output) + `beats.json` (the
    effective grid everything else uses): beat times + position-in-bar. Bar
    numbers = cumulative downbeat count; beats before the first downbeat form

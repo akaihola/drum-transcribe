@@ -26,6 +26,14 @@ without it browsers heuristically cache and render stale scores), and
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
 | `GET /files/**` | static from the output root |
 
+`scan_output` reports `drumless`, the URL of
+`stems/htdemucs/*/no_drums.flac`, alongside `source` and `drums`. A separate
+"without drums" card above the score plays this FLAC and offers a download
+named `<project>-<version>-without-drums.flac`. It uses the same shared
+volume, score following and play-from-bar controls as the other audio.
+Its progress follows the Demucs step; its file also changes the progress
+signature so it appears during a running job without reloading the page.
+
 `scan_output` also derives per-version: `error` (log tail contains
 "ERROR:"), `tracked` (beats.json exists), `progress` (same as
 `/api/progress`), and `irregular`/`raw_bars` — whether `regularize()`

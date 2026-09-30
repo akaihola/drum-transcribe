@@ -42,7 +42,8 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 `output/<project>/<version>/` holds `source.*`, `beats_raw.json` (tracker
 output), `beats.json` (effective grid: barlines repaired unless a
 `keep-raw-bars` flag file is present), `pipeline.log`,
-`stems/htdemucs/source/drums.flac`, `stems/mdx23c/*.flac`, and per variant
+`stems/htdemucs/source/drums.flac`, `stems/htdemucs/source/no_drums.flac`
+(without-drums accompaniment), `stems/mdx23c/*.flac`, and per variant
 (`adtof/`, `mdx23c/`, `fused/`): `onsets.json`, `events.json`, `audition.mid`,
 `sonification.ogg` (Opus), `score.musicxml`, `score.mscz?`, `mscz-problems.txt?`,
 `feedback.json?`.

@@ -10,6 +10,7 @@ so results from different pipelines never mix):
     output/<song>/source.<ext>                 copy of the input recording
     output/<song>/beats.json                   beat/downbeat grid (shared)
     output/<song>/stems/htdemucs/.../drums.flac separated drums (shared)
+    output/<song>/stems/htdemucs/.../no_drums.flac accompaniment (shared)
     output/<song>/stems/mdx23c/*.flac          per-drum stems (mdx23c variant)
     output/<song>/<variant>/onsets.json        detected hits
     output/<song>/<variant>/events.json        quantized events
