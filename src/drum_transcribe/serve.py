@@ -452,19 +452,22 @@ HELP_HTML = """
   data.</p>
 
   <h3>Local drum recording</h3>
-  <p>Each version can keep your own drum track in this browser. Choose a backing
-  player, select <b>Record</b>, then Play. Use wired headphones. There is no live
-  microphone echo. Pause keeps Record armed; any seek disarms it. Recording
-  replaces only the passage played, including silence. Undo restores the last
-  passage. Choose <b>Play back</b> to mix your take with a player, or enable Solo.</p>
-  <p>Download WAV saves the whole song with the last mix or solo you listened to
-  with your recording audible. Paused changes and muted listening are ignored.
-  Volume affects listening only. Import replaces the local track after checking
-  the file; a finished mix already includes its backing. Clear frees this
-  version's recording and remembered mix. Browser recordings are separate for
-  each address, port and browser profile. Recording needs HTTPS or localhost.
-  The 60 ms correction is a starting guess, not measured device latency. More
-  detail is in Recording help and timing below the players.</p>
+  <p>Each version can keep your own drum track in this browser. Use wired
+  headphones. Choose what to play along to with <b>Use as backing</b> in the
+  diagram or in the Backing lane below it. Press &#9679; and then &#9654; (or R,
+  then Space): playback starts two bars early and recording starts at the
+  playhead. From the very beginning you get a two-bar metronome count-in.
+  Pressing &#9679; while playing punches in at once; pressing it again punches
+  out. Pause keeps recording armed; jumping elsewhere disarms it. Only the
+  passage the playhead crosses is replaced, and &#8630; undoes the last one.
+  M mutes your track, S plays it alone. You never hear the microphone itself.</p>
+  <p>The &#8943; menu exports the whole song as a WAV with the mix you last
+  listened to (the menu shows it), imports an audio file as your track, sets
+  the latency correction (60&nbsp;ms is a starting guess, not a measurement)
+  and clears your track. The volume slider changes only what you hear.
+  Recordings are separate for each address, port and browser profile, and
+  need HTTPS or localhost. Keys: Space play/pause, R record, M mute, S solo,
+  Home back to start, Ctrl+Z undo.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Turn on <b>Comment on symbols</b> above the score. Tap or click a note

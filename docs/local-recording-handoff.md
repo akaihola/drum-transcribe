@@ -284,3 +284,10 @@ runner uses a fake device; the Chromium snippets run after a trusted mouse click
 initializes the AudioContext. Keep shared output fixtures read-only. Future work
 should start with the real wired timing measurement and HTTPS origin check,
 then mobile memory tests, rather than adding more editing controls.
+
+The settled arrange view and two-bar lead-in were added on 2026-09-30. The
+Firefox runner passes every snippet, including a two-bar pre-roll before
+00:40, count-in clicks from 0:00 on the beat grid, and a pause during the
+count-in that records nothing. `checks/recording-grid.mjs` covers bar
+numbering with a pickup, lead-in length and count-in clicks. Whether the
+clicks sound on time through real headphones has not been measured.

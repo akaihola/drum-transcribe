@@ -280,8 +280,19 @@ script for whoever clicked the note.
 `local-recording.js` adds one `Recording` per version once its source is ready,
 including when live progress supplies that source. On secure pages with
 AudioWorklet support, `practice-audio` replaces the native players and YouTube
-iframe with controls for one transport. The six backing nodes share song time,
-score highlighting and seeking. Insecure pages keep the original players.
+iframe with a "Use as backing" button; it keeps the media-element interface
+(`paused`, `currentTime`, `play()`, `volume`, events) that score highlighting,
+click-a-bar and MuseScore polling use. The one transport lives in the arrange
+view mounted after `.flow`: a toolbar (transport, bar.beat counter, Undo,
+whole-song/follow-16-bars view, status line, ⋯ menu with export, import,
+latency and Clear), a bar ruler, a Backing lane and a Your drums lane, all
+canvases whose static layer is cached per view and redrawn with the playhead
+every 50 ms tick. Clicking or dragging any canvas seeks. Takes are runs of
+segments sharing a `take` id (older data: the chunk id without its frame
+suffix). Saved takes are drawn from IndexedDB (`preview`) before the first
+user gesture creates the AudioContext. Space, R, M, S, Home and Ctrl/Cmd+Z act
+on the visible version unless focus is in a text field, select or dialog.
+Insecure pages keep the original players.
 Version changes stop/disarm recording and release the decoded backing. Refreshes
 rebind changed controls without replacing the track or active audio graph.
 Changed progress signatures invalidate the decoded backing for the next Play,
@@ -294,6 +305,17 @@ backings. Local chunks are scheduled two seconds ahead, rather than creating
 sources for a whole song at once. A WaveShaper clips the sum to [-1,1] before
 the listening-only master gain. Solo silences backing during Play back; Mute
 and Record still play backing. Record never plays the local track or microphone.
+
+`recording-grid.js` turns beats.json into bars and beats, extended four bars
+before the first beat at the opening tempo. Play with Record armed sets `from`
+two bars before the record point (`leadStart`); `anchor` puts that song time
+0.05 s ahead, capture starts exactly at the record point, and `current()` runs
+from `from`, negative during a count-in. Oscillator clicks, accented on
+downbeats, are scheduled for beats before 0:00 on the listening path only; a
+lead-in reaching before 0:00 starts on the nearest downbeat. Pausing during
+the lead-in cancels the passage and keeps the record point. Without beats.json
+there is no lead-in. Seeking, song end, errors, interruptions and version
+changes disarm Record to Play back; only M mutes.
 
 `recording-worklet.js` batches 4096 captured samples with absolute audio frame
 positions. An 8192-frame pre-roll buffer covers slightly late start commands.
@@ -336,8 +358,9 @@ has no master-volume input. The encoding still retains the resulting PCM file
 in memory, and decoding/import can temporarily hold both input and chunk data.
 Ten-minute desktop measurements are in the handoff; mobile support is untested.
 
-Standalone checks are under `checks/`. Run `node checks/recording-core.mjs` and
-`node checks/recording-worklet.mjs` for sample placement and processor boundaries.
+Standalone checks are under `checks/`. Run `node checks/recording-core.mjs`,
+`node checks/recording-grid.mjs` and `node checks/recording-worklet.mjs` for
+sample placement, bar/lead-in arithmetic and processor boundaries.
 The browser snippets run against the test fixture on port 8766 after initializing
 its audio with a real click. `recording-firefox.py` drives them in a fresh headless
 Firefox profile with a fake device microphone. On this laptop:
