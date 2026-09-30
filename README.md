@@ -147,12 +147,33 @@ submitted, the new version's tab opens. Per version:
   has finished);
 - a **"?" help button** on every page opens illustrated instructions.
 
+**On a phone** the project page is laid out like an app, with tabs along
+the bottom:
+
+- **Listen** shows each stage of the processing as a pad, joined by the same
+  arrows as the diagram: the original, the drums stem, the track without
+  drums and each pipeline's sonification. Tap a pad to hear it. Tap another
+  and you hear the same moment through that one, so comparing by ear is one
+  tap. Tap the pad that is playing to stop it. A pad still being made fills
+  up with brass as the work progresses and says how long is left. The ⓘ on a
+  pad explains what it is.
+- **Score** shows the notation big enough to read, with − and + to change
+  its size. Tap a bar to play from there; the speech-bubble button switches
+  to commenting.
+- **Files** lists every download by name, the pipeline log, and **Delete
+  this version**.
+- **Record** appears where recording works (see below).
+
+A small player above the tabs shows what is playing, on every tab. The
+version is chosen from the list at the top; its last entry adds a new one.
+
 ## Record your own drums in the browser
 
 Each version can have one drum track of your own, recorded in the browser.
 Recording works on the laptop at [localhost:8765](http://localhost:8765/) and
 on the cloud site at <https://plokkaus.vempai.men/>. Each of those keeps its
-own recordings. Phones and tablets have not been tried yet.
+own recordings. On a phone the recording panel has its own tab and touch
+controls, but recording on a phone has not been tried yet.
 
 Use desktop Chromium or Firefox, a device microphone and wired headphones.
 Recording needs localhost or a trusted HTTPS address. Ordinary HTTP from
@@ -165,10 +186,15 @@ bar numbers, and one lane for the backing and one for your drums.
 - **Top bar**: ⏮ goes back to the start, ▶ plays and pauses, ● records. The
   counter shows the bar and beat (`17.3` is bar 17, beat 3) and the time.
   ↶ undoes the last recorded passage. **Whole song** shows the entire song;
-  **Follow 16 bars** zooms in around the playhead. The status line says what
+  **Follow 16 bars** zooms in around the playhead. On a touch screen, pinch
+  the lanes with two fingers instead: spread them to zoom in on that spot,
+  pinch them together to see more, all the way back to the whole song.
+  While zoomed in, the view moves along with the playhead. On a phone the
+  top bar fits on one line, and ↶ Undo is in the ⋯ menu. The status line says what
   you hear, or what ▶ will do next. The ⋯ button opens Export, Import,
   Latency correction and Clear.
-- **Bars ruler**: click it, or either lane, to jump to that point.
+- **Bars ruler**: click it, or either lane, to jump to that point. On a
+  touch screen, tap or drag sideways; swiping up or down scrolls the page.
 - **Backing** lane: what you play along to. Choose it in the lane or with
   **Use as backing** in the diagram: the original, the track without drums,
   the drums stem, or a sonification. You can switch while it plays. The

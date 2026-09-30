@@ -310,6 +310,7 @@ export class Recording {
       if (!button) return;
       if (button.dataset.view) {
         this.zoom = button.dataset.view;
+        this.view = null;
         this.sync();
       } else this.act(button.dataset.action);
     };
@@ -336,18 +337,65 @@ export class Recording {
       if (file) this.run(() => this.importAudio(file));
       e.target.value = "";
     };
+    // Mouse: press or drag to seek. Touch: tap or drag sideways to seek,
+    // pinch with two fingers to zoom the time axis around them (moving
+    // them pans); vertical swipes are left to the page (touch-action).
+    // The lanes share one time axis, so fingers may land on different ones.
+    const touches = new Map(); // pointerId -> clientX
+    let gesture, pinch;
+    const at = (canvas, clientX) => {
+      const r = canvas.getBoundingClientRect(),
+        [t0, t1] = this.shown ?? [];
+      return t1 > t0 ? t0 + ((clientX - r.left) / r.width) * (t1 - t0) : null;
+    };
+    const seek = (canvas, clientX) => {
+      const t = at(canvas, clientX);
+      if (t !== null) this.requestSeek(t);
+    };
+    const zoom = ([a, b]) => {
+      const d = this.duration,
+        r = pinch.canvas.getBoundingClientRect(),
+        span = Math.min(d, Math.max(2, (pinch.span * pinch.gap) / (Math.abs(a - b) || 1))),
+        start = Math.max(0, Math.min(d - span,
+          pinch.anchor - (((a + b) / 2 - r.left) / r.width) * span));
+      this.view = span < d ? [start, start + span] : null; // fully out: whole song
+      this.viewAt = this.current();
+      this.draw();
+    };
     for (const canvas of this.ui.querySelectorAll("canvas")) {
-      const seek = (e) => {
-        const r = canvas.getBoundingClientRect(),
-          [t0, t1] = this.shown ?? [];
-        if (t1 > t0)
-          this.requestSeek(t0 + ((e.clientX - r.left) / r.width) * (t1 - t0));
-      };
       canvas.onpointerdown = (e) => {
-        canvas.setPointerCapture(e.pointerId);
-        seek(e);
+        if (e.pointerType === "mouse") {
+          canvas.setPointerCapture(e.pointerId);
+          return seek(canvas, e.clientX);
+        }
+        touches.set(e.pointerId, e.clientX);
+        if (touches.size === 1) gesture = { x: e.clientX, scrub: false, multi: false };
+        else if (touches.size === 2 && this.shown) {
+          const [a, b] = touches.values();
+          gesture.multi = true;
+          pinch = { canvas, gap: Math.abs(a - b) || 1, span: this.shown[1] - this.shown[0],
+                    anchor: at(canvas, (a + b) / 2) };
+        }
       };
-      canvas.onpointermove = (e) => e.buttons && seek(e);
+      canvas.onpointermove = (e) => {
+        if (e.pointerType === "mouse") return e.buttons && seek(canvas, e.clientX);
+        if (!touches.has(e.pointerId)) return;
+        touches.set(e.pointerId, e.clientX);
+        if (pinch && touches.size === 2) return zoom([...touches.values()]);
+        if (gesture.multi) return;
+        gesture.scrub ||= Math.abs(e.clientX - gesture.x) > 8;
+        if (gesture.scrub) seek(canvas, e.clientX);
+      };
+      canvas.onpointerup = (e) => {
+        if (e.pointerType === "mouse" || !touches.delete(e.pointerId)) return;
+        if (touches.size < 2) pinch = null;
+        if (!touches.size && !gesture.multi && !gesture.scrub) seek(canvas, e.clientX);
+      };
+      canvas.onpointercancel = (e) => {
+        touches.delete(e.pointerId); // the page scrolled instead
+        if (gesture) gesture.multi = true;
+        if (touches.size < 2) pinch = null;
+      };
     }
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".rec-menu, [data-action=menu]")) this.menu(false);
@@ -929,6 +977,19 @@ export class Recording {
   }
   shownRange() {
     const d = this.duration ?? 0;
+    if (this.view) {
+      // A pinched window pages along with playback and seeks, but stays
+      // where the fingers left it while the playhead stands still.
+      const [t0, t1] = this.view,
+        span = t1 - t0,
+        t = this.current();
+      if ((this.playing || t !== this.viewAt) && (t < t0 || t > t1)) {
+        const start = Math.max(0, Math.min(d - span, t - span / 10));
+        this.view = [start, start + span];
+      }
+      this.viewAt = t;
+      return this.view;
+    }
     if (this.zoom !== "follow" || !this.grid) return [0, d];
     const { bar } = this.grid.barAt(Math.max(0, this.current())),
       t0 = Math.max(0, this.grid.barStart(bar - 2)),
@@ -1514,7 +1575,7 @@ export class Recording {
     ui.querySelector('[data-action="undo"]').disabled = !this.track?.undo;
     ui.querySelector('[data-action="clip"]').classList.toggle("on", !!this.clipped);
     for (const b of ui.querySelectorAll("[data-view]"))
-      b.setAttribute("aria-pressed", b.dataset.view === this.zoom);
+      b.setAttribute("aria-pressed", !this.view && b.dataset.view === this.zoom);
     const select = ui.querySelector('[data-control="backing"]'),
       keys = Object.keys(this.backingFiles()).filter(
         (k) => this.backingFiles()[k],

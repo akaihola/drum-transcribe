@@ -1,0 +1,264 @@
+/* Phone layout, "drum pads": see mobile.js. Everything is scoped to
+   html.mobile so the desktop page is never touched. */
+html.mobile { --tabs: calc(64px + env(safe-area-inset-bottom)); --wash: #EDE9E0; }
+html.mobile body { margin: 0; padding-bottom: calc(var(--tabs) + 24px);
+  -webkit-tap-highlight-color: transparent; }
+html.mobile.mp-on body { padding-bottom: calc(var(--tabs) + 100px); }
+svg.mi { fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; }
+svg.mi .f { fill: currentColor; stroke: none; }
+
+/* ---- header: back, title, help, logs; the version picker as a pill ---- */
+.mhead { padding: 6px 6px 0 4px; }
+.mbar { display: flex; align-items: center; gap: 4px; min-height: 56px; }
+html.mobile #title { flex: 1; min-width: 0; margin: 0 4px; font-size: clamp(20px, 6vw, 26px);
+  line-height: 1.1; }
+.mback, html.mobile #help-btn, html.mobile #gear-btn { position: static; flex: none; display: grid;
+  place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  box-shadow: none; background: none; color: var(--ink); }
+.mback svg { width: 26px; height: 26px; }
+html.mobile #help-btn, html.mobile #gear-btn { border: 1.5px solid var(--hairline); background: var(--card); }
+html.mobile #help-btn { font: 500 20px/1 var(--serif); }
+html.mobile #gear-btn svg { width: 20px; height: 20px; stroke-width: 1.8; }
+.vpick { position: relative; display: flex; align-items: center; height: 52px; margin: 6px 16px 0;
+  padding: 0 20px; border: 1.5px solid var(--hairline); border-radius: 999px; background: var(--card); }
+.vpick span { font-size: 14px; color: var(--ink-quiet); }
+.vpick select { position: absolute; inset: 0; appearance: none; border: 0; border-radius: 999px;
+  background: none; padding: 0 48px 0 86px; font: 700 18px var(--sans); color: var(--ink); }
+.vpick::after { content: ""; position: absolute; right: 22px; top: 19px; width: 8px; height: 8px;
+  border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg); pointer-events: none; }
+
+/* ---- the page's own version UI, replaced by the above ---- */
+html.mobile #app > .grouplbl, html.mobile .vtabs > .tabbar { display: none; }
+html.mobile .vtabs > .tabpanel.active { border: 0; border-radius: 0; background: none; padding: 0; }
+html.mobile section[data-song] { position: relative; }
+/* the real players live on, invisibly, for the pads to drive */
+html.mobile .flow { position: absolute; top: 0; left: 0; width: 100%; height: 1px; margin: 0;
+  overflow: hidden; opacity: 0; pointer-events: none; }
+html.mobile [data-piece="err"] { margin: 16px 16px 0; font-size: 16px; }
+html.mobile .gpu { margin: 14px 16px 0; font-size: 16px; }
+
+/* ---- tabs: which part of the version panel is on show ---- */
+html.mobile:not([data-mtab="listen"]) :is(.mlisten, .gpu, [data-piece="err"]),
+html.mobile:not([data-mtab="score"]) .stabs,
+html.mobile:not([data-mtab="files"]) :is(.mfiles, .delver),
+html.mobile:not([data-mtab="record"]) .local-recording { display: none !important; }
+.mtabs { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; display: flex;
+  padding: 0 6px env(safe-area-inset-bottom); background: var(--card);
+  border-top: 1px solid var(--hairline); box-shadow: 0 -2px 14px rgba(35,32,25,.07); }
+.mtabs button { flex: 1; height: 64px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: 500 14px/1 var(--sans); color: var(--ink-quiet); }
+.mtabs .tic { display: grid; place-items: center; width: 60px; height: 32px; border-radius: 999px; }
+.mtabs svg { width: 26px; height: 26px; }
+.mtabs [aria-current] { color: var(--ink); font-weight: 700; }
+.mtabs [aria-current] .tic { background: var(--wash); }
+.mtabs [data-tab="record"] .f { fill: var(--signal); }
+html.mobile.madd :is(.mtabs, .mplay) { display: none; }
+
+/* ---- Listen: the pad grid ---- */
+.mhint { margin: 12px 20px 14px; font-size: 15px; line-height: 1.35; color: var(--ink-quiet); }
+.mgrid { position: relative; display: grid; grid-template-columns: repeat(4, 1fr);
+  column-gap: 14px; row-gap: 42px; margin: 0 16px 8px;
+  grid-template-areas: ". src src ." "drums drums drumless drumless"
+                       "adtof adtof mdx23c mdx23c" ". fused fused ."; }
+.pad { position: relative; isolation: isolate; height: 100px; overflow: hidden; border-radius: 16px;
+  background: var(--card); border: 1.5px solid var(--hairline); border-bottom-width: 3.5px;
+  transition: background-color .15s, border-color .15s, transform .08s; }
+.pad:has(.pad-hit:active) { transform: translateY(2px); border-bottom-width: 1.5px; }
+.pad-hit { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: flex-end; padding: 10px 12px 10px 14px; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.pad-ic { position: relative; margin-bottom: auto; color: var(--ink-quiet); }
+.pad-ic svg { display: block; width: 28px; height: 28px; }
+.pad b { font-size: 18px; line-height: 1.2; }
+.pad-sub { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 14px; line-height: 1.3; color: var(--ink-quiet); }
+.pad-sub em { font-style: normal; color: var(--signal); }
+.pad-i { position: absolute; top: 0; right: 0; display: grid; place-items: center;
+  width: 44px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--ink-quiet); }
+.pad-i span { width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%;
+  border: 1.5px solid currentColor; font: italic 500 14px/19px var(--serif); opacity: .75; }
+
+/* now playing: teal, with how far into the song along the bottom edge */
+.pad.cur { border-color: var(--teal); }
+.pad.cur::before, .pad.cur::after { content: ""; position: absolute; left: 16px; bottom: 0;
+  height: 4px; border-radius: 2px 2px 0 0; background: var(--hairline); }
+.pad.cur::before { right: 16px; }
+.pad.cur::after { width: calc((100% - 32px) * var(--pos, 0)); background: var(--teal);
+  transition: width .25s linear; }
+.pad.playing { background: var(--teal); border-color: var(--teal-deep); color: #fff; }
+.pad.playing :is(.pad-ic, .pad-sub, .pad-i) { color: rgba(255,255,255,.9); }
+.pad.playing .pad-sub em { color: inherit; }
+.pad.playing::before { background: rgba(255,255,255,.3); }
+.pad.playing::after { background: #fff; }
+/* while playing, the icon's waveform bars come alive */
+.eq { display: none; position: absolute; inset: 2px 0; align-items: center; justify-content: space-between; }
+.eq i { width: 4px; height: 100%; border-radius: 2px; background: currentColor;
+  animation: eq .8s ease-in-out infinite alternate; }
+.eq i:nth-child(2) { animation-duration: .55s; animation-delay: -.3s; }
+.eq i:nth-child(3) { animation-duration: .7s; animation-delay: -.5s; }
+.eq i:nth-child(4) { animation-duration: .6s; animation-delay: -.1s; }
+@keyframes eq { from { transform: scaleY(.3); } }
+.pad.playing .eq { display: flex; }
+.pad.playing .pad-ic svg { visibility: hidden; }
+
+/* not ready: brass liquid rising to the task's progress; hatched = waiting its turn */
+.pad:is(.running, .arriving)::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0;
+  bottom: 0; height: var(--lvl); background: rgba(166,99,0,.15); transition: height 2s linear; }
+.pad:is(.running, .arriving)::after { content: ""; position: absolute; z-index: -1; left: 0; right: 0;
+  bottom: calc(var(--lvl) - .5px); height: 8px; transition: bottom 2s linear;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 8'%3E%3Cpath d='M0 4q8-4 16 0t16 0V8H0z' fill='%23A66300' fill-opacity='.15'/%3E%3Cpath d='M0 4q8-4 16 0t16 0' fill='none' stroke='%23A66300' stroke-opacity='.55' stroke-width='1.3'/%3E%3C/svg%3E") 0 0 / 32px 8px repeat-x;
+  animation: slosh 2.2s linear infinite; }
+@keyframes slosh { to { background-position-x: 32px; } }
+.pad:is(.running, .arriving) :is(.pad-sub, .pad-ic) { color: var(--brass); }
+.pad.queued { background: repeating-linear-gradient(-45deg, #EFEBE3 0 2px, var(--card) 2px 9px); }
+.pad.failed { border-color: var(--signal); background: #FDF2F0; }
+.pad.failed .pad-sub { color: var(--signal); }
+.pad.stopped .pad-sub { color: var(--brass); }
+.pad.absent { background: none; border-style: dashed; border-bottom-width: 1.5px; }
+.pad.absent :is(b, .pad-ic) { color: var(--ink-quiet); font-weight: 500; }
+
+svg.parrows { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+  pointer-events: none; color: var(--ink-quiet); }
+.parrows .lines { fill: none; stroke: currentColor; stroke-width: 1.5; marker-end: url(#pa); }
+.parrows marker path { fill: currentColor; }
+.parrows text { font: 500 13px var(--sans); fill: currentColor; letter-spacing: .01em;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+
+/* ---- the mini player, above the tab bar on every tab ---- */
+.mplay { position: fixed; z-index: 29; left: 8px; right: 8px; bottom: calc(var(--tabs) + 8px);
+  display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: 28px 30px;
+  align-items: center; column-gap: 10px; padding: 6px 8px 4px 6px; background: var(--card);
+  border: 1px solid var(--hairline); border-radius: 18px; box-shadow: 0 6px 24px rgba(35,32,25,.16); }
+.mp-name { display: flex; align-items: center; gap: 6px; min-width: 0; height: 32px; padding: 0 6px;
+  border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; }
+.mp-name b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 16px; }
+.mp-name .tic svg { display: block; width: 22px; height: 22px; color: var(--teal); }
+.mp-time { font-size: 14px; color: var(--ink-quiet); font-variant-numeric: tabular-nums; }
+.mplay input { grid-column: 1 / 3; width: 100%; height: 44px; margin: -7px 0; /* 44 px to hit, 30 to see */
+  accent-color: var(--teal); }
+.mp-btn { grid-row: 1 / 3; grid-column: 3; width: 52px; height: 52px; display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 50%; background: var(--teal); color: #fff; cursor: pointer; }
+.mp-btn svg { width: 26px; height: 26px; }
+
+/* ---- Score: sticky toolbar, notation edge to edge ---- */
+html.mobile .scorehead { position: sticky; top: 0; z-index: 6; flex-wrap: wrap; gap: 8px;
+  margin: 0; padding: 10px 12px; background: var(--paper); border-bottom: 1px solid var(--hairline); }
+html.mobile .scorehead .grouplbl, html.mobile .scorehead:not(:has(.mzoom)) { display: none; }
+html.mobile .scorehead .seg { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; }
+html.mobile .scorehead .seg button { flex: 1; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 16px; }
+html.mobile .comment-toggle { display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  font-size: 0; color: var(--ink); border-radius: 50%; }
+html.mobile .comment-toggle svg { width: 24px; height: 24px; }
+html.mobile .comment-toggle[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
+html.mobile body.comment-mode .scorehead::after { content: "Tap a note, rest or bar to comment on it. Tap the bubble again to stop.";
+  flex-basis: 100%; font-size: 14px; line-height: 1.35; color: var(--brass); }
+.mzoom { display: flex; gap: 4px; }
+.mzoom button { width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--hairline); border-radius: 50%;
+  background: var(--card); font: 500 24px/1 var(--sans); color: var(--ink); cursor: pointer; }
+html.mobile .stabs > .meter { margin: 12px 16px; gap: 10px; }
+html.mobile .stabs > .meter::before { content: "Meter"; font-size: 15px; color: var(--ink-quiet); }
+html.mobile .meter .mseg { flex-wrap: nowrap; }
+html.mobile .meter .mopt { min-height: 44px; padding: 0 10px; }
+html.mobile .meter .mopt svg { width: 80px; height: auto; }
+html.mobile .meter .minfo { width: 44px; height: 44px; font-size: 18px; }
+html.mobile .stabs .score { border-radius: 0; border-width: 1px 0; }
+html.mobile .stabs .score.placeholder { margin: 16px; border-width: 1px; border-radius: 8px; font-size: 16px; }
+
+/* ---- Files: one big row per download ---- */
+.mfiles { padding: 4px 16px 0; }
+.mfiles h3 { margin: 22px 4px 8px; font-size: 21px; }
+.mfiles h3 small { font: 400 14px var(--sans); color: var(--ink-quiet); margin-left: 6px; }
+.fgroup { background: var(--card); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+.frow { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 8px 16px 8px 12px;
+  color: var(--ink); text-decoration: none; }
+.frow + .frow { border-top: 1px solid var(--hairline); }
+.frow:active { background: var(--paper); }
+.flogo { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px;
+  background: var(--paper); font-weight: 700; color: var(--ink-quiet); }
+.flogo img, .flogo svg { width: 28px; height: 28px; }
+.fname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.fname b { font-size: 17px; font-weight: 500; }
+.fname small { font-size: 14px; color: var(--ink-quiet); overflow-wrap: anywhere; }
+.fname small.warn { color: var(--signal); }
+.frow > svg { flex: none; width: 24px; height: 24px; color: var(--teal-deep); }
+.fempty { margin: 0 4px; font-size: 15px; font-style: italic; color: var(--ink-quiet); }
+html.mobile .delver { width: calc(100% - 32px); min-height: 48px; margin: 32px 16px 8px;
+  font-size: 16px; color: var(--signal); border-color: rgba(196,0,0,.35); }
+
+html.mobile #addform form.create { margin: 16px; border-radius: 12px; }
+
+/* ---- Record: the arrange view, full width ---- */
+html.mobile .local-recording { margin: 12px 0 0; border-radius: 0; border-width: 1px 0; }
+/* one line: ⏮ ▶ ● counter ⋯, the status below. Undo is in the ⋯ menu
+   (mobile.js) and pinching the lanes replaces the Whole song/Follow switch. */
+html.mobile .rec-bar { gap: 8px; padding: 10px 12px; }
+html.mobile .rec-key { width: 48px; height: 48px; }
+html.mobile .rec-view { display: none; }
+html.mobile .rec-count { flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 0; height: 48px; box-sizing: border-box; padding: 0 8px; }
+html.mobile .rec-count b { width: auto; font-size: 22px; line-height: 1.05; }
+html.mobile .rec-count span { font-size: 13px; }  /* its 13ch sets the counter's width */
+html.mobile [data-action="menu"] { order: 1; margin-left: auto; }
+html.mobile .rec-bar output { order: 2; flex-basis: 100%; font-size: 15px; white-space: normal; }
+html.mobile .rec-bar output:empty { display: none; }
+html.mobile .rec-menu { left: 8px; right: 8px; width: auto; }
+html.mobile .rec-menu > * { min-height: 48px; font-size: 16px; }
+html.mobile .rec-menu input { min-height: 40px; font-size: 16px; }
+/* each lane's controls above its waveform, both full width; bar numbers
+   between the backing controls and the backing waveform */
+html.mobile .rec-grid { grid-template-columns: 1fr; }
+html.mobile .rec-head.ruler { display: none; }
+html.mobile .rec-grid > .rec-head:nth-child(3) { order: -1; }
+html.mobile .rec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  padding: 10px 40px 10px 16px; border-right: 0; font-size: 16px; }
+html.mobile .rec-head > b { flex: 1 0 auto; }
+html.mobile .rec-head select { flex: 1; min-height: 44px; font-size: 16px; }
+html.mobile .rec-fader { flex-basis: 100%; }
+html.mobile .rec-fader input { height: 32px; }
+html.mobile .rec-t { width: 44px; height: 38px; font-size: 15px; }
+
+/* ---- sheets: info, help, pipeline logs, score feedback ---- */
+html.mobile :is(dialog.msheet, dialog#help) { width: 100%; max-width: none; max-height: 85dvh;
+  margin: auto 0 0; box-sizing: border-box; padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
+  border: 0; border-radius: 20px 20px 0 0; background: var(--card); color: var(--ink);
+  box-shadow: 0 -8px 30px rgba(35,32,25,.2); overflow-y: auto; }
+dialog.msheet::backdrop, html.mobile #gearmenu::backdrop { background: rgba(35,32,25,.4); }
+.grab { width: 40px; height: 5px; margin: 0 auto 10px; border-radius: 3px; background: var(--hairline); }
+dialog.msheet h3 { margin: 4px 0 10px; font-size: 26px; }
+dialog.msheet h4 { margin: 18px 0 4px; font: 700 16px var(--sans); }
+dialog.msheet p { margin: 0 0 8px; font-size: 17px; line-height: 1.5; }
+.sh-status { padding: 10px 14px; border-radius: 8px; background: rgba(166,99,0,.1); color: var(--brass); }
+.sh-status.failed { background: #FDF2F0; color: var(--signal); }
+.sh-status.absent { background: var(--paper); color: var(--ink-quiet); }
+.sh-close { display: block; width: 100%; min-height: 48px; margin-top: 18px; border: 1.5px solid var(--hairline);
+  border-radius: 999px; background: none; font: 500 17px var(--sans); color: var(--ink); }
+html.mobile dialog#help .close { width: 44px; height: 44px; margin: -4px -10px 0 0; }
+html.mobile dialog#help h2 { margin-top: 4px; padding-top: 0; border-top: 0; }
+html.mobile #gearmenu { inset: auto 0 0 0; width: auto; max-width: none; margin: 0; box-sizing: border-box;
+  padding: 16px 12px calc(16px + env(safe-area-inset-bottom)); border: 0; border-radius: 20px 20px 0 0;
+  font-size: 17px; box-shadow: 0 -8px 30px rgba(35,32,25,.2); }
+html.mobile #gearmenu::before { content: "Pipeline logs"; display: block; padding: 0 8px 6px;
+  font: 500 22px var(--serif); }
+html.mobile #gearmenu a { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 0;
+  padding: 0 8px; border-radius: 8px; text-decoration: none; }
+html.mobile #gearmenu #gh-link { position: static; width: auto; height: auto; justify-content: start;
+  margin-top: 8px; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; box-shadow: none;
+  background: none; color: var(--ink); text-decoration: none; }
+html.mobile #gh-link::after { content: "Source code on GitHub"; }
+html.mobile body > #gh-link { display: none; }  /* until the first build moves it into the menu */
+
+html.mobile #fbmenu { position: fixed !important; left: 0 !important; right: 0; top: auto !important;
+  bottom: var(--tabs); z-index: 40; width: 100%; max-height: 72dvh; padding: 16px 20px 14px;
+  border: 0; border-radius: 20px 20px 0 0; font-size: 17px; box-shadow: 0 -8px 30px rgba(35,32,25,.22); }
+html.mobile #fbmenu > b { display: block; margin-bottom: 4px; font: 500 22px var(--serif); }
+html.mobile #fbmenu label { display: flex; align-items: center; gap: 14px; min-height: 44px; margin: 0; }
+html.mobile #fbmenu input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: var(--brass); }
+html.mobile #fbmenu textarea { box-sizing: border-box; min-height: 64px; padding: 8px 12px; font-size: 17px; }
+html.mobile #fbmenu .row button { flex: 1; min-height: 48px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pad, .pad.cur::after, .pad::before { transition: none; }
+  .eq i, .pad:is(.running, .arriving)::after { animation: none; }
+}

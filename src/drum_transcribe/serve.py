@@ -48,6 +48,7 @@ STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
     "recording-wav.js", "recording-export.js", "recording-grid.js",
+    "mobile.css", "mobile.js",
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -255,9 +256,11 @@ STYLE = """
   .local-recording.armed .rec { animation: rec-blink 1s steps(1) infinite; }
   @keyframes rec-blink { 50% { background: var(--signal); border-color: var(--signal); color: white; } }
   @media (prefers-reduced-motion: reduce) { .local-recording.armed .rec { animation: none; background: #F6D6D2; } }
-  .rec-count { display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
-    background: var(--paper); border: 1px solid var(--hairline); }
-  .rec-count b { font-size: 1.5rem; line-height: 1.1; min-width: 3.2em; }
+  /* tabular digits in fixed-width slots: the ticking counter never resizes */
+  .rec-count { flex: none; display: flex; align-items: baseline; gap: .6rem; padding: .15rem .8rem; border-radius: 6px;
+    background: var(--paper); border: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+  .rec-count b { font-size: 1.5rem; line-height: 1.1; width: 3.2em; }
+  .rec-count span { width: 13ch; }  /* "−10:00.0 / 10:00" */
   .rec-count span, .rec-bar output { font-size: .85rem; color: var(--ink-quiet); }
   .local-recording.recording .rec-count { border-color: var(--signal); }
   .local-recording.recording .rec-count b, .local-recording.armed [data-status] { color: var(--signal); }
@@ -274,7 +277,8 @@ STYLE = """
   .rec-menu input { width: 4.5em; font: inherit; font-size: .85rem; }
   .rec-menu .danger b { color: var(--signal); }
   .rec-grid { display: grid; grid-template-columns: 19rem 1fr; }
-  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text; touch-action: none; }
+  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text;
+    touch-action: pan-y; }  /* vertical swipes scroll; the rest is ours (pinch zoom) */
   .rec-grid canvas[data-draw=ruler] { height: 26px; }
   .rec-grid canvas[data-draw=track] { height: 110px; border-bottom: 0; }
   .rec-head { position: relative; display: grid; gap: .3rem; align-content: start; padding: .45rem 1.9rem .45rem .6rem;
@@ -366,6 +370,33 @@ STYLE = """
                         background: none; }
   #fbmenu .row button[data-act="save"] { background: var(--teal);
                                          border-color: var(--teal); color: #fff; }
+  /* phones: the base; the drum-pads layout itself is static/mobile.css */
+  @media (max-width: 40rem) {
+    body { margin: .75rem; }
+    form.create { padding: .8rem 1rem; box-sizing: border-box; max-width: none; }
+    form.create input[type=text], form.create input[type=password] {
+      min-height: 48px; box-sizing: border-box; font-size: 17px; }
+    form.create input[type=file] { min-height: 48px; max-width: 100%; font: inherit;
+      font-size: .9rem; color: var(--ink-quiet); }
+    form.create input[type=file]::file-selector-button { font: inherit; color: var(--ink);
+      min-height: 44px; padding: 0 1.1rem; margin-right: .7rem; border-radius: 999px;
+      border: 1.5px solid var(--hairline); background: var(--card); }
+    form.create button { min-height: 48px; width: 100%; }
+    form.create label:has(input[type=checkbox]) { display: flex; gap: .6rem;
+      align-items: center; min-height: 48px; }
+    form.create input[type=checkbox] { width: 22px; height: 22px; }
+    ul.projects { padding: 0; list-style: none; }
+    ul.projects li { position: relative; margin: 0; padding: .7rem 0;
+                     border-bottom: 1px solid var(--hairline); color: var(--ink-quiet); }
+    ul.projects a { font-size: 1.15rem; font-weight: 500; }
+    ul.projects a::after { content: ""; position: absolute; inset: 0; }  /* whole row taps */
+    #gh-link { position: absolute; top: 1rem; right: 4.2rem; }
+    #gear-btn { right: 7.2rem; }
+    dialog#help { max-width: none; width: calc(100vw - 1.5rem); box-sizing: border-box;
+                  padding: 1rem 1.1rem; max-height: 88dvh; }
+    dialog#help svg { max-width: 100%; height: auto; }
+    .rec-grid { grid-template-columns: 9.5rem 1fr; }
+  }
 """
 
 HELP_HTML = """
@@ -376,6 +407,13 @@ HELP_HTML = """
 <dialog id="help">
   <button class="close" onclick="document.getElementById('help').close()">×</button>
   <h2>How to use this site</h2>
+  <p><b>On a phone</b> a piece opens with tabs along the bottom: <b>Listen</b>
+  shows each stage of the processing as a pad (tap one to hear it, tap
+  another to hear the same moment through it), <b>Score</b> has the notation
+  with &minus;/+ for its size, <b>Files</b> lists every download by name, and
+  <b>Record</b> appears where recording works. The version is chosen at the
+  top. Everything below also applies; where it says to point at something,
+  the phone shows the same information on the pad or in the Files list.</p>
 
   <h3>1. Start a transcription</h3>
   <p>On the front page, name the piece and this version of it, then either
@@ -468,6 +506,9 @@ HELP_HTML = """
   Recordings are separate for each address, port and browser profile, and
   need HTTPS or localhost. Keys: Space play/pause, R record, M mute, S solo,
   Home back to start, Ctrl+Z undo.</p>
+  <p>On a touch screen, pinch the lanes with two fingers to zoom in and out,
+  and tap or drag sideways to move the playhead. On a phone, Undo is in the
+  &#8943; menu.</p>
 
   <h3>6. Giving feedback on the score</h3>
   <p>Turn on <b>Comment on symbols</b> above the score. Tap or click a note
@@ -554,6 +595,7 @@ async function submitCreate(form) {
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style></head>
 <body>
 __HELP__
@@ -581,8 +623,19 @@ fetch("/api/index").then(r => r.json()).then(d => {
 
 PROJECT_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
+<script>
+// Phones get their own layout (static/mobile.css + .js, "drum pads"); the
+// page announces every (re)render of a version with a "rendered" event.
+const NARROW = matchMedia("(max-width: 40rem)").matches;
+if (NARROW) {
+  document.documentElement.classList.add("mobile");
+  document.write(`<link rel="stylesheet" href="/static/mobile.css">
+    <script type="module" src="/static/mobile.js"><\\/script>`);
+}
+</script>
 </head>
 <body>
 __HELP__
@@ -884,6 +937,7 @@ window.addEventListener("resize", () =>
   document.querySelectorAll(".vtabs > .tabpanel.active").forEach(drawArrows));
 
 let vrvReady;
+let SCORE_SCALE = +(localStorage.scoreScale || 45);  // phones; % of Verovio size
 
 // Changing existing results needs the unlock password where the server is
 // throttled (the public site). Ask for it when refused, then retry — the
@@ -1008,6 +1062,7 @@ async function build() {
   if (versions.some(v => v.progress.job === "running")) pollProgress();
   requestAnimationFrame(() =>
     showPanel(document.querySelector(".vtabs > .tabpanel.active")));
+  document.dispatchEvent(new Event("rendered"));
 }
 
 // ---- live progress ------------------------------------------------------
@@ -1120,6 +1175,7 @@ async function refreshVersion(name) {
   showProgress(name, v.progress);
   loadBars(v);
   if (panel.classList.contains("active")) showPanel(panel);
+  document.dispatchEvent(new Event("rendered"));
 }
 
 // One shared volume for every player, remembered across page loads.
@@ -1134,11 +1190,22 @@ async function renderScores(root) {
     btn.setAttribute("aria-pressed", String(commentMode)));
   await vrvReady;
   const tk = new verovio.toolkit();
-  tk.setOptions({ scale: 35, adjustPageHeight: true, breaks: "smart",
-                  pageWidth: 2100, footer: "none",
+  // Phones: engrave for the actual width at a readable size (SCORE_SCALE,
+  // adjustable), instead of shrinking a desktop-wide page.
+  const box = root.querySelector(".stabs")?.clientWidth ||
+              document.getElementById("app").clientWidth;
+  tk.setOptions({ scale: NARROW ? SCORE_SCALE : 35, adjustPageHeight: true,
+                  breaks: "smart", footer: "none",
+                  pageWidth: NARROW ? Math.round((box - 18) * 100 / SCORE_SCALE) : 2100,
+                  // one tall page: no page numbers or gaps inside the scroll
+                  ...(NARROW && { pageHeight: 60000, pageMarginLeft: 20, pageMarginRight: 20,
+                                  pageMarginTop: 20, pageMarginBottom: 20 }),
                   svgAdditionalAttribute: ["measure@n"] });
   for (const el of root.querySelectorAll(".score[data-url]")) {
-    const xml = await fetch(el.dataset.url).then(r => r.text());
+    let xml = await fetch(el.dataset.url).then(r => r.text());
+    // Phones: the "Percussion"/"Perc" staff labels would eat a quarter of the width.
+    if (NARROW) xml = xml.replace(/<part-name>[^<]*<\\/part-name>/g, "<part-name></part-name>")
+      .replace(/<(part|instrument)-abbreviation>[^<]*<\\/\\1-abbreviation>/g, "");
     tk.loadData(xml);
     let svg = "";
     for (let p = 1; p <= tk.getPageCount(); p++) svg += tk.renderToSVG(p);
