@@ -1202,6 +1202,9 @@ async function renderScores(root) {
   tk.setOptions({ scale: NARROW ? SCORE_SCALE : 35, adjustPageHeight: true,
                   breaks: "smart", footer: "none",
                   pageWidth: NARROW ? Math.round((box - 18) * 100 / SCORE_SCALE) : 2100,
+                  // one tall page: no page numbers or gaps inside the scroll
+                  ...(NARROW && { pageHeight: 60000, pageMarginLeft: 20, pageMarginRight: 20,
+                                  pageMarginTop: 20, pageMarginBottom: 20 }),
                   svgAdditionalAttribute: ["measure@n"] });
   for (const el of root.querySelectorAll(".score[data-url]")) {
     let xml = await fetch(el.dataset.url).then(r => r.text());
