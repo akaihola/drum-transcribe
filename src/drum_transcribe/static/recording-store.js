@@ -8,7 +8,7 @@ export function openStore() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-  return database;
+  return database.catch(error => { database = undefined; throw error; });
 }
 function done(tx) { return new Promise((resolve,reject) => { tx.oncomplete = resolve; tx.onabort = () => reject(tx.error ?? Error('Local storage update aborted')); tx.onerror = () => {}; }); }
 function range(key) { return IDBKeyRange.bound([key,''],[key,'\uffff']); }
@@ -22,21 +22,21 @@ export async function loadTrack(key) {
   if (segments.some(s => !s.data)) throw Error('A saved recording chunk is missing.');
   return {...meta.result,segments};
 }
-export async function saveTrack(key, state, segments, undo) {
+export async function saveTrack(key, state, segments) {
   const db = await openStore(), tx = db.transaction(['tracks','chunks'],'readwrite'), completed = done(tx);
   try {
-  const chunks = tx.objectStore('chunks'), refs = new Map([...segments,...(undo ?? [])].map(s=>[s.data.id,s.data]));
-  // One transaction publishes the replacement map and all of its chunks.
-  const cursor = chunks.openCursor(range(key)); cursor.onsuccess = () => {
-    const c = cursor.result; if (!c) return;
-    if (!refs.has(c.value.id)) c.delete(); c.continue();
-  };
-  for (const data of refs.values()) {
-    // Existing immutable chunks need no new structured-clone copy.
-    const k = [key,data.id], found = chunks.getKey(k);
-    found.onsuccess = () => { try { if (found.result === undefined) chunks.put(data,k); } catch { tx.abort(); } };
-  }
-  tx.objectStore('tracks').put({...state,segments:segments.map(({data,...s})=>({...s,id:data.id}))},key);
+    const chunks = tx.objectStore('chunks'), refs = new Map(segments.map(s=>[s.data.id,s.data]));
+    // One transaction publishes the replacement map and all of its chunks.
+    const cursor = chunks.openCursor(range(key)); cursor.onsuccess = () => {
+      const c = cursor.result; if (!c) return;
+      if (!refs.has(c.value.id)) c.delete(); c.continue();
+    };
+    for (const data of refs.values()) {
+      // Existing immutable chunks need no new structured-clone copy.
+      const k = [key,data.id], found = chunks.getKey(k);
+      found.onsuccess = () => { try { if (found.result === undefined) chunks.put(data,k); } catch { tx.abort(); } };
+    }
+    tx.objectStore('tracks').put({...state,segments:segments.map(({data,...s})=>({...s,id:data.id}))},key);
   } catch (error) { tx.abort(); await completed.catch(()=>{}); throw error; }
   await completed;
 }
