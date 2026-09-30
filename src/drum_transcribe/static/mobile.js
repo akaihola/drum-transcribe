@@ -290,6 +290,13 @@ function decorate(panel) {
   // the meter is set once per piece: it scrolls away instead of sticking
   const meter = $(".scorehead > .meter", section);
   if (meter) scoreHead.after(meter);
+  // Undo is a ⋯ menu entry here, keeping the transport to one line
+  const undo = $('.rec-bar > [data-action="undo"]', section);
+  if (undo) {
+    undo.className = "";
+    undo.innerHTML = "<b>Undo last passage</b><span>Brings back what your last recording replaced</span>";
+    $(".rec-menu", section).prepend(undo);
+  }
 }
 
 function setTab(tab) {

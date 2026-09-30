@@ -191,10 +191,21 @@ html.mobile #addform form.create { margin: 16px; border-radius: 12px; }
 
 /* ---- Record: the arrange view, full width ---- */
 html.mobile .local-recording { margin: 12px 0 0; border-radius: 0; border-width: 1px 0; }
+/* one line: ⏮ ▶ ● counter ⋯, the status below. Undo is in the ⋯ menu
+   (mobile.js) and pinching the lanes replaces the Whole song/Follow switch. */
+html.mobile .rec-bar { gap: 8px; padding: 10px 12px; }
 html.mobile .rec-key { width: 48px; height: 48px; }
-html.mobile .rec-view button { min-height: 44px; font-size: 15px; }
-html.mobile .rec-bar output, html.mobile .rec-count span { font-size: 15px; }
+html.mobile .rec-view { display: none; }
+html.mobile .rec-count { flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 0; height: 48px; box-sizing: border-box; padding: 0 8px; }
+html.mobile .rec-count b { width: auto; font-size: 22px; line-height: 1.05; }
+html.mobile .rec-count span { font-size: 13px; }  /* its 13ch sets the counter's width */
+html.mobile [data-action="menu"] { order: 1; margin-left: auto; }
+html.mobile .rec-bar output { order: 2; flex-basis: 100%; font-size: 15px; white-space: normal; }
+html.mobile .rec-bar output:empty { display: none; }
 html.mobile .rec-menu { left: 8px; right: 8px; width: auto; }
+html.mobile .rec-menu > * { min-height: 48px; font-size: 16px; }
+html.mobile .rec-menu input { min-height: 40px; font-size: 16px; }
 /* each lane's controls above its waveform, both full width; bar numbers
    between the backing controls and the backing waveform */
 html.mobile .rec-grid { grid-template-columns: 1fr; }
