@@ -228,6 +228,7 @@ STYLE = """
             background: none; color: var(--ink-quiet); cursor: pointer;
             border: 1.5px solid var(--hairline); border-radius: 999px; padding: .3rem 1rem; }
   .local-recording { border-top: 1px solid var(--hairline); padding: 1rem 0; margin: 1rem 0; }
+  .local-recording canvas { display: block; width: 100%; background: var(--card); border: 1px solid var(--hairline); margin: .6rem 0; cursor: crosshair; }
   .local-recording h3 { margin: 0; }
   .local-recording p { max-width: 65ch; color: var(--quiet); }
   .record-controls { display: flex; flex-wrap: wrap; gap: .7rem 1.2rem; align-items: center; }
@@ -1346,6 +1347,8 @@ def scan_output(root: Path) -> dict:
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
+                "sourceIdentity": f"{sources[0].name}:{sources[0].stat().st_size}:"
+                f"{sources[0].stat().st_mtime_ns}" if sources else None,
                 "youtube": youtube_id(vdir),
                 "beats": f"{rel}/beats.json",
                 "irregular": irregular,
@@ -1410,7 +1413,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     .replace("__DOWNLOADS__", json.dumps(DOWNLOADS))
                     .replace("__VARIANTS__", json.dumps(list(VARIANTS))))
             self._send(html.encode(), "text/html; charset=utf-8")
-        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js)", path):
+        elif re.fullmatch(r"/static/(musescore\.svg|musicxml\.png|local-recording\.js|recording-core\.js|recording-worklet\.js|recording-store\.js)", path):
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
         elif path == "/style":
