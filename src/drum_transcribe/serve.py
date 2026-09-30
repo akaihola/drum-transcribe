@@ -277,7 +277,8 @@ STYLE = """
   .rec-menu input { width: 4.5em; font: inherit; font-size: .85rem; }
   .rec-menu .danger b { color: var(--signal); }
   .rec-grid { display: grid; grid-template-columns: 19rem 1fr; }
-  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text; touch-action: none; }
+  .rec-grid canvas { display: block; width: 100%; height: 80px; border-bottom: 1px solid var(--hairline); cursor: text;
+    touch-action: pan-y; }  /* vertical swipes scroll; the rest is ours (pinch zoom) */
   .rec-grid canvas[data-draw=ruler] { height: 26px; }
   .rec-grid canvas[data-draw=track] { height: 110px; border-bottom: 0; }
   .rec-head { position: relative; display: grid; gap: .3rem; align-content: start; padding: .45rem 1.9rem .45rem .6rem;
