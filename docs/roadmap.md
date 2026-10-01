@@ -57,6 +57,19 @@ bars).
     direction gives the most value for the least complexity.
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
+- **GPU host health: bucket test at start-up** (planned, 2026-10-01). A rented
+  host can pass every current check (fast internet, working GPU) and still have
+  a crawling route to our Scaleway bucket: one Czech/US host (offer 51860372,
+  174.164.26.93) fetched the recording at 2–4 KB/s on 2026-10-01 and was rented
+  twice in a row. `deploy/gpu-session.sh start` should time a short download of
+  the job's recording next to the existing GPU check, and give the host up if
+  it's slow, so the caller retries elsewhere.
+- **GPU host record** (planned, 2026-10-01). One line per rental — Vast machine
+  ID, date, outcome (worked / stuck downloading the image / parked / slow bucket
+  link / broken GPU), image download time, bucket speed — and the offer search
+  skips machines that failed recently. Later it tells which offer filters
+  actually predict a good host. Start with laptop runs; cloud-app runs lose
+  their logs, so covering them means keeping the record in the bucket.
 - PDF export (Verovio can render server-side) if printed parts are wanted.
 - Scanners find the hostname for the issued certificate, and each probe wakes the
   container. That costs a little extra. Let's block the obvious probe paths (`/.env*`,
