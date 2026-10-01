@@ -501,8 +501,8 @@ HELP_HTML = """
   M mutes your track, S plays it alone. You never hear the microphone itself.</p>
   <p>The &#8943; menu exports the whole song as a WAV with the mix you last
   listened to (the menu shows it), imports an audio file as your track, sets
-  the latency correction (60&nbsp;ms is a starting guess, not a measurement)
-  and clears your track. The volume slider changes only what you hear.
+  the latency correction (60&nbsp;ms is a starting guess; changing it moves
+  all your takes, so adjust it by ear while one plays) and clears your track. The volume slider changes only what you hear.
   Recordings are separate for each address, port and browser profile, and
   need HTTPS or localhost. Keys: Space play/pause, R record, M mute, S solo,
   Home back to start, Ctrl+Z undo.</p>

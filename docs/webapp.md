@@ -346,10 +346,15 @@ changes disarm Record to Play back; only M mutes.
 positions. An 8192-frame pre-roll buffer covers slightly late start commands.
 It emits zero output, performs no storage/waveform/encoding work, and marks
 missing or non-finite input invalid. Each `CapturePassage` freezes its offset and
-song-clock anchor. Stop fixes the requested song interval before draining its
-bounded capture tail. Placement clips corrected samples to that interval.
-Incomplete capture preserves the prior audio. Changes of route or offset do
-not move earlier takes; no quantization is applied.
+song-clock anchor, and every chunk keeps that offset as `captureOffset`. Stop
+fixes the requested song interval before draining its bounded capture tail.
+Placement clips corrected samples to that interval. Incomplete capture
+preserves the prior audio. The offset is one browser-wide setting
+(`localStorage.latency`, ms). Changing it runs `LocalTrack.realign`, which
+shifts every chunk by the difference, live during playback; moving back is
+lossless, so chunks may reach past the song ends. Restore and `ready()`
+re-apply the setting, so stored chunks may lag it. Imported audio has no
+`captureOffset` and never moves. No quantization is applied.
 
 `recording-core.js` stores a sparse interval map referencing immutable chunks.
 Replacing a passage splits surrounding references without copying the song.
