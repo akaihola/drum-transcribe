@@ -62,6 +62,9 @@ async function fingerprint(bytes) {
       .join("")
   );
 }
+// Latency correction in ms: one setting per browser, because it belongs to
+// the headphones and microphone, not to a song.
+const latencyMs = () => +(localStorage.latency ?? 60);
 const MEDIA = "audio, yt-audio, practice-audio";
 class PracticeAudio extends HTMLElement {
   connectedCallback() {
@@ -131,7 +134,6 @@ export class Recording {
     this.position = 0;
     this.playing = false;
     this.sources = [];
-    this.offset = 60;
     this.inputGain = 1;
     this.backingGain = 1;
     this.trackGain = 1;
@@ -285,7 +287,7 @@ export class Recording {
       <div class="rec-menu" data-menu hidden>
         <button data-action="download"><b>Export WAV</b><span data-heard></span></button>
         <button data-action="import"><b>Import audio…</b><span>Replaces your track, starting at 0:00</span></button>
-        <label><b>Latency correction</b><span><input data-control="offset" type="number" min="0" max="1000" value="60"> ms earlier — lines new takes up with what you heard. 60 ms is a starting guess; check it with a click or loopback recording.</span><output data-estimates></output></label>
+        <label><b>Latency correction</b><span><input data-control="offset" type="number" min="0" max="1000"> ms earlier — moves all your takes. Play one back and adjust until your hits sit with the backing.</span><output data-estimates></output></label>
         <button data-action="clear" class="danger"><b>Clear your track…</b><span>Removes this version's recording from this browser</span></button>
       </div>
       <input data-import type="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" hidden>
@@ -322,13 +324,14 @@ export class Recording {
       } else if (key === "backingGain" || key === "trackGain") {
         this[key] = fromDb(+e.target.value);
         this.balance();
+      } else if (key === "offset") {
+        localStorage.latency = Math.max(0, Math.min(1000, +e.target.value || 0));
+        this.align();
       }
       this.sync();
     };
     this.ui.onchange = (e) => {
       const key = e.target.dataset.control;
-      if (key === "offset")
-        this.offset = Math.max(0, Math.min(1000, +e.target.value || 0));
       if (key === "backing")
         this.run(() => this.selectBacking(e.target.value)).then(() => this.sync());
     };
@@ -546,6 +549,7 @@ export class Recording {
       this.ctx = await audioContext();
       if (this.needsSourceReload && !this.track.segments.length)
         await this.reloadSource();
+      this.align(); // the setting may have changed on another version's tab
       return;
     }
     if (!this.loading)
@@ -632,6 +636,7 @@ export class Recording {
             "Saved audio uses a different sample rate. Open it with the original audio settings.",
           );
         this.track.segments = saved.segments;
+        this.align();
         this.audition = saved.audition;
         if (this.audition && this.backingFiles()[this.audition.backing])
           this.selected = this.audition.backing;
@@ -718,6 +723,15 @@ export class Recording {
         }
       });
     return this.writes;
+  }
+  latency() {
+    return Math.round((latencyMs() * this.track.rate) / 1000);
+  }
+  // Moves microphone takes to the current latency correction, audibly at once.
+  align() {
+    if (!this.track?.realign(this.latency())) return;
+    this.waveVersion++;
+    if (this.playing) this.schedule();
   }
   edited() {
     this.cleared = false;
@@ -1434,7 +1448,7 @@ export class Recording {
   beginCapture() {
     const rate = this.track.rate,
       start = Math.round(Math.max(this.current(), this.recordFrom ?? 0) * rate);
-    const offset = Math.round((this.offset * rate) / 1000),
+    const offset = this.latency(),
       anchor = Math.round(this.anchor * rate);
     this.passage = new CapturePassage({
       id: crypto.randomUUID(),
@@ -1591,6 +1605,8 @@ export class Recording {
       if (document.activeElement !== input) input.value = db;
       ui.querySelector(`[data-db="${key}"]`).textContent = dbText(db);
     }
+    const latency = ui.querySelector('[data-control="offset"]');
+    if (document.activeElement !== latency) latency.value = latencyMs();
     const a = this.audition;
     ui.querySelector("[data-heard]").textContent = !a
       ? "Whole song · your track alone, since you haven't listened to it with a backing yet"

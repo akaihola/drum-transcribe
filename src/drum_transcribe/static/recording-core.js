@@ -22,6 +22,25 @@ export class LocalTrack {
     }
     this.segments = [...keep, ...segments].sort((a, b) => a.start - b.start);
   }
+  // Moves microphone takes to a new latency correction (frames). Each chunk
+  // keeps the correction it sits at, so moving back and forth loses nothing;
+  // chunks may reach past the song ends. Imported audio has none and stays.
+  realign(offset) {
+    const undo = this.undo,
+      runs = [];
+    this.segments = this.segments.filter((s) => {
+      if (s.captureOffset === undefined || s.captureOffset === offset) return true;
+      const shift = s.captureOffset - offset,
+        moved = { ...s, start: s.start + shift, end: s.end + shift, captureOffset: offset },
+        run = runs.at(-1);
+      if (run?.at(-1).end === moved.start) run.push(moved);
+      else runs.push([moved]);
+      return false;
+    });
+    for (const run of runs) this.replace(run[0].start, run.at(-1).end, run);
+    this.undo = undo;
+    return runs.length > 0;
+  }
   undoLast() {
     if (this.undo) {
       this.segments = this.undo;

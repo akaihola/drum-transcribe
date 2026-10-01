@@ -246,10 +246,16 @@ another to transfer editing. **Clear your track** asks first, then removes
 this version's audio, Undo and remembered mix, including pending writes. Other
 versions and pipeline results stay intact.
 
-**Latency correction** (in the ⋯ menu) places new microphone samples earlier on the song timeline.
-Its **60 ms default is an unmeasured starting guess**. It belongs to each take,
-so adjusting it never shifts older passages. Check it with a known click or
-loopback recording on your own wired setup. The temporary microphone buffer
+**Latency correction** (in the ⋯ menu) makes up for the delay between hearing
+the backing and the microphone picking up your hits: it moves your takes that
+many milliseconds earlier on the song timeline. Changing it moves all your
+takes at once, even while they play, so you can set it by ear: play back a
+take with the backing and adjust the number until your hits sit with the
+music. This works with earphones too. Its **60 ms default is an unmeasured
+starting guess**. The setting is shared by all songs in this browser, because
+it depends on your headphones and microphone, not on the song. If you change
+headphones or microphone, your older takes move along with the new value.
+Imported audio never moves. The temporary microphone buffer
 holds at most 171 ms and discards samples outside the requested passage.
 Software timing passed the checks in Chromium and Firefox. On the cloud site,
 loading and playing the backing was checked in Chromium; recording there has
