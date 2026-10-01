@@ -1,14 +1,18 @@
 # GPU processing resilience — design handoff
 
-Status: problem statement and constraints only. Nothing here is decided or
-implemented. The next step is a design: pick the mechanisms, list the open
-decisions for the user, then implement in small commits.
+Status (2026-10-01): problem statement, the user's decisions, research
+results and a proposed design. Nothing is implemented. Next step: run the
+two cheap tests under "Still to test", then implement the design in the
+order given, in small commits.
 
 Read first: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md),
 [gpu-workers.md](gpu-workers.md), [operations.md](operations.md) (section
 "Cloud test deployment"), [webapp.md](webapp.md) (section "Ingestion jobs"),
-and the two GPU items in [roadmap.md](roadmap.md) (bucket test, host record),
-which belong to this work.
+the research behind this doc,
+[gpu-resilience-research.md](gpu-resilience-research.md) (cited below as
+A = Scaleway, B = Vast.ai, C = code, e.g. "B §2"), and the two GPU items in
+[roadmap.md](roadmap.md) (bucket test, host record), which belong to this
+work.
 
 ## Goal
 
@@ -29,6 +33,9 @@ while
 6. never processing the same thing twice in parallel (no duplicate rentals,
    no two workers on one version).
 
+Goal 1 is limited by a decision below: with no periodic wake-ups, work
+continues while the container is up and otherwise on the next visit.
+
 ## What happened on 2026-10-01
 
 One YouTube song (`highway-star/levyversio`) took nearly 3 h and 15 rentals
@@ -37,14 +44,14 @@ to process; the GPU work itself took 6 min. Each failure mode below is real.
 | time (UTC) | event |
 |---|---|
 | 12:01 | Created from the phone with the GPU box ticked. Source fetched (yt-dlp), uploaded to the bucket. |
-| 12:04 | Last request from the phone — the page stopped polling (screen locked). |
-| 12:02–12:17 | Two rentals never got ready (storage-only charges, 12 + 6.5 min). Container CPU throttled the whole time. |
-| 12:17 | Third rental created. |
-| ~12:19 | Scaleway scaled the idle container to zero — the job thread and `pipeline.log` died with it. The `start` trap that destroys the instance never ran (killed, not exited). |
+| 12:04 | Last request from the phone (12:04:52) — the page stopped polling (screen locked). |
+| 12:02–12:17 | Two rentals never got ready (storage-only charges, 12 + 6.5 min). |
+| 12:17 | Third rental created — by the job thread, 12.5 min after the last request, so threads do get some CPU without a request in flight (A §3). |
+| 12:20–12:22 | Scaleway scaled the idle container to zero (15–17 min after the last request, A §3) — the job thread and `pipeline.log` died with it. The `start` trap that destroys the instance never ran (killed, not exited). |
 | 12:21 | Third host ready, nobody to deliver the job. Idle until destroyed by hand at 12:44. |
 | 13:01–14:42 | Retries from the laptop: one host stuck retrying image layers for 23 min; three parked as `stopped` (GPU taken); four rentals on 174.164.26.93, whose route to the Scaleway bucket runs at 2–12 KB/s (the worker's `curl` hung forever on the source); one ssh job delivery that died with a silent exit 255 two seconds after a successful GPU check (cause unknown — `LogLevel=ERROR` hides it). |
 | 14:42 | Healthy host (92.97.193.95, bucket at 3.4 MB/s). Worker started **detached on the instance** (`nohup setsid`), laptop could sleep. All 3 variants in the bucket by 14:48. |
-| ~15:20 | That instance ended up `stopped` (`intended_status=stopped`), **not destroyed** — still billing storage. Either the watchdog's `DELETE` only stops, or the host outbid us just before the watchdog fired. Unverified; destroyed by hand. |
+| ~15:20 | That instance ended up `stopped`, not destroyed, still billing storage. Vast stopped it itself at ≈15:18–15:23, most likely outbid: the account audit log has no DELETE or stop call before our manual destroy at 15:28:52. The watchdog's DELETE does destroy (verified 2026-09-20), but it was due at 15:18–15:19 and made no call; why is unknown (B §1). |
 
 Agent-side mistakes that cost time but are not app problems: the Claude Code
 sandbox blocks ssh, and `$TMPDIR` differs inside and outside it.
@@ -73,9 +80,11 @@ Flow for a cloud GPU job (`ingest.py`, `deploy/*.sh`):
    /tmp/alive`.
 6. Watchdog (instance `onstart`): destroys the instance via the
    per-instance `CONTAINER_API_KEY` once `/tmp/alive` is older than
-   `IDLE_MIN` (30). Starts only after the image pull.
+   `IDLE_MIN` (30). Starts only after the image pull, and dies with the
+   container when Vast stops the instance.
 
-Where state lives — almost all of it ephemeral:
+Where state lives — almost all of it ephemeral (C §6 lists every touch
+point):
 
 | state | where | survives container restart? |
 |---|---|---|
@@ -92,197 +101,207 @@ artifact presence: a variant counts as ready when
 `<variant>/sonification.ogg` exists; a log without an end marker and no
 thread means "stopped" (shown, never resumed).
 
-Cloud container facts (checked 2026-10-01, `scw container container get`):
-`min_scale 0`, `max_scale 1` (one container at most), request timeout
-300 s, 1 GB RAM / 500 mvCPU (operations.md). CPU is throttled between
-requests, so **background threads only make progress while some request
-is in flight** — that is why the page's 1 s polling "keeps the job moving".
-Each cold start re-syncs the bucket (`deploy/sync_bucket.py`, ~20 s;
-audio files become empty stand-ins, keys under `sources/` skipped).
-Scaleway container **triggers support cron schedules**
-(`scw container trigger create … cron-config.schedule`), and also SQS/NATS
-queues — untested here.
+Cloud container facts (A §3): `min_scale 0`, `max_scale 1` (one container
+at most), request timeout 300 s (settable up to 60 min), 1 GB RAM /
+500 mvCPU. It scales to zero 15–17 min after the last request and is
+billed per second of uptime, idle tail included: each cold wake costs
+≈16.5 min ≈ €0.007, always-on would be ≈ €18/month, and other containers
+already use most of the account's free tier. How much CPU a thread gets
+with no request in flight is undocumented — the 12:17 rental shows it is
+not zero (test T1). Each cold start re-syncs the bucket
+(`deploy/sync_bucket.py`, median 17 s; audio files become empty
+stand-ins, keys under `sources/` skipped).
 
-Pipeline caching (`cli.run_pipeline`): stages skip work whose output already
-exists (Demucs stems, `beats_raw.json`, …; check each stage before relying
-on it). The worker skips the source download if the file exists. Uploads
-are per variant with `rclone copy`, which overwrites the same keys. Worker
-uploads keep only the Demucs `drums.flac`/`no_drums.flac`; the MDX23C kit
-stems (`stems/mdx23c/`) are **not** uploaded, and `fused` needs them — a
-resume on a new host after `mdx23c` finished redoes the split (~36 s GPU).
+Pipeline caching (`cli.run_pipeline`, C §1): every stage skips when its
+output file exists, and no write is atomic, so a crash can leave a
+truncated file that later counts as done: the worker's source download,
+Demucs `no_drums.flac`, `beats_raw.json`, `onsets.json`. Uploads are per
+variant with `rclone copy` (parallel, no defined order). Worker uploads
+keep only the Demucs `drums.flac`/`no_drums.flac` (~88 % of the bytes);
+the MDX23C kit stems (`stems/mdx23c/`) are **not** uploaded, and `fused`
+needs them — a resume on a new host after `mdx23c` finished redoes the
+split (~36 s GPU).
 
 ## Failure modes to design for
 
 | # | failure | today | needed |
 |---|---|---|---|
-| F1 | Orchestrator gone: page closed → container throttled/scaled to zero (also: laptop sleep, agent session ended) | job lost silently; orphaned instance; no log | job must not depend on a live orchestrator connection |
-| F2 | Host never finishes the image pull | 22.5 min ssh-wait timeout, longer in practice (90 polls × ~30 s) | earlier give-up; no watchdog runs during the pull |
-| F3 | Host parked as `stopped` / outbid before start | handled (2 min) — common: 3 times today | keep |
-| F4 | Host with slow route to the bucket | undetected; worker `curl` hangs forever; uploads would crawl | bucket speed check (roadmap); timeouts / low-speed limits on every transfer |
-| F5 | ssh delivery drops (exit 255, cause unknown) | job fails; with `run-on-gpu.sh` the instance is destroyed too | job delivery that tolerates a dropped connection; ssh errors visible in the log |
-| F6 | Host dies or is outbid mid-job | per-variant uploads survive; nothing resumes | detect (heartbeat), re-rent, continue with the missing variants |
-| F7 | Instance ends `stopped`/`exited` instead of destroyed | storage bills indefinitely, nobody notices | verify the watchdog's `DELETE`; a sweeper that destroys stopped/exited instances |
-| F8 | Stall inside a variant (`/tmp/alive` only touched per variant) | watchdog waits the full idle time; a long variant could trip it | heartbeat independent of stage boundaries, plus per-step timeouts so a stall becomes a failure |
-| F9 | Wait loop doesn't notice a destroyed instance (`vast show instance` keeps answering with `actual_status` null → logged as "starting"; `alive()` greps for the key and likely reports it alive) | loop runs to its timeout | treat null/missing status as gone |
-| F10 | Two launchers for one version (laptop `run-on-gpu.sh` and the cloud app; or a second wake-up) | nothing prevents it | one shared lease per version |
+| F1 | Orchestrator gone: page closed → container scaled to zero (also: laptop sleep, agent session ended) | job lost silently; orphaned instance; no log | job must not depend on a live orchestrator connection |
+| F2 | Host never finishes the image pull | 22.5 min ssh-wait timeout, longer in practice (90 polls × ~30 s); Vast has no server-side time limit and no pull progress (B §5) | earlier give-up; no watchdog runs during the pull |
+| F3 | Host parked as `stopped` / outbid before start | handled (2 min) — common: 3 times today | `--cancel-unavail` refuses such a bid at once, no charge (B §5); fixed price on the last try |
+| F4 | Host with slow route to the bucket | undetected; worker `curl` hangs forever; uploads would crawl. The host's advertised `inet_up` doesn't predict it (B §6) | bucket speed check (roadmap); low-speed limits on every transfer |
+| F5 | ssh delivery drops (exit 255, cause unknown) | job fails; with `run-on-gpu.sh` the instance is destroyed too | no ssh (design §2) |
+| F6 | Host dies or is outbid mid-job | per-variant uploads survive; nothing resumes | detect, re-rent, continue with the missing variants |
+| F7 | Instance ends `stopped`/`exited` instead of destroyed | the watchdog's DELETE does destroy, but a Vast-side stop kills the watchdog with the container; storage bills until someone notices | sweeper destroys our labelled instances that are stopped/exited/unknown/offline |
+| F8 | Stall inside a variant (`/tmp/alive` only touched per variant) | watchdog waits the full idle time; a long variant could trip it | low-speed limits plus an overall time budget, so a stall becomes a failure |
+| F9 | Wait loop misreads Vast: a destroyed instance answers `{"instances": null}`, logged as "starting"; an API error (empty stdout, CLI still exits 0) is logged as "instance disappeared". `alive()` handles destroyed correctly but counts stopped as alive (B §2) | loop runs to its timeout | the status rule in B §2 |
+| F10 | Two launchers for one version (laptop `run-on-gpu.sh` and the cloud app; a second wake-up; a meter switch during a job — `_rerun` ignores `RUNNING`, C §5) | nothing prevents it | one lease per version |
 
-## The six requirements — gaps and options
+## Decisions (2026-10-01, with the user)
 
-These are options to evaluate, not decisions.
+| question | decision |
+|---|---|
+| Spend caps | 5 rentals per version, then the page says it failed and offers a retry. Across all songs about €1/day, counted as rentals (30/day; a rental costs ≤ 3 ¢ when the guards work). |
+| Who drives the work when nobody watches | **No periodic wake-ups** (no cron trigger, no Serverless Job). The container works while it is up — while a page is open, plus the 15–17 min it stays up afterwards — and continues on the next visit. Accepted: a host stuck loading, or bumped mid-job, bills storage (≈0.2–2.5 ¢/h) until then. |
+| Rental type | Bid on tries 1–4 (1.25× the floor, `--cancel-unavail`); fixed price (on-demand, never outbid; ≈ +1–1.5 ¢ per song) on try 5. |
+| Playback stems | Upload the Demucs drums / without-drums tracks as Opus (`.ogg`, sonify's setting, ≈ 7× smaller), not FLAC. The page's download becomes Opus; the user doesn't need FLAC there. FLAC stays only on the GPU host. |
+| Laptop path | Only the web app rents. The laptop submits through the web form and pulls results with `rclone sync`. `run-on-gpu.sh` and the `gpu-session.sh` keep-alive session go away; the manual `vastai` steps in gpu-workers.md §4 stay for debugging. |
 
-### 1. No dependence on an open page
+## Design (proposed)
 
-The container cannot be the thing that waits: its CPU is throttled without
-requests, and it scales to zero. Two directions, combinable:
+Agent-side choices that follow from the decisions and the research; no
+further user input needed. Numbered in implementation order.
 
-- **Autonomous worker.** The instance runs the job itself: started from
-  `--onstart-cmd` (runs after the image pull, so the container doesn't have
-  to wait for ssh at all) or delivered over a short ssh call and detached
-  (`nohup setsid … < /dev/null &` — what worked today). The worker reads
-  its job spec, writes a heartbeat and progress to the bucket, uploads per
-  variant, and destroys its own instance when done or when its own health
-  checks fail (GPU, bucket speed). The container only creates the rental
-  (seconds) and later reads the bucket. Caveat: with `--onstart-cmd`, the
-  job's S3 credentials go into `--env` and are visible in the Vast console
-  and to the host — the same exposure as today's ssh stream, but check.
-- **Periodic wake-up.** A Scaleway cron trigger calls a reconcile endpoint
-  (e.g. every few minutes while jobs are open). Each call is a request, so
-  the container gets CPU for up to 300 s. Cost: each wake-up is a cold
-  start (~23 s) plus bucket sync, unless the container is still warm.
-  Needs a way to switch the trigger off, or a cheap no-op, when nothing is
-  pending. Alternatives: Scaleway Serverless Jobs (run-to-completion) or
-  the SQS/NATS triggers — unverified.
+### 1. Worker: stalls become failures, every step repeatable
 
-The page's progress view would then read the bucket's job state instead of
-the in-memory thread.
+- Transfers: `curl --speed-limit/--speed-time` and `-o "$src.part" && mv`;
+  rclone `--timeout`, `--contimeout` and a low-speed cutoff. Timing the
+  source download doubles as the bucket speed test (roadmap): below a
+  threshold the worker gives up on the host.
+- The GPU check moves into the worker.
+- Atomic local writes (C §1): one temp-file + `os.replace` helper for
+  `BeatGrid.save`, `save_onsets`, `save_events`; unparsable cache files
+  count as missing (also keeps one bad file from breaking `/api/index`);
+  Demucs skips only when a marker written after both stems exists.
+- Completion marker: after `rclone copy` of a variant succeeds, upload
+  `<variant>/done`. The adtof marker also covers the shared files (source,
+  stems, beats).
+- Opus: the worker encodes `drums`/`no_drums` to `.ogg` for upload; the
+  FLACs are never uploaded. `separate_drums` runs only when onsets or kit
+  stems are missing (today it runs every time, `cli.py:121`), so synced
+  results don't make the laptop redo Demucs. Page and progress accept both
+  names, so old FLAC versions keep working (readers listed in C §4).
+- The worker uploads its own log, `<song>/<version>/worker.log`, every
+  60 s; its modification time is the heartbeat.
+- Don't upload `stems/mdx23c/`: more upload time than the ~36 s split it
+  saves.
 
-### 2. Resume on a new host
+### 2. Delivery without ssh
 
-Needs: a liveness signal (heartbeat object with a timestamp, written by a
-loop in the worker independent of stages); a reconciler that sees a stale
-heartbeat or a dead/stopped instance and re-rents; resume at variant
-granularity (already natural: skip variants whose outputs are complete in
-the bucket); caps — attempts per version, spend per version/day — so a
-broken offer pool can't burn money in a loop; the host record and bucket
-test from the roadmap, so a re-rent avoids known-bad hosts (block by IP:
-two offers today were the same site).
+- `--onstart-cmd` carries everything: the worker inline as gzip+base64
+  (onstart is limited to 4048 characters; the worker is 1.7 KB compressed
+  today — if it outgrows that, bake it into the image), run as
+  `timeout <budget> bash worker.sh`, then destroy the own instance with
+  `CONTAINER_API_KEY` and log the DELETE's HTTP status to the bucket
+  (B §1 left the 10-01 silence unexplained). Success destroys at once — no
+  idle wait, so the window in which an outbid can strand a host is the job
+  itself.
+- Job spec (`SONG`, `VERSION`, `VARIANTS`, presigned `SOURCE_URL`) and the
+  worker S3 key go in `--env` — visible to the host and in `show
+  instance`, the same exposure as today's ssh stream (B §4).
+- `--label <song>/<version>` on every rental (B §3).
+- Onstart re-runs when an outbid instance resumes; the worker then skips
+  variants that have `done` markers and finishes.
+- Removed: ssh delivery (F5), `GPU_SSH_KEY_B64`, host-key pinning,
+  `openssh-client` in the image, the idle watchdog loop, `.gpu-instance`.
 
-Stalls have to turn into failures to be resumable: `curl
---speed-limit/--speed-time`, rclone `--timeout`/`--contimeout`, an overall
-per-variant time budget.
+### 3. Trusted job state
 
-Decide whether to upload `stems/mdx23c/` so `fused` can resume without
-redoing the split, or accept the ~36 s.
+Every rented host holds the worker key, so anything in the results bucket
+is untrusted. Bucket policies are allow-only and can't exclude a prefix
+(A §2), so job state gets its own bucket:
 
-### 3. Continue unfinished work on wake-up
+- New bucket `drum-transcribe-jobs`, new IAM application with a key for the
+  container only; the bucket policy lists that application and the user's
+  `user_id` (anyone not listed is locked out, which shuts out the worker
+  key). The container gets the key as a seventh secret — remember that
+  `secret-environment-variables` updates replace the whole map.
+- Per version, `<song>/<version>.json`: requested variants, attempts (with
+  rental type), state (open/done/failed), current instance id, timestamps.
+  Written with conditional PUTs (`If-None-Match: *` to create, `If-Match:
+  <etag>` to update; verified on Scaleway, A §1), so the record is the
+  lease (F10). The meter rerun takes the same lease.
+- The container's own log for the version, `<song>/<version>.log`, the
+  daily rental counter, and the host record (design §6) live here too.
 
-Today "unfinished" can't be told apart from "deliberately partial": e.g.
-`the-police-nothing-achieving/hd` has only `beats.json`; old versions have
-no record of whether GPU processing was requested. So inferring work from
-missing files is unsafe — it would rent GPUs for legacy versions.
+### 4. Reconcile
 
-Likely needs an explicit, durable **job record** per version in the bucket
-(requested variants, GPU or not, attempt count, state, timestamps, current
-instance id / lease). Reconcile = list job records that are open, skip those
-with a live lease, launch the rest within the caps.
+One cheap, idempotent function. Runs at container start, on page requests
+(at most once a minute), and in a loop thread while the container is up
+(worth it if T1 shows CPU without requests). For each open job record:
 
-Wake-ups also come from scanners and bots (see the roadmap item on probe
-paths), so reconcile-on-start must be cheap and cap-guarded — a bot must
-not be able to trigger rentals beyond what the open jobs justify.
+- Ask Vast `show instances --label <song>/<version>`. Only ids from that
+  answer are ever destroyed — never ids read from a bucket.
+- All requested `<variant>/done` present → sync results, mark done.
+- A live instance: leave it if `running` with a fresh heartbeat; destroy it
+  and count the attempt if it is dead by the B §2 status rule, `loading`
+  longer than `45 s + 6 × 8 GB / inet_down` plus a margin (F2), or its
+  heartbeat is stale.
+- No live instance: rent if attempts < 5 and the daily cap allows (try 5 at
+  fixed price); otherwise mark failed.
 
-### 4. CPU work while the GPU host loads
+Sweeper in the same pass: destroy any labelled instance that is
+stopped/exited/unknown/offline (F7), with or without a record. Vast status
+rule (B §2): empty stdout or `"error": true` on stderr means an API problem,
+retry (the CLI exits 0 either way); `{"instances": null}` means gone.
 
-Time budget on a GPU run: image pull 1–10 min (up to 23+ when broken), GPU
-compute ~3 min for a 4.6 min song, uploads 2–8 min depending on the host's
-route (most bytes are the two Demucs FLACs, ~70 MB each).
+### 5. Submission
 
-Facts that limit the options:
+`/api/create` writes the job record, rents (seconds), and fetches and
+uploads the source in parallel with the image pull — the only useful CPU
+work for the container (requirement 4; no pipeline stage is worth moving
+there, C §3). The worker waits a bounded time for the source object. The
+presigned URL is made per rental.
 
-- The container only computes while a request is in flight (see 1), and
-  each request may last at most 300 s. Long CPU work there needs a page
-  open, a cron wake-up, or a different Scaleway product.
-- The webapp image has no torch/ML stack on purpose (small image, fast
-  cold start). beat_this, Demucs, ADTOF, MDX23C all need torch.
-- 1 GB RAM, 0.5 vCPU.
+### 6. Host record and blocklist
 
-Candidates to evaluate:
+The roadmap item, kept in the jobs bucket: one line per rental (machine_id,
+host_id, public_ipaddr, outcome, pull time, bucket speed). The offer query
+excludes recent failures: `public_ipaddr notin [...]` for slow routes,
+`machine_id notin [...]` for broken boxes (both filter on the server,
+B §6).
 
-- Fetching the source (yt-dlp, ffmpeg) and uploading it **in parallel
-  with** renting, instead of before — the rental doesn't need the source
-  until the worker starts. Probably the cheapest win.
-- Post-processing that needs no torch: quantize → MusicXML → audition MIDI
-  could run in the container from `onsets.json` + `beats.json`. Check each
-  module's imports. Sonification needs audio decode/encode; `.mscz` export
-  needs MuseScore (only in the GPU image).
-- Beat tracking on CPU in the container: needs torch — likely a no.
-- Shrinking uploads (e.g. Opus instead of FLAC for the playback stems)
-  would shorten the GPU rental on slow-route hosts more than any CPU
-  offload. Quality trade-off is the user's call.
+### 7. Page and docs
 
-### 5. Idempotency
+Versions with a job record read state from it plus the `done` markers and
+`worker.log`; old versions keep the `sonification.ogg` rule. Show "trying
+another machine (attempt 2 of 5)" and "failed — try again". Explain in
+README/webapp.md what happens when the page is closed. Fix operations.md
+(yt-dlp/ffmpeg are in the image; "keep the page open") and gpu-workers.md
+(onstart delivery; the claim that `CONTAINER_API_KEY` reaches "only that
+one instance" is undocumented, B §1).
 
-Every step must be safe to repeat after a crash at any point:
+### Not doing
 
-- Pipeline stages: cached by output existence — verify per stage, and that
-  a crash mid-write can't leave a truncated output that later counts as
-  done (write to a temp name, rename).
-- Bucket: one object PUT is atomic; a variant's file set is not, and rclone
-  copy order is not defined. `progress` treats `sonification.ogg` as
-  "variant ready", so a half-uploaded variant can look done. Needs a
-  completion marker written last (or an upload order that guarantees it).
-- Renting is **not** idempotent: every `create instance` is a new rental.
-  Guard it with the lease (requirement 6), and label instances
-  (`vastai create … --label <song>/<version>`) so a fresh container can
-  find live ones with `vastai show instances`.
-- Presigned URLs expire (24 h); regenerate instead of storing.
-
-### 6. No duplicate processing
-
-- One lease per version in the bucket (owner, instance id, expiry,
-  heartbeat). With `max_scale 1` there is normally one container, but
-  during a redeploy two can overlap, and the laptop scripts act on the
-  same bucket — so the lease needs compare-and-set semantics. Check
-  whether Scaleway Object Storage supports conditional writes
-  (`If-None-Match`/`If-Match` on PUT); if not, design for a single
-  writer and make the laptop path go through the same lease.
-- The bucket is untrusted (gpu-workers.md §3): every rented host holds the
-  worker key and can write any key, including other versions' job records
-  and leases. Whatever the reconciler reads from the bucket — instance ids,
-  states, timestamps — is attacker-controlled input. Never destroy or
-  trust an instance id without checking it against `vastai show instances`
-  for our own account and label.
+- Cron triggers, Serverless Jobs, queue delays: ruled out by the wake-up
+  decision; Scaleway queues can't delay messages anyway (A §4–6).
+- Vast webhooks (outbid/stopped/error events, B §5): would wake the
+  container only when something breaks, but need a key or setting made in
+  the Vast console. Revisit if stranded hosts cost more than expected.
 
 ## Cross-cutting
 
-- **Persistent logs.** `pipeline.log` should reach the bucket (worker
-  appends its own log; container appends its lines), so a failure is
-  explainable after a restart. Today's first failure left no trace.
-- **Cost guardrails.** Attempt and spend caps; a sweeper for
-  stopped/exited instances (F7); the watchdog must cover the pull phase
-  (F2) — today a host stuck pulling is guarded only by the caller's wait
-  loop, which is exactly what disappears in F1.
-- **User-facing state.** The musician user reads the page: show "trying
-  another machine (attempt 2 of 3)" rather than a frozen progress bar;
-  explain in README/webapp docs what happens if they close the page.
-- **Docs to fix along the way:** operations.md (yt-dlp/ffmpeg are in the
-  image; the "keep the page open" caveat), gpu-workers.md (watchdog
-  "destroys" — verify F7; detached delivery).
+- **Narrow the worker key first** (independent of the rest): it has
+  `ObjectStorageFullAccess` on the whole Scaleway project, so any rented
+  host can change the results bucket's CORS, versioning or lifecycle — a
+  lifecycle rule could expire every object (A §2).
+  `ObjectStorageObjectsRead/Write/Delete` is enough for the worker.
+- **Cost guardrails**: attempt and daily caps (decisions), the sweeper
+  (F7), `--cancel-unavail` (F3). Storage bills from creation, during the
+  pull too, and for up to ~5 min after a destroy (B §7).
 
-## Open decisions for the user
+## Still to test
 
-- Spend caps: max attempts per song, max € per song/day.
-- Is a periodic cron wake-up acceptable (small standing cost while jobs are
-  open), or must everything be driven from the GPU side?
-- Opus vs FLAC for the uploaded playback stems.
-- Keep `run-on-gpu.sh` from the laptop as a first-class path, or make the
-  laptop just another client of the same job records?
+Cheap, before or during implementation:
 
-## Verifying a design
+- **T1 — CPU without a request.** A probe endpoint starts a thread that
+  logs a busy-loop counter every 10 s; compare rates during and after the
+  request in Cockpit. Decides whether the reconcile loop thread is worth
+  having.
+- **T2 — one test rental** (a few cents): the watchdog-style DELETE on the
+  current image, with its HTTP status logged; what `CONTAINER_API_KEY` can
+  reach (`GET /instances/`, `/users/current/` from inside); `--cancel-unavail`
+  on a bid; a label containing `/`; a ~4 KB `--env` value; and whether a
+  Vast scheduled job (`/commands/schedule_job/`, B §5) accepts `DELETE
+  /instances/<id>/`. If it does, it is a server-side backstop for a host
+  stuck loading — the one gap the wake-up decision leaves.
+
+## Verifying the implementation
 
 Fault injection on real rentals (a few cents each): close the page right
 after submitting; destroy the instance mid-pull and mid-variant; kill the
 worker; block the bucket on the host (`iptables` drop to
-s3.fr-par.scw.cloud) to simulate F4; redeploy the container mid-job; submit
-the same version from laptop and cloud at once; let a job finish and check
-the instance is gone (not stopped) in `vastai show instances` and
-`vastai show invoices`.
+s3.fr-par.scw.cloud) to simulate F4; redeploy the container mid-job;
+submit the same version twice at once and switch the meter during a job;
+let a job finish and check the instance is gone (not stopped) in `vastai
+show instances` and `vastai show invoices`.
