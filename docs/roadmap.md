@@ -57,11 +57,16 @@ bars).
     direction gives the most value for the least complexity.
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
+- **GPU processing resilience** (design pending, 2026-10-01): jobs that survive
+  a closed page, crashed or stalled hosts and container restarts, resume on a
+  new host, and never run twice. Problem statement, failure catalogue and
+  options: [gpu-resilience-handoff.md](gpu-resilience-handoff.md). The next two
+  items are part of it.
 - **GPU host health: bucket test at start-up** (planned, 2026-10-01). A rented
   host can pass every current check (fast internet, working GPU) and still have
   a crawling route to our Scaleway bucket: the site at 174.164.26.93 (offers
   51860372 and 51229946 — two machines, one address) fetched the recording at
-  2–12 KB/s on 2026-10-01 and was rented three times. `deploy/gpu-session.sh start` should time a short download of
+  2–12 KB/s on 2026-10-01 and was rented four times. `deploy/gpu-session.sh start` should time a short download of
   the job's recording next to the existing GPU check, and give the host up if
   it's slow, so the caller retries elsewhere.
 - **GPU host record** (planned, 2026-10-01). One line per rental — Vast machine
