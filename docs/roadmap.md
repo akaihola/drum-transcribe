@@ -32,6 +32,17 @@ bars).
 
 ## Known issues
 
+- **The cloud copy forgets edits** (found 2026-10-01): score feedback
+  (`feedback.json`), the keep-raw-bars switch and meter-switch results are
+  written only inside the container, never to the bucket (`gate.keep` covers
+  just `created` and `source-url.txt`), so they vanish at the next cold start —
+  15 min after the last visit. Fix: `gate.keep` after each write, plus a bucket
+  delete when the flag is removed.
+- **Meter switch half-fails on the cloud copy**: it rewrites `beats.json` and
+  `events.json`, then stops at the missing `pretty_midi`, so the bar overlay and
+  the old score disagree. Running it during a GPU job also starts a second
+  pipeline on the same version. Details:
+  [gpu-resilience-research.md](gpu-resilience-research.md) Part C §5.
 - **mdx23c over-detects** (~2× adtof): stem bleed + a generic librosa onset detector.
   Untuned; the cymbal-dominance rule is the only filter so far.
 - **.mscz is forced** (with a warning) when the beat grid is broken (see
@@ -57,11 +68,12 @@ bars).
     direction gives the most value for the least complexity.
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
-- **GPU processing resilience** (design pending, 2026-10-01): jobs that survive
-  a closed page, crashed or stalled hosts and container restarts, resume on a
-  new host, and never run twice. Problem statement, failure catalogue and
-  options: [gpu-resilience-handoff.md](gpu-resilience-handoff.md). The next two
-  items are part of it.
+- **GPU processing resilience** (decided and designed 2026-10-01, not built):
+  jobs that survive a closed page, crashed or stalled hosts and container
+  restarts, resume on a new host, and never run twice. Decisions (5 tries per
+  song, no periodic wake-ups, Opus playback stems, only the web app rents),
+  design and remaining tests: [gpu-resilience-handoff.md](gpu-resilience-handoff.md).
+  The next two items are part of it.
 - **GPU host health: bucket test at start-up** (planned, 2026-10-01). A rented
   host can pass every current check (fast internet, working GPU) and still have
   a crawling route to our Scaleway bucket: the site at 174.164.26.93 (offers
