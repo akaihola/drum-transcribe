@@ -102,17 +102,20 @@ viewed from anywhere without the laptop being on:
   credentials at startup from the
   secret env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY`/`VAST_API_KEY`/
   `GPU_SSH_KEY_B64` — the last is the base64 of the dedicated
-  `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Only uploads
-  and direct-download URLs work there (no yt-dlp/ffmpeg in the image), and
-  only to public http(s) addresses — on this deployment `check_url` resolves
+  `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Uploads,
+  direct-download URLs and YouTube links work there (yt-dlp and ffmpeg are
+  in the image); Google Drive links don't (no gdown). Links must point
+  to public http(s) addresses — on this deployment `check_url` resolves
   the host and refuses private ones ([webapp.md](webapp.md) → Fetching a new
   version), so a visitor can't read the container's own network back out of
   `/files/…`.
-  Caveats: serverless CPU is throttled between requests, so keep the
-  version's page open while it processes (its 1 s status polling keeps the
-  job moving); if the container is scaled away mid-job, the GPU instance's
-  idle watchdog self-destructs it (see gpu-workers.md). `pipeline.log` is
-  ephemeral — results persist only via the bucket.
+  Caveats: the container keeps full CPU between requests but scales to
+  zero ~17 min after the last one (measured 2026-10-01, see
+  [gpu-resilience-handoff.md](gpu-resilience-handoff.md) → Test results),
+  and a job still running then dies with it — so keep the version's page
+  open until a GPU job finishes. The GPU instance's idle watchdog then
+  self-destructs it (see gpu-workers.md). `pipeline.log` is ephemeral —
+  results persist only via the bucket.
 - Data: at every container start, `deploy/sync_bucket.py` downloads the
   bucket into `/app/output` before the server starts, except audio files
   (MP3/FLAC/Opus, ~95 % of the bytes): those become empty stand-ins, and the server

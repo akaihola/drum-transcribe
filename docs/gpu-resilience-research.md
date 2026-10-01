@@ -6,6 +6,11 @@ from it are in the handoff. Labels: **VERIFIED** = measured or observed
 here, **DOCUMENTED** = the vendor's docs or source code say so,
 **UNKNOWN** = not settled (each says what would settle it).
 
+Several UNKNOWNs below were settled by tests the same day — CPU between
+requests (A §3a: not throttled) and the Vast container key, scheduled
+DELETE, `--cancel-unavail`, labels and env size (B §1, §3–5): see the
+handoff's "Test results".
+
 - [Part A — Scaleway](#part-a--scaleway): conditional writes, bucket
   policies, container runtime and billing, cron triggers, Serverless Jobs,
   queues
