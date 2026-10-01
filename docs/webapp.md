@@ -63,7 +63,10 @@ it):
   creations per `THROTTLE_HOURS` (24), counted from `created` marker files
   in the version dirs. The timestamp is in the file *content* — mtimes lie
   after every bucket re-sync. Markers are best-effort uploaded to the
-  bucket at creation so cold starts still see them. `auth` markers (created
+  bucket at creation so cold starts still see them, and so are
+  `source-url.txt`, `feedback.json` and the `keep-raw-bars` flag (removing
+  the flag deletes its copy). `gate.keep` mirrors them through one queue,
+  so the newest save lands last. `auth` markers (created
   with a valid cookie) don't consume the anonymous budget.
 - **Unlock**: past the cap the create form reveals a password field;
   `/api/unlock` checks scrypt entries (`salt:hex` comma-separated in

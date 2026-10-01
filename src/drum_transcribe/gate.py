@@ -23,12 +23,13 @@ import hmac
 import json
 import os
 import secrets
-import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 COOKIE = "create_token"
+_UPLOADS = ThreadPoolExecutor(max_workers=1)
 
 
 def enabled() -> bool:
@@ -88,13 +89,17 @@ def write_marker(version_dir: Path, authorized: bool) -> None:
     version_dir.mkdir(parents=True, exist_ok=True)
     marker = version_dir / "created"
     marker.write_text(f"{int(time.time())} {'auth' if authorized else 'anon'}\n")
-    keep(marker)
+    keep(marker, version_dir.parent.parent)
 
 
-def keep(path: Path) -> None:
-    """In the cloud, copy a small version file to the bucket so cold starts keep it."""
+def keep(path: Path, root: Path) -> None:
+    """In the cloud, mirror a small file under ``root`` to the bucket — upload
+    it, or delete its copy if the file is gone — so cold starts keep the change.
+
+    One queue, in call order: of two quick saves, the later one lands last.
+    """
     if enabled():
-        threading.Thread(target=_upload, args=(path,), daemon=True).start()
+        _UPLOADS.submit(_mirror, path, path.relative_to(root).as_posix())
 
 
 def forget(version_dir: Path) -> None:
@@ -128,11 +133,13 @@ def presigned(key: str) -> str:
         "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=12 * 3600)
 
 
-def _upload(path: Path) -> None:
+def _mirror(path: Path, key: str) -> None:
     try:
         s3, bucket = _bucket()
-        s3.upload_file(str(path), bucket,
-                       f"{path.parent.parent.name}/{path.parent.name}/{path.name}")
+        if path.exists():
+            s3.upload_file(str(path), bucket, key)
+        else:
+            s3.delete_object(Bucket=bucket, Key=key)
     except Exception as e:  # noqa: BLE001
-        print(f"{path.name} upload failed (lost at next cold start): {e!r}",
+        print(f"{key} bucket update failed (lost at next cold start): {e!r}",
               flush=True)

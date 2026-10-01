@@ -1715,7 +1715,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 version_dir = self._new_version_dir(data["project"], data["version"])
                 gate.write_marker(version_dir, authorized=kind == "auth")
                 (link := version_dir / "source-url.txt").write_text(url + "\n")
-                gate.keep(link)
+                gate.keep(link, self.root)
                 start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
                 self._send_json(200, {"project": version_dir.parent.name,
                                       "version": version_dir.name})
@@ -1780,6 +1780,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             flag.touch()
         else:
             flag.unlink(missing_ok=True)
+        gate.keep(flag, self.root)
         start_rerun_job(version_dir)
 
     def _save_feedback(self, data: dict) -> dict:
@@ -1796,6 +1797,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         else:
             feedback.pop(key, None)
         fb_file.write_text(json.dumps(feedback, indent=1))
+        gate.keep(fb_file, self.root)
         return feedback
 
     def do_PUT(self):

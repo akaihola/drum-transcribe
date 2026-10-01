@@ -32,16 +32,11 @@ bars).
 
 ## Known issues
 
-- **The cloud copy forgets edits** (found 2026-10-01): score feedback
-  (`feedback.json`), the keep-raw-bars switch and meter-switch results are
-  written only inside the container, never to the bucket (`gate.keep` covers
-  just `created` and `source-url.txt`), so they vanish at the next cold start —
-  15 min after the last visit. Fix: `gate.keep` after each write, plus a bucket
-  delete when the flag is removed.
 - **Meter switch half-fails on the cloud copy**: it rewrites `beats.json` and
   `events.json`, then stops at the missing `pretty_midi`, so the bar overlay and
-  the old score disagree. Running it during a GPU job also starts a second
-  pipeline on the same version. Details:
+  the old score disagree, and the rewritten files are lost at the next cold start
+  (only the keep-raw-bars flag itself reaches the bucket). Running it during a GPU
+  job also starts a second pipeline on the same version. Details:
   [gpu-resilience-research.md](gpu-resilience-research.md) Part C §5.
 - **mdx23c over-detects** (~2× adtof): stem bleed + a generic librosa onset detector.
   Untuned; the cymbal-dominance rule is the only filter so far.
