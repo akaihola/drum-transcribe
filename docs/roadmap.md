@@ -59,15 +59,16 @@ bars).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
 - **GPU host health: bucket test at start-up** (planned, 2026-10-01). A rented
   host can pass every current check (fast internet, working GPU) and still have
-  a crawling route to our Scaleway bucket: one Czech/US host (offer 51860372,
-  174.164.26.93) fetched the recording at 2–4 KB/s on 2026-10-01 and was rented
-  twice in a row. `deploy/gpu-session.sh start` should time a short download of
+  a crawling route to our Scaleway bucket: the site at 174.164.26.93 (offers
+  51860372 and 51229946 — two machines, one address) fetched the recording at
+  2–12 KB/s on 2026-10-01 and was rented three times. `deploy/gpu-session.sh start` should time a short download of
   the job's recording next to the existing GPU check, and give the host up if
   it's slow, so the caller retries elsewhere.
 - **GPU host record** (planned, 2026-10-01). One line per rental — Vast machine
   ID, date, outcome (worked / stuck downloading the image / parked / slow bucket
   link / broken GPU), image download time, bucket speed — and the offer search
-  skips machines that failed recently. Later it tells which offer filters
+  skips machines that failed recently (slow bucket links: skip the whole IP
+  address, since one site can list several machines). Later it tells which offer filters
   actually predict a good host. Start with laptop runs; cloud-app runs lose
   their logs, so covering them means keeping the record in the bucket.
 - PDF export (Verovio can render server-side) if printed parts are wanted.
