@@ -1,12 +1,14 @@
 # GPU processing resilience — design handoff
 
-Status (2026-10-01): problem statement, the user's decisions, research
-and test results, and a proposed design. Nothing of the design is
-implemented. Next step: implement it in the order given, in small commits.
+Status (2026-10-02): design reviewed and revisions approved by the user.
+The 2026-10-01 research and tests remain the evidence; the revised design
+is not implemented. Follow the [Honey principles](https://raw.githubusercontent.com/Green-PT/honey-for-devs/refs/heads/main/skills/honey/SKILL.md):
+reuse the worker already in the image, keep one rental coordinator, and
+make crash recovery explicit. Implement in the order below, in small commits.
 
 Read first: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md),
 [gpu-workers.md](gpu-workers.md), [operations.md](operations.md) (section
-"Cloud test deployment"), [webapp.md](webapp.md) (section "Ingestion jobs"),
+"Cloud test deployment"), [webapp.md](webapp.md) (section "Fetching a new version"),
 the research behind this doc,
 [gpu-resilience-research.md](gpu-resilience-research.md) (cited below as
 A = Scaleway, B = Vast.ai, C = code, e.g. "B §2"), and the two GPU items in
@@ -34,6 +36,11 @@ while
 
 Goal 1 is limited by a decision below: with no periodic wake-ups, work
 continues while the container is up and otherwise on the next visit.
+There is also a crash window between creating a rental and installing its
+scheduled DELETE. Without a completed schedule, cleanup waits for the next
+visit. Conditional bucket writes cannot make those Vast calls atomic.
+If a creation outcome cannot be established, processing waits for account
+or audit-log inspection rather than risking a duplicate rental.
 
 ## What happened on 2026-10-01
 
@@ -127,81 +134,30 @@ split (~36 s GPU).
 | F1 | Orchestrator gone: page closed → container scaled to zero (also: laptop sleep, agent session ended) | job lost silently; orphaned instance; no log | job must not depend on a live orchestrator connection |
 | F2 | Host never finishes the image pull | 22.5 min ssh-wait timeout, longer in practice (90 polls × ~30 s); no pull progress in the API (B §5) | earlier give-up; no watchdog runs during the pull, but a Vast scheduled DELETE does (test T2) |
 | F3 | Host parked as `stopped` / outbid before start | handled (2 min) — common: 3 times today | `--cancel-unavail` refuses such a bid at once, no charge (B §5); fixed price on the last try |
-| F4 | Host with slow route to the bucket | undetected; worker `curl` hangs forever; uploads would crawl. The host's advertised `inet_up` doesn't predict it (B §6) | bucket speed check (roadmap); low-speed limits on every transfer |
-| F5 | ssh delivery drops (exit 255, cause unknown) | job fails; with `run-on-gpu.sh` the instance is destroyed too | no ssh (design §2) |
+| F4 | Host with slow route to the bucket | undetected; worker `curl` hangs forever; uploads would crawl. The host's advertised `inet_up` doesn't predict it (B §6) | bucket speed check (roadmap); bounded transfers |
+| F5 | ssh delivery drops (exit 255, cause unknown) | job fails; with `run-on-gpu.sh` the instance is destroyed too | no ssh (design §3) |
 | F6 | Host dies or is outbid mid-job | per-variant uploads survive; nothing resumes | detect, re-rent, continue with the missing variants |
 | F7 | Instance ends `stopped`/`exited` instead of destroyed | the watchdog's DELETE does destroy, but a Vast-side stop kills the watchdog with the container; storage bills until someone notices | sweeper destroys our labelled instances that are stopped/exited/unknown/offline |
-| F8 | Stall inside a variant (`/tmp/alive` only touched per variant) | watchdog waits the full idle time; a long variant could trip it | low-speed limits plus an overall time budget, so a stall becomes a failure |
+| F8 | Stall inside a variant (`/tmp/alive` only touched per variant) | watchdog waits the full idle time; a long variant could trip it | explicit attempt deadline; a quiet log alone does not mean failure |
 | F9 | Wait loop misreads Vast: a destroyed instance answers `{"instances": null}`, logged as "starting"; an API error (empty stdout, CLI still exits 0) is logged as "instance disappeared". `alive()` handles destroyed correctly but counts stopped as alive (B §2) | loop runs to its timeout | the status rule in B §2 |
-| F10 | Two launchers for one version (laptop `run-on-gpu.sh` and the cloud app; a second wake-up; a meter switch during a job — `_rerun` ignores `RUNNING`, C §5) | nothing prevents it | one lease per version |
+| F10 | Two launchers for one version (laptop `run-on-gpu.sh` and the cloud app; a second wake-up; a meter switch during a job — `_rerun` ignores `RUNNING`, C §5) | nothing prevents it | one coordinator; persist an attempt claim before renting; reject meter changes during processing |
 
-## Decisions (2026-10-01, with the user)
+## Decisions (2026-10-01, clarified in the approved 2026-10-02 review)
 
 | question | decision |
 |---|---|
-| Spend caps | 5 rentals per version, then the page says it failed and offers a retry. Across all songs about €1/day, counted as rentals (30/day; a rental costs ≤ 3 ¢ when the guards work). |
-| Who drives the work when nobody watches | **No periodic wake-ups** (no cron trigger, no Serverless Job). The container works while it is up — while a page is open, plus the ~17 min it stays up afterwards, with full CPU (T1) — and continues on the next visit. Accepted: a host bumped mid-job bills storage (≈0.2–2.5 ¢/h) until then; a host stuck loading is destroyed by Vast's own scheduler (design §2). |
+| Spend caps | 5 rentals per version before an explicit retry. Across all songs about €1/day, counted as rentals (30/day). The intended cost is at most about 3 ¢ per rental; this is a target to verify against price limits and actual scheduled deletion times, not a demonstrated ceiling. |
+| Who drives the work when nobody watches | **No periodic wake-ups** (no cron trigger, no Serverless Job). The container works while it is up, including the ~17 min after the last request with full CPU (T1), and continues on the next visit. Accepted: a host without a working deletion schedule can bill storage until then. A scheduled DELETE runs without the container, including during an image pull (design §3). |
 | Rental type | Bid on tries 1–4 (1.25× the floor, `--cancel-unavail`); fixed price (on-demand, never outbid; ≈ +1–1.5 ¢ per song) on try 5. |
 | Playback stems | Upload the Demucs drums / without-drums tracks as Opus (`.ogg`, sonify's setting, ≈ 7× smaller), not FLAC. The page's download becomes Opus; the user doesn't need FLAC there. FLAC stays only on the GPU host. |
 | Laptop path | Only the web app rents. The laptop submits through the web form and pulls results with `rclone sync`. `run-on-gpu.sh` and the `gpu-session.sh` keep-alive session go away; the manual `vastai` steps in gpu-workers.md §4 stay for debugging. |
 
-## Design (proposed)
+## Design (approved, not implemented)
 
-Agent-side choices that follow from the decisions and the research; no
-further user input needed. Numbered in implementation order.
+These choices follow from the approved review, decisions and research.
+Numbered in implementation order.
 
-### 1. Worker: stalls become failures, every step repeatable
-
-- Transfers: `curl --speed-limit/--speed-time` and `-o "$src.part" && mv`;
-  rclone `--timeout`, `--contimeout` and a low-speed cutoff. Timing the
-  source download doubles as the bucket speed test (roadmap): below a
-  threshold the worker gives up on the host.
-- The GPU check moves into the worker.
-- Atomic local writes (C §1): one temp-file + `os.replace` helper for
-  `BeatGrid.save`, `save_onsets`, `save_events`; unparsable cache files
-  count as missing (also keeps one bad file from breaking `/api/index`);
-  Demucs skips only when a marker written after both stems exists.
-- Completion marker: after `rclone copy` of a variant succeeds, upload
-  `<variant>/done`. The adtof marker also covers the shared files (source,
-  stems, beats).
-- Opus: the worker encodes `drums`/`no_drums` to `.ogg` for upload; the
-  FLACs are never uploaded. `separate_drums` runs only when onsets or kit
-  stems are missing (today it runs every time, `cli.py:121`), so synced
-  results don't make the laptop redo Demucs. Page and progress accept both
-  names, so old FLAC versions keep working (readers listed in C §4).
-- The worker uploads its own log, `<song>/<version>/worker.log`, every
-  60 s; its modification time is the heartbeat.
-- Don't upload `stems/mdx23c/`: more upload time than the ~36 s split it
-  saves.
-
-### 2. Delivery without ssh
-
-- `--onstart-cmd` carries everything: the worker inline as gzip+base64
-  (onstart is limited to 4048 characters; the worker is 1.7 KB compressed
-  today — if it outgrows that, bake it into the image), run as
-  `timeout <budget> bash worker.sh`, then destroy the own instance with
-  `CONTAINER_API_KEY` and log the DELETE's HTTP status to the bucket
-  (B §1 left the 10-01 silence unexplained). Success destroys at once — no
-  idle wait, so the window in which an outbid can strand a host is the job
-  itself.
-- Job spec (`SONG`, `VERSION`, `VARIANTS`, presigned `SOURCE_URL`) and the
-  worker S3 key go in `--env` — visible to the host and in `show
-  instance`, the same exposure as today's ssh stream (B §4).
-- `--label <song>/<version>` on every rental (B §3).
-- Server-side time limit: right after creating the rental, schedule a
-  Vast `DELETE /api/v0/instances/<id>/` (`POST /commands/schedule_job/`,
-  T2) for the end of the attempt's budget. It runs on Vast's servers, so it
-  catches a host stuck loading (F2) and any orphan with nobody awake. The
-  job fires at minute `min_of_the_hour` of the first hour after
-  `start_time`; if that field can't be set, the limit is "the next full
-  hour after `start_time`" — choose `start_time` accordingly. Delete the
-  scheduled job when the attempt ends.
-- Onstart re-runs when an outbid instance resumes; the worker then skips
-  variants that have `done` markers and finishes.
-- Removed: ssh delivery (F5), `GPU_SSH_KEY_B64`, host-key pinning,
-  `openssh-client` in the image, the idle watchdog loop, `.gpu-instance`.
-
-### 3. Trusted job state
+### 1. Trusted job state and rental claims
 
 Every rented host holds the worker key, so anything in the results bucket
 is untrusted. Bucket policies are allow-only and can't exclude a prefix
@@ -212,61 +168,212 @@ is untrusted. Bucket policies are allow-only and can't exclude a prefix
   `user_id` (anyone not listed is locked out, which shuts out the worker
   key). The container gets the key as a seventh secret — remember that
   `secret-environment-variables` updates replace the whole map.
-- Per version, `<song>/<version>.json`: requested variants, attempts (with
-  rental type), state (open/done/failed), current instance id, timestamps.
-  Written with conditional PUTs (`If-None-Match: *` to create, `If-Match:
-  <etag>` to update; verified on Scaleway, A §1), so the record is the
-  lease (F10). The meter rerun takes the same lease.
-- The container's own log for the version, `<song>/<version>.log`, the
-  daily rental counter, and the host record (design §6) live here too.
+- Per version, `<song>/<version>.json` holds a stable job id, original
+  source URL or uploaded input key, source preparation state, requested
+  variants, the raw-bar setting, a result generation number, job state
+  (`open`/`done`/`failed`), attempts, and pending cleanup.
+- Each attempt holds its unique claim id and label, generation, rental
+  type, timestamps and deadlines, instance id, schedule id and outcome.
+  Host measurements belong in this record too (design §6).
+- Create and update synchronously with conditional PUTs (`If-None-Match:
+  *`, `If-Match: <etag>`; A §1). Do not use `gate.keep`'s fire-and-forget
+  upload for authoritative job state. A failed write means no rental.
+- Before calling Vast, persist an attempt claim and reserve its count
+  against the five-rental allowance and 30-rental UTC-day cap. Derive the
+  daily total from dated attempts across jobs; the single coordinator is
+  the only writer of rental reservations. Count uncertain creations
+  conservatively; release a reservation only on a definite rejection
+  that created no rental. Do not count the same attempt again on failure.
+- A claim with an uncertain create result stays unresolved. Recover its
+  instance by its unique label before doing anything else; never repeat
+  the create call or launch a replacement while the outcome is unknown.
+  A crash before sending the call can be indistinguishable from a lost
+  response. If listing cannot resolve it, inspect the account/audit log;
+  do not expire the claim into a retry. Conditional writes protect the
+  record, not the external Vast call.
+- Explicit retry starts a new generation and five-rental allowance;
+  retain the attempt history and daily counts. Rerunning a completed
+  version after a meter change also starts a generation. A `done` marker
+  is valid only for the generation stored in the trusted job record.
+- The container's own version log, `<song>/<version>.log`, lives here too.
+  Result completion and rental cleanup are separate fields; `done` or
+  `failed` jobs with pending cleanup remain the coordinator's responsibility.
+
+### 2. Worker: bounded work and repeatable steps
+
+- Use `/app/deploy/vast-worker.sh`, already copied into the GPU image by
+  `Dockerfile.gpu`. Update and rebuild that image with worker changes;
+  no gzip/base64 delivery or script-size fallback.
+- Move the GPU check into the worker. On a replacement host, download
+  the original source and restore the shared `beats_raw.json` and cached
+  `onsets.json` files before continuing. Validate JSON caches, apply the
+  job's raw-bar setting, and skip only variants whose remote `done`
+  markers match the requested generation. Downloads must be real audio,
+  not the web container's zero-byte stand-ins.
+- Transfers use explicit connection, idle and total time limits. For
+  HTTP downloads use `curl --speed-limit/--speed-time` and a total timeout,
+  writing to a `.part` file before renaming. For rclone use `--contimeout`,
+  `--timeout` and `--max-duration`; `--timeout` alone measures inactivity,
+  not slow throughput ([rclone docs](https://rclone.org/docs/#max-duration-duration)).
+  The timed source download is the bucket speed test (roadmap); reject a
+  slow host before starting the pipeline. Waiting for a source that has
+  not been uploaded yet is separate from timing its transfer.
+- Atomic local writes (C §1): one temp-file + `os.replace` helper for
+  `BeatGrid.save`, `save_onsets`, `save_events`; invalid caches count as
+  missing, including in `/api/index`. Demucs skips only when both stems
+  and a marker written after their successful creation exist.
+- Upload the generated shared files and current variant, then write
+  `<variant>/done` containing the generation number. The first completed
+  variant covers the shared source, playback stems and beat grid, whether
+  or not it is adtof. Exclude completion markers and user feedback from
+  bulk copies; they must not be overwritten by restored files.
+- Encode `drums`/`no_drums` as Opus `.ogg` for playback upload. Keep FLACs
+  and `stems/mdx23c/` on the host only. Call `separate_drums` only when
+  missing onsets require it; cached onsets do not require kit stems.
+  A replacement host recomputes Demucs and the kit split when needed.
+  Page and progress accept both `.ogg` and old `.flac` names (C §4).
+- Upload a log per attempt, `<song>/<version>/workers/<claim-id>.log`,
+  every 60 s and at exit, with bounded, best-effort transfers. Logs show
+  progress; their modification time is not a liveness test. A quiet
+  inference stage or unchanged log must not trigger another rental.
+
+### 3. Delivery and deletion without ssh
+
+- A short `--onstart-cmd` invokes the worker already in the image. Pass
+  `SONG`, `VERSION`, `VARIANTS`, generation, raw-bar setting, claim id,
+  source input prefix and the absolute attempt deadline in `--env`, along
+  with the worker S3 key. That key already lets the worker fetch inputs;
+  no separate presigned source URL is needed. Env values remain visible
+  to the host and in `show instance`, as today (B §4).
+- Label every rental `drum-transcribe/<job-id>/<claim-id>` (B §3). Persist
+  this label before creation. Only this namespace belongs to the automatic
+  sweeper; manual rentals with other labels are left alone.
+- Bound the worker by the remaining time until the persisted attempt
+  deadline, including source waiting and uploads. Do not reset the budget
+  on an instance resume. On success, failure or timeout, attempt its own
+  DELETE with `CONTAINER_API_KEY`. Use bounded cleanup that runs on error
+  too; record the HTTP status in the attempt log if possible. Self-deletion
+  can kill logging, so absence in Vast is the authoritative confirmation.
+- Immediately after creation, schedule a Vast
+  `DELETE /api/v0/instances/<id>/` (`POST /commands/schedule_job/`, T2).
+  Persist the schedule id and actual deletion time. On wake-up, adopt any
+  rental whose id was not saved, inspect its schedules and install a
+  missing guard. A failed scheduling call triggers destruction, not
+  another rental. An uncertain scheduling result must be recovered by
+  inspecting schedules; any duplicate deletion guards are cleaned up
+  after the instance is confirmed gone.
+- Scheduling and creation are separate calls. A container crash between
+  them leaves an unguarded rental until the next visit. This cannot be
+  eliminated by conditional S3 writes or a local `finally` block.
+- T2 proved hourly scheduled deletion, not an arbitrary minute deadline.
+  Verify `min_of_the_hour` and `start_time` before choosing numeric startup,
+  attempt and transfer limits. If only full-hour deletion is available,
+  budget for that actual delay and reject offers above the resulting price
+  ceiling. The three-cent target needs this check, including GPU, disk and
+  network charges; 30 rentals alone is not a strict euro cap.
+- Keep the schedule until Vast confirms the instance is gone, then delete
+  it and clear pending cleanup. Result markers or a successful DELETE
+  response alone do not allow removal of the guard.
+- Removed: ssh delivery (F5), `GPU_SSH_KEY_B64`, host-key pinning,
+  `openssh-client` in the web image, the idle watchdog and `.gpu-instance`.
 
 ### 4. Reconcile
 
-One cheap, idempotent function. Runs at container start, on page requests
-(at most once a minute), and in a loop thread while the container is up —
-T1 showed that thread keeps full CPU for the ~17 min after the last
-request, long enough for a whole typical GPU run after the page closes.
-For each open job record:
+One coordinator thread runs reconciliation at startup and at most once a
+minute while the container is up. Requests wake that thread; they never
+call reconciliation or rent directly. Source fetching can run alongside
+it, but rental claims, accounting and cleanup have one owner. T1 showed
+that the thread works for the ~17 min after the last request too.
 
-- Ask Vast `show instances --label <song>/<version>`. Only ids from that
-  answer are ever destroyed — never ids read from a bucket.
-- All requested `<variant>/done` present → sync results, mark done.
-- A live instance: leave it if `running` with a fresh heartbeat; destroy it
-  and count the attempt if it is dead by the B §2 status rule, `loading`
-  longer than `45 s + 6 × 8 GB / inet_down` plus a margin (F2), or its
-  heartbeat is stale.
-- No live instance: rent if attempts < 5 and the daily cap allows (try 5 at
-  fixed price); otherwise mark failed.
+`honey: one coordinator process with max_scale 1; add ownership fencing
+before increasing scale or allowing overlapping deployments.`
 
-Sweeper in the same pass: destroy any labelled instance that is
-stopped/exited/unknown/offline (F7), with or without a record. Vast status
-rule (B §2): empty stdout or `"error": true` on stderr means an API problem,
-retry (the CLI exits 0 either way); `{"instances": null}` means gone.
+Each pass reads trusted job records and asks Vast for the account's
+instances once, matching our labels locally. Only ids confirmed in that
+answer can be destroyed; ids from result files are never instructions.
+
+- Recover unresolved creation claims and missing schedules first. API
+  errors leave state uncertain; do not interpret them as permission to rent.
+- Resume interrupted source preparation from its durable URL or upload
+  (design §5). A definite source error fails the job and cleans up its
+  rental, without spending the remaining allowance on the same bad input.
+- Sync completed variants as they arrive. All requested generation-matched
+  markers present means processing is done, but cleanup continues. Destroy
+  any remaining rental and remove its schedule only after confirmed absence.
+- For a live open job, destroy on a failed Vast status, an explicit startup
+  deadline while provisioning/loading, or the overall attempt deadline.
+  Use fixed limits validated in §3; host download speed is diagnostic,
+  not a second timeout formula. A stale or missing log is diagnostic too.
+- Confirm the previous rental is gone before creating a replacement.
+  Reserve its attempt first; tries 1–4 are bids, try 5 fixed price. Five
+  rentals fail the generation and offer a retry after cleanup. The daily
+  cap leaves work open, with a message; it resumes on a visit after the
+  UTC-day allowance resets, with no timed wake-up.
+- Clean up `done` and `failed` jobs too. Sweep our stopped/exited/unknown/
+  offline instances and our orphaned rentals, including running ones,
+  even if their job record is missing. Clear orphan schedules only after
+  their target instances are confirmed gone.
+
+Use the full B §2 status rule: empty stdout or `"error": true` on stderr
+means an API problem, not a missing instance. A row with null actual
+status is provisioning. Accept a null instance response as gone after
+the row has been seen, or after two consecutive nulls. Error status
+messages and stopped intended/actual status are failed starts. The CLI's
+exit code alone is not evidence.
 
 ### 5. Submission
 
-`/api/create` writes the job record, rents (seconds), and fetches and
-uploads the source in parallel with the image pull — the only useful CPU
-work for the container (requirement 4; no pipeline stage is worth moving
-there, C §3). The worker waits a bounded time for the source object. The
-presigned URL is made per rental.
+- `/api/create` validates the URL and synchronously saves it in the job
+  record before acknowledging acceptance. Wake the coordinator, which
+  rents and fetches/uploads in parallel with the image pull. Restarting
+  the container resumes fetching from the saved URL. No pipeline stage is
+  worth moving to the web container (requirement 4, C §3).
+- `/api/upload` verifies the full request body arrived and uploads the
+  input durably before acknowledging acceptance or renting. Persist its
+  key in the job record. If recording or record persistence fails, return
+  an error; an incomplete recording must never become an accepted job.
+- Keep inputs under `sources/<job-id>/`, already skipped by web startup
+  sync. Retain the uploaded original for restartable conversion. Publish
+  exactly one complete `source.<ext>` there after fetching/conversion;
+  persist its key and mark preparation ready only after successful upload.
+  A restart checks for that complete object before repeating preparation.
+  Source download and conversion have their own time limits.
+- The worker uses its existing S3 key to wait for and fetch that source
+  under the known input prefix, within the attempt deadline. It discovers
+  the final suffix from the published object; a URL/video does not require
+  guessing the filename before fetching. Atomic object upload separates
+  waiting for publication from measuring a host's download speed.
+- Meter changes are rejected while a version has open work or pending
+  cleanup. For a completed cloud GPU version, save the new setting and
+  generation together in the trusted record and enqueue regeneration.
+  Restore cached onsets and the real source; regenerate every requested
+  variant. Old `done` markers cannot satisfy the new generation. The
+  current local cloud rerun lacks dependencies (C §5) and must not run.
 
 ### 6. Host record and blocklist
 
-The roadmap item, kept in the jobs bucket: one line per rental (machine_id,
-host_id, public_ipaddr, outcome, pull time, bucket speed). The offer query
-excludes recent failures: `public_ipaddr notin [...]` for slow routes,
-`machine_id notin [...]` for broken boxes (both filter on the server,
-B §6).
+Keep `machine_id`, `host_id`, `public_ipaddr`, outcome, pull time and
+bucket speed inside each attempt. Host identity comes from Vast; worker
+measurements are diagnostic. Derive the roadmap's host record and recent
+failure exclusions from these attempts, with no separate append-only file.
+The offer query uses `public_ipaddr notin [...]` for slow routes and
+`machine_id notin [...]` for broken boxes (server filters, B §6).
 
 ### 7. Page and docs
 
-Versions with a job record read state from it plus the `done` markers and
-`worker.log`; old versions keep the `sonification.ogg` rule. Show "trying
-another machine (attempt 2 of 5)" and "failed — try again". Explain in
-README/webapp.md what happens when the page is closed, and drop the "keep
-the page open" caveat from operations.md. Update gpu-workers.md (onstart
-delivery, scheduled DELETE, no idle watchdog).
+Versions with a job record read state and generation from it, plus matching
+`done` markers and the current attempt's log. Legacy versions keep the
+`sonification.ogg` rule. Show "trying another machine (attempt 2 of 5)",
+"checking the previous rental", "daily rental limit reached", and
+"failed, try again" as appropriate. Retry is unavailable until the previous
+rental and any uncertain creation are resolved.
+
+Meter and delete guards read durable job state, not just `RUNNING`. Deleting
+an idle version removes its job record and inputs as well as its results.
+README/webapp.md explain page closure, retry and the remaining scheduling
+crash window. Replace operations.md's "keep the page open" caveat with
+continuation on the next visit. Update gpu-workers.md for the baked worker,
+scheduled deletion, confirmed cleanup and removal of the idle watchdog.
 
 ### Not doing
 
@@ -283,9 +390,13 @@ delivery, scheduled DELETE, no idle watchdog).
   host can change the results bucket's CORS, versioning or lifecycle — a
   lifecycle rule could expire every object (A §2).
   `ObjectStorageObjectsRead/Write/Delete` is enough for the worker.
-- **Cost guardrails**: attempt and daily caps (decisions), the sweeper
-  (F7), `--cancel-unavail` (F3). Storage bills from creation, during the
-  pull too, and for up to ~5 min after a destroy (B §7).
+- **Cost guardrails**: reserve attempts before renting, enforce both rental
+  caps, and set explicit numeric rate and time limits for offers and work.
+  Validate them against the actual server-side deletion delay before
+  enabling automatic rentals. Include disk/network charges and reject an
+  over-budget fifth, fixed-price offer too. Keep `--cancel-unavail` (F3)
+  and the sweeper (F7). Storage bills during the pull and for up to ~5 min
+  after destruction (B §7); the creation/scheduling crash window remains.
 
 ## Test results (2026-10-01)
 
@@ -329,10 +440,36 @@ moving" belief was wrong — only scale-to-zero ends the work.
 
 ## Verifying the implementation
 
-Fault injection on real rentals (a few cents each): close the page right
-after submitting; destroy the instance mid-pull and mid-variant; kill the
-worker; block the bucket on the host (`iptables` drop to
-s3.fr-par.scw.cloud) to simulate F4; redeploy the container mid-job;
-submit the same version twice at once and switch the meter during a job;
-let a job finish and check the instance is gone (not stopped) in `vastai
-show instances` and `vastai show invoices`.
+Use mocked API calls for claim/accounting checks, then fault injection on
+cheap real rentals. Assert the following, not just that a retry finishes:
+
+- Concurrent submissions and request wake-ups create one claim/rental;
+  failed job writes create none. Five-rental and daily caps survive restart.
+- Kill the coordinator after persisting a claim, immediately after Vast
+  creates the rental, and before/after saving the deletion schedule. Recover
+  by label and schedule inspection; ambiguous creation never issues another
+  create. A claim left before the create call waits for inspection rather
+  than expiring into a rental. Demonstrate the unguarded scheduling crash
+  window until the next visit.
+- Close the page and restart mid-fetch, mid-upload and mid-conversion.
+  Accepted uploads retain their input; incomplete uploads are rejected.
+  Failed input preparation cleans up without five identical rental retries.
+- Destroy the host mid-pull and mid-variant. A replacement restores the
+  shared grid and cached onsets and skips completed variants. Check that
+  its output uses the same raw-bar setting and current generation.
+- Kill the worker and block its bucket route (`iptables` drop to
+  s3.fr-par.scw.cloud). Transfers and the attempt end within their limits.
+  A healthy but quiet stage is allowed to continue until its deadline.
+- Kill the worker after publishing all completion markers but before its
+  DELETE, and fail the DELETE call. Completed jobs still get cleaned up.
+  Keep the deletion schedule until Vast confirms absence, then remove it.
+- Reject meter changes and deletion during open work or pending cleanup.
+  Change the meter after completion; old markers cannot finish the rerun.
+  Restart during regeneration and verify the new grid, audio and score agree.
+- Probe scheduler minute selection and record actual firing times. Reject
+  offers beyond the chosen price ceiling, including fixed-price try 5.
+  Check `vastai show instances` and `vastai show invoices` for destroyed
+  instances and actual costs, and check for leftover scheduled jobs.
+
+Keep runnable checks for these state transitions. Preserve T1/T2 above as
+historical results; the new design's checks have not been run yet.
