@@ -161,7 +161,10 @@ def _running(vdir: Path, log: str, ready: dict) -> dict:
                 break
     gpu = any(m[0] == "gpu" for m in marks)
     order = [t for t in STEPS if t != "gpu" or gpu]
-    task_now, k_now, started, n_now = marks[-1] if marks else ("src", 0, time.time(), 0)
+    # with a cloud GPU the recording is fetched beside the rental (its own
+    # clock below), so its lines don't say where the rest has got to
+    flow = [m for m in marks if not (gpu and m[0] == "src")]
+    task_now, k_now, started, n_now = flow[-1] if flow else ("src", 0, time.time(), 0)
     i_now = order.index(task_now)
     tail = "\n".join(lines[n_now:])  # log since the current step started
     tries = re.findall(r"renting a cloud GPU \(attempt (\d+) of (\d+)\)", log)
