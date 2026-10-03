@@ -60,6 +60,8 @@ BAD_MACHINE = ("broken GPU", "deadline passed", "the image did not load in time"
                "failed to start")
 BAD_SITE = ("slow bucket link",)
 
+CHECKING = "Checking what became of the previous rental before renting another"
+
 WAKE = threading.Event()
 _absent: dict[int, int] = {}          # instance id -> passes in a row Vast didn't list it
 _preparing: dict[str, threading.Thread] = {}  # job id -> thread fetching its recording
@@ -294,7 +296,7 @@ class _Job:
             self.save()
             self.log(f"   found the rental by its label: instance {row['id']}")
             return True
-        self.status("checking the previous rental")
+        self.status(CHECKING)
         if time.time() - a["claimed"] < 600:
             return False  # a create sent just before a crash may still land
         try:
@@ -390,12 +392,14 @@ class _Job:
         used = sum(time.strftime("%F", time.gmtime(a["claimed"])) == today
                    for r, _ in self.p.recs for a in r["attempts"] if a["create"] != "rejected")
         if used >= DAILY:
-            self.status("daily rental limit reached")
+            self.status("Daily rental limit reached; this carries on after midnight UTC, "
+                        "at the first visit")
             return
         n = len(tries) + 1
         offer = _offer(fixed=n == TRIES, recs=self.p.recs)
         if offer is None:
-            self.status("no suitable cloud GPU on offer just now")
+            self.status("No cloud GPU within the price limit on offer just now; "
+                        "looking again every minute")
             return
         claim = uuid.uuid4().hex[:12]
         a = {"claim": claim, "label": f"{LABEL}{rec['job']}/{claim}",
@@ -420,7 +424,7 @@ class _Job:
             return
         except vast.Uncertain as e:
             self.log(f"   no clear answer from Vast ({e}); looking for the rental first")
-            self.status("checking the previous rental")
+            self.status(CHECKING)
             return
         a["create"] = "created"
         self.save()

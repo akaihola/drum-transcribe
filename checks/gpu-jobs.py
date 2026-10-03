@@ -327,7 +327,7 @@ def check_daily_cap():
     w.submit()
     w.tick(passes=2)
     assert not w.vast.created
-    assert "daily" in w.rec()["status"]
+    assert "daily" in w.rec()["status"].lower()
     w.tick(minutes=24 * 60)  # the next UTC day
     assert len(w.vast.created) == 1
 
