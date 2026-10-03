@@ -122,6 +122,27 @@
     await first;
     assert(r.selected === "drums" && r.backing.name === "drums", "First selection did not finish");
 
+    // Native selects fire input before change; input must preserve the new value.
+    const dropdownDownload = deferred(),
+      beforeDropdown = requests.length;
+    fetchImpl = (key, signal) => blockedFetch(dropdownDownload, signal);
+    select.value = "src";
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    assert(select.value === "src", "Select input reset the requested value before change");
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const dropdownChanged = r.queue;
+    assert(select.value === "src" && r.pendingBacking?.key === "src", "Dropdown did not request the new choice immediately");
+    assert(button("src").getAttribute("aria-pressed") === "true" && button("src").getAttribute("aria-busy") === "true",
+      "Dropdown did not highlight its loading backing");
+    assert(r.selected === "drums", "Dropdown changed heard backing before download");
+    await until(() => requests.length > beforeDropdown);
+    assert(requests.at(-1).key === "src", "Dropdown downloaded the previous selection");
+    dropdownDownload.resolve(response("src"));
+    await dropdownChanged;
+    assert(r.selected === "src" && select.value === "src" && !r.pendingBacking, "Dropdown selection did not finish");
+    fetchImpl = async (key) => response(key);
+    await r.requestBacking("drums");
+
     // A repeated click reuses its request; a different choice cancels it.
     const download = deferred();
     fetchImpl = (key, signal) => key === "drumless"
@@ -284,6 +305,7 @@
 
     return {
       immediateSelectionBeforeReady: true,
+      nativeDropdownInputPreservesSelection: true,
       loadingWaveform: true,
       repeatedRequestReused: true,
       latestSelectionWins: true,

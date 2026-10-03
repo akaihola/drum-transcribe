@@ -318,6 +318,9 @@ export class Recording {
     };
     this.ui.oninput = (e) => {
       const key = e.target.dataset.control;
+      // A select fires input before change. Keep its new value until the
+      // change handler requests it, rather than syncing the previous backing.
+      if (key === "backing") return;
       if (key === "inputGain") {
         this.inputGain = fromDb(+e.target.value);
         if (this.inputLevel) this.inputLevel.gain.value = this.inputGain;

@@ -667,7 +667,7 @@ __HELP__
 <div id="addform" hidden>
 __CREATE_FORM__
 </div>
-<script type="module" src="/static/local-recording.js"></script>
+<script type="module" src="/static/local-recording.js?v=20261003-backing"></script>
 <script>
 // Each version has its own address, /p/<project>/<version>.
 const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);

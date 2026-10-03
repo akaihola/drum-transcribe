@@ -352,6 +352,10 @@ Only the requested choice is displayed early: the playback clock and remembered
 export mix keep using the backing actually heard. Original's initial decoded
 audio is reused, and choosing the already loaded backing does not download it
 again or split an ongoing take. Decoded backings are not accumulated in memory.
+The recording entry script has a version query in `PROJECT_HTML`; bump it when
+changing that script. The cloud CDN caches its unversioned URL for four hours
+despite the server's revalidation header, so a deployment alone can leave the
+old player in use.
 
 Version changes stop/disarm recording and release the decoded backing. Refreshes
 rebind changed controls without replacing the track or active audio graph.
