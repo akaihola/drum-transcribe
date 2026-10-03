@@ -42,9 +42,9 @@ documents provide background; their historical plans do not set task status.
 
 ## Scheduled
 
-- [*] Make backing selection respond immediately and show audio loading progress.
-
 ## In Progress
+
+- [~] [*] Make backing selection respond immediately and show audio loading progress.
 
 ## Completed / Accepted
 
