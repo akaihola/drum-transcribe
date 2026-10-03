@@ -44,9 +44,9 @@ documents provide background; their historical plans do not set task status.
 
 ## In Progress
 
-- [~] [*] Show backing download percentage in the Loading button's circular indicator.
-
 ## Completed / Accepted
+
+- [ ] [*] Show backing download percentage in the Loading button's circular indicator.
 
 - [ ] [*] Make backing selection respond immediately and show audio loading progress.
 
