@@ -42,6 +42,8 @@ documents provide background; their historical plans do not set task status.
 
 ## Scheduled
 
+- [*] Show backing download percentage in the Loading button's circular indicator.
+
 ## In Progress
 
 ## Completed / Accepted
