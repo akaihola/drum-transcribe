@@ -35,10 +35,10 @@ provide background; their historical plans do not set task status.
 
 ## In Progress
 
-- [~] [4] Compress player nodes UI
-  <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
-
 ## Completed / Accepted
+
+- [ ] [4] Compress player nodes UI
+  <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
 
 - [x] [*] Show backing download percentage in the Loading button's circular indicator.
   <!-- hai:{"id":"simple-8f353ed6b83489a9","updatedAt":"2026-10-03T17:41:33.474Z"} -->
