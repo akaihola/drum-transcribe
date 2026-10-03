@@ -8,10 +8,13 @@ musical simplification; every intermediate inspectable and re-runnable.
 1. **Demucs htdemucs** two-stem split → drums stem and without-drums
    accompaniment, shared per version. `--other-method add` sums the model's
    non-drum stems into `stems/htdemucs/source/no_drums.flac`. Both tracks
-   are saved as stereo, 24-bit FLAC at the model's 44.1 kHz sample rate.
-   Both must exist to reuse this stage's cache, so old drums-only results
-   get the accompaniment on their next run. The web app plays the
-   accompaniment and offers a lossless download for Android and Ableton Live.
+   are saved as stereo, 24-bit FLAC at the model's 44.1 kHz sample rate,
+   plus a stereo Opus copy of each (`drums.ogg`, `no_drums.ogg`, 48 kHz)
+   that the web app plays and offers for download; a GPU host uploads only
+   the Opus copies (about 7× smaller). A `done` file written after all four
+   marks the stage finished, since Demucs writes its FLACs in place. The
+   stage runs only when a variant's hits (`onsets.json`) must be found: a
+   rerun with cached hits never needs the stems.
 2. **beat_this** → `beats_raw.json` (tracker output) + `beats.json` (the
    effective grid everything else uses): beat times + position-in-bar. Bar
    numbers = cumulative downbeat count; beats before the first downbeat form
@@ -47,7 +50,11 @@ musical simplification; every intermediate inspectable and re-runnable.
    sonification (original at half volume + synthetic blip per hit —
    the primary by-ear QA tool).
    Audio is stored compressed: stems as lossless FLAC (they feed the
-   detectors, so no lossy artefacts), the listen-only sonification as Opus.
+   detectors, so no lossy artefacts), the listen-only copies as Opus.
+   Cached results (`beats_raw.json`, `onsets.json`, `events.json`) are
+   written to a temp file and renamed into place (`atomic.py`), and one
+   that doesn't parse counts as missing, so a crash can't leave a
+   truncated file that later passes for a finished stage.
 
 ## Why this shape
 

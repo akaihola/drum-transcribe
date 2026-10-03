@@ -95,16 +95,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
     from .export import PROBLEMS, to_mscz
     from .quantize import quantize, save_events
     from .score import write_musicxml
-    from .separate import separate_drums, separate_kit_mdx23c
+    from .separate import separate_drums
     from .sonify import write_sonification
-    from .transcribe import (
-        detect_onsets,
-        detect_onsets_from_stems,
-        estimate_velocities,
-        load_onsets,
-        refine_with_stems,
-        save_onsets,
-    )
+    from .transcribe import load_onsets, save_onsets
 
     audio: Path = args.audio
     song_dir: Path = args.outdir or Path("output") / slugify(audio.stem)
@@ -117,9 +110,14 @@ def run_pipeline(args: argparse.Namespace) -> int:
 
     print(f"song: {song_dir.name}  variant: {args.variant}", flush=True)
 
-    print(marker("separating drums stem (Demucs htdemucs)"), flush=True)
-    drums_stem = separate_drums(source, song_dir)
-    print(f"   {drums_stem}")
+    # Only hit detection reads the drums stem, so cached hits (a rerun, or
+    # a GPU host resuming another's work) skip Demucs altogether.
+    onsets_json = vdir / "onsets.json"
+    onsets = None if args.force else _cached(load_onsets, onsets_json)
+    if onsets is None:
+        print(marker("separating drums stem (Demucs htdemucs)"), flush=True)
+        drums_stem = separate_drums(source, song_dir)
+        print(f"   {drums_stem}")
 
     # beats_raw.json caches the tracker output; beats.json is the effective
     # grid used everywhere: barlines repaired by default, raw if the user
@@ -128,9 +126,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
     beats_json = song_dir / "beats.json"
     if not beats_raw.exists() and beats_json.exists():
         shutil.copy2(beats_json, beats_raw)  # pre-repair output: beats.json was raw
-    if beats_raw.exists() and not args.force:
-        raw = BeatGrid.load(beats_raw)
-    else:
+    raw = None if args.force else _cached(BeatGrid.load, beats_raw)
+    if raw is None:
         print(marker("tracking beats/downbeats (beat_this)"), flush=True)
         raw = track_beats(source)
         raw.save(beats_raw)
@@ -140,26 +137,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
     print(f"   {len(grid.times)} beats, meter {grid.meter}/4"
           + (" (raw barlines kept)" if keep_raw else ""))
 
-    onsets_json = vdir / "onsets.json"
-    if onsets_json.exists() and not args.force:
-        onsets = load_onsets(onsets_json)
-    elif args.variant == "mdx23c":
-        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
-        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
-        print(marker("detecting per-stem onsets"), flush=True)
-        onsets = detect_onsets_from_stems(stems)
-    elif args.variant == "fused":
-        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
-        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
-        print(marker("detecting drum hits (ADTOF)"), flush=True)
-        onsets, _act = detect_onsets(drums_stem)
-        print(marker("refining with per-drum stems (ride/crash, velocities)"), flush=True)
-        refine_with_stems(onsets, stems)
-    else:
-        print(marker("detecting drum hits (ADTOF)"), flush=True)
-        onsets, _act = detect_onsets(drums_stem)
-        estimate_velocities(onsets, drums_stem)
-    save_onsets(onsets, vdir / "onsets.json")
+    if onsets is None:
+        onsets = _detect_hits(args.variant, drums_stem, song_dir)
+        save_onsets(onsets, onsets_json)
     print(f"   {len(onsets)} onsets")
 
     print(marker("quantizing to grid"), flush=True)
@@ -186,6 +166,44 @@ def run_pipeline(args: argparse.Namespace) -> int:
         print("   (MuseScore conversion failed; score.mscz not written; "
               "MUSESCORE_CMD sets the command, default 'musescore')")
     return 0
+
+
+def _detect_hits(variant: str, drums_stem: Path, song_dir: Path) -> list:
+    from .ingest import marker
+    from .separate import separate_kit_mdx23c
+    from .transcribe import (
+        detect_onsets,
+        detect_onsets_from_stems,
+        estimate_velocities,
+        refine_with_stems,
+    )
+
+    if variant == "mdx23c":
+        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
+        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
+        print(marker("detecting per-stem onsets"), flush=True)
+        return detect_onsets_from_stems(stems)
+    if variant == "fused":
+        print(marker("splitting kit into 6 stems (MDX23C, slow on CPU)"), flush=True)
+        stems = separate_kit_mdx23c(drums_stem, song_dir, model_dir=Path(".models"))
+        print(marker("detecting drum hits (ADTOF)"), flush=True)
+        onsets, _act = detect_onsets(drums_stem)
+        print(marker("refining with per-drum stems (ride/crash, velocities)"), flush=True)
+        refine_with_stems(onsets, stems)
+        return onsets
+    print(marker("detecting drum hits (ADTOF)"), flush=True)
+    onsets, _act = detect_onsets(drums_stem)
+    estimate_velocities(onsets, drums_stem)
+    return onsets
+
+
+def _cached(load, path: Path):
+    """A stage's saved result, or None if missing or unreadable — a crash can
+    leave a truncated file; recompute it rather than fail on it forever."""
+    try:
+        return load(path)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 if __name__ == "__main__":

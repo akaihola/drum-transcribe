@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import atomic
+
 # ADTOF class order; GM percussion numbers.
 CLASSES = {35: "kick", 38: "snare", 47: "tom", 42: "hihat", 49: "cymbal"}
 # Frequency bands (Hz) used to read per-class loudness off the drums stem.
@@ -27,7 +29,7 @@ class Onset:
 
 
 def save_onsets(onsets: list[Onset], path: Path) -> None:
-    path.write_text(json.dumps([asdict(o) for o in onsets], indent=1))
+    atomic.write_text(path, json.dumps([asdict(o) for o in onsets], indent=1))
 
 
 def load_onsets(path: Path) -> list[Onset]:

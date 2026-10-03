@@ -228,9 +228,9 @@ function filesHtml(section) {
        attrs === "download" ? IC.down : IC.open}</a>`;
   const group = (title, tag, rows, empty) => `<h3>${title}${tag ? ` <small>${tag}</small>` : ""}</h3>
     ${rows ? `<div class="fgroup">${rows}</div>` : `<p class="fempty">${empty}</p>`}`;
-  const flac = $('[data-piece="drumless"] a.download', section);
-  let out = group("Without drums", "play along on your kit", flac &&
-    row(flac.getAttribute("href"), IC.band, "Without drums (FLAC)", flac.getAttribute("download")),
+  const drumless = $('[data-piece="drumless"] a.download', section);
+  let out = group("Without drums", "play along on your kit", drumless &&
+    row(drumless.getAttribute("href"), IC.band, "Without drums", drumless.getAttribute("download")),
     "Appears when Demucs has separated the drums.");
   for (const name of Object.keys(PADS).slice(3)) {
     const docs = $$(`[data-piece="${name}"] a.doc`, section);

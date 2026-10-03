@@ -100,9 +100,10 @@ submitted, the new version's tab opens. Per version:
   Where local recording is unavailable, each box keeps its own player, and
   a YouTube original plays in YouTube's player. A progress bar appears until
   the audio is ready;
-- a **without drums** player above the score, with a **Download FLAC** link.
-  FLAC compresses audio without losing quality. The stereo, 24-bit track
-  plays on Android and imports into Ableton Live. It has the same timing as
+- a **without drums** player above the score, with a **Download** link.
+  The track is stereo Opus (the same compact format as the sonifications,
+  about 7&times; smaller than lossless FLAC); versions made before October
+  2026 offer the older lossless FLAC instead. It has the same timing as
   the original, so you can click a bar in the score to start there after
   choosing this player. Separation can leave some drums audible. Older
   versions get this track when their pipeline runs again;

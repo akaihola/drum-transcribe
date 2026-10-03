@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import atomic
 from .beats import BeatGrid
 from .transcribe import Onset
 
@@ -39,7 +40,7 @@ def save_events(events: list[Event], meter: int, path: Path) -> None:
             for e in events
         ],
     }
-    path.write_text(json.dumps(payload, indent=1))
+    atomic.write_text(path, json.dumps(payload, indent=1))
 
 
 def load_events(path: Path) -> tuple[list[Event], int]:

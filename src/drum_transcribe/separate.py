@@ -16,11 +16,15 @@ MDX23C_STEMS = {
 
 
 def separate_drums(audio: Path, outdir: Path, model: str = "htdemucs") -> Path:
-    """Save drums and accompaniment as lossless FLAC; return the drums path."""
+    """Save drums and accompaniment as lossless FLAC, plus Opus copies for
+    playback (about 7x smaller: what the page plays and the GPU worker
+    uploads); return the drums FLAC path."""
     stem_dir = outdir / "stems" / model / audio.stem
     drums = stem_dir / "drums.flac"
-    accompaniment = stem_dir / "no_drums.flac"
-    if drums.exists() and accompaniment.exists():
+    # Demucs writes the FLACs in place; a crash mid-file would leave both
+    # present, so only this marker, written last, means the stage finished
+    done = stem_dir / "done"
+    if done.exists():
         return drums
 
     import demucs.separate
@@ -29,10 +33,22 @@ def separate_drums(audio: Path, outdir: Path, model: str = "htdemucs") -> Path:
         ["--two-stems", "drums", "--other-method", "add", "--flac", "--int24",
          "-n", model, "-o", str(outdir / "stems"), str(audio)]
     )
-    for stem in (drums, accompaniment):
+    for stem in (drums, stem_dir / "no_drums.flac"):
         if not stem.exists():
             raise FileNotFoundError(f"Demucs did not produce {stem}")
+        _opus_copy(stem)
+    done.touch()
     return drums
+
+
+def _opus_copy(flac: Path) -> None:
+    import librosa
+    import soundfile as sf
+
+    # Opus only takes 48 kHz (or lower); sonify.py's setting, ~110 kbps a channel
+    y, sr = librosa.load(str(flac), sr=48000, mono=False)
+    sf.write(str(flac.with_suffix(".ogg")), y.T, sr, format="OGG", subtype="OPUS",
+             compression_level=0.6)
 
 
 def separate_kit_mdx23c(drums_stem: Path, outdir: Path, model_dir: Path) -> dict[str, Path]:

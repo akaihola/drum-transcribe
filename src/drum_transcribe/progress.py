@@ -17,6 +17,7 @@ import subprocess
 import time
 from datetime import datetime
 from functools import lru_cache
+from itertools import chain
 from pathlib import Path
 
 from .ingest import VARIANTS
@@ -76,6 +77,13 @@ PERCENT = re.compile(r"(\d{1,3}(?:\.\d+)?)%(?:\||\s+of)")
 IMAGE_BITS = 8e9 * 8  # the GPU image, compressed
 
 
+def playback_stem(vdir: Path, name: str) -> Path | None:
+    """A Demucs stem as the page plays it: the Opus copy, or the FLAC in
+    results made before Opus copies existed."""
+    return next(chain(vdir.glob(f"stems/htdemucs/*/{name}.ogg"),
+                      vdir.glob(f"stems/htdemucs/*/{name}.flac")), None)
+
+
 def version_progress(vdir: Path, running: bool) -> dict:
     """{"job": running|failed|stopped|None, "tasks": {task: {...}}, "sig"}.
 
@@ -83,9 +91,10 @@ def version_progress(vdir: Path, running: bool) -> dict:
     (queued, running, arriving, failed, stopped), a percentage, seconds
     until it is ready (None when that can't be told) and what it is doing.
     """
-    drumless = any(vdir.glob("stems/htdemucs/*/no_drums.flac"))
+    stems = [playback_stem(vdir, "drums"), playback_stem(vdir, "no_drums")]
+    drumless = stems[1] is not None
     ready = {"src": any(vdir.glob("source.*")),
-             "drums": any(vdir.glob("stems/htdemucs/*/drums.flac")) and drumless,
+             "drums": None not in stems,
              **{v: (vdir / v / "sonification.ogg").exists() for v in VARIANTS}}
     log = vdir / "pipeline.log"
     text = log.read_text(errors="replace") if log.exists() else ""
@@ -105,8 +114,7 @@ def version_progress(vdir: Path, running: bool) -> dict:
     if not drumless and "drums" in tasks:
         tasks["drumless"] = tasks["drums"]
     # changes whenever the page has something new to show
-    results = [*vdir.glob("source.*"), *vdir.glob("stems/htdemucs/*/drums.flac"),
-               *vdir.glob("stems/htdemucs/*/no_drums.flac"),
+    results = [*vdir.glob("source.*"), *filter(None, stems),
                *vdir.glob("*/sonification.ogg"), *vdir.glob("*/score.musicxml"),
                vdir / "beats.json", vdir / "keep-raw-bars"]
     sig = " ".join([str(job), *(f"{f.relative_to(vdir)}@{f.stat().st_mtime_ns}"

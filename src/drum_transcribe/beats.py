@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import atomic
+
 
 @dataclass
 class BeatGrid:
@@ -29,7 +31,8 @@ class BeatGrid:
         return int(values[np.argmax(values * counts)])
 
     def save(self, path: Path) -> None:
-        path.write_text(
+        atomic.write_text(
+            path,
             json.dumps(
                 {"times": self.times.tolist(), "positions": self.positions.tolist()},
                 indent=1,

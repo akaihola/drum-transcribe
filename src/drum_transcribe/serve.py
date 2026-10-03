@@ -21,7 +21,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import gate
+from . import atomic, gate
 from .beats import BeatGrid, regularize
 from .export import PROBLEMS
 from .ingest import (
@@ -32,7 +32,7 @@ from .ingest import (
     start_rerun_job,
     start_version_job,
 )
-from .progress import version_progress
+from .progress import playback_stem, version_progress
 
 DOWNLOADS = [
     ("score.mscz", "MuseScore file"),
@@ -672,7 +672,7 @@ const IC_CLOUD = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curren
 const INFO = {
   original: "The recording this version was made from — your upload, or the audio fetched from the link, untouched. Local recording plays the downloaded audio. Where local recording is unavailable, a YouTube link uses YouTube's own player.",
   drums: "Only the drums, pulled out of the full mix by Demucs, a neural network that separates instruments. All transcription starts from this.",
-  drumless: "The rest of the band, with the drums removed by Demucs. Play along on your own kit. Some drum sound may remain. Download the lossless FLAC to play on Android or import into Ableton Live.",
+  drumless: "The rest of the band, with the drums removed by Demucs. Play along on your own kit. Some drum sound may remain. Download it to play along away from this page.",
   sonis: "The original recording with a synthetic blip added at every transcribed hit: low thump = kick, snappy noise = snare, high ticks = hi-hat and cymbals. A missing blip is a missed hit; a blip with nothing under it is a false detection. Each pipeline gets its own sonification so you can compare them by ear.",
   adtof: "A neural network trained to read a full drum mix straight into notes. The most reliable pipeline, and the first to finish.",
   mdx23c: "First splits the drums into six per-drum tracks (kick, snare, toms, hi-hat, ride, crash), then detects hits in each track separately. Can tell ride from crash, but tends to over-detect.",
@@ -987,8 +987,8 @@ function versionPieces(v) {
     drumless: node("drumless", "drumless", IC_WAVE, "without drums",
                   infoBtn(v.name, "drumless"), audioTag(v.drumless),
                   v.drumless ? `<a class="download" href="${v.drumless}"
-                    download="${PROJECT}-${v.name}-without-drums.flac"
-                    title="Lossless audio for Android and Ableton Live">Download FLAC</a>` : ""),
+                    download="${PROJECT}-${v.name}-without-drums.${v.drumless.split(".").pop()}"
+                    title="Save the track to play along away from this page">Download</a>` : ""),
   };
   for (const name of VARIANTS) pieces[name] = soniRow(v, name);
   const scored = VARIANTS.map(n => v.variants.find(x => x.name === n))
@@ -1536,15 +1536,15 @@ def scan_output(root: Path) -> dict:
         for vdir in sorted(p for p in project_dir.iterdir() if p.is_dir()):
             rel = f"/files/{project_dir.name}/{vdir.name}"
             sources = sorted(vdir.glob("source.*"))
-            drums = sorted(vdir.glob("stems/htdemucs/*/drums.flac"))
-            drumless = sorted(vdir.glob("stems/htdemucs/*/no_drums.flac"))
+            drums = playback_stem(vdir, "drums")
+            drumless = playback_stem(vdir, "no_drums")
             log = vdir / "pipeline.log"
             variants = []
             for variant_dir in sorted(p for p in vdir.iterdir() if p.is_dir()):
-                events_file = variant_dir / "events.json"
-                if not events_file.exists():
+                try:  # missing, or cut short by a crash: not a result yet
+                    events = json.loads((variant_dir / "events.json").read_text())["events"]
+                except (OSError, ValueError, KeyError):
                     continue
-                events = json.loads(events_file.read_text())["events"]
                 suspect = [e for e in events
                            if e["confidence"] < 0.5 or abs(e["error_ms"]) > 30]
                 variants.append({
@@ -1562,11 +1562,13 @@ def scan_output(root: Path) -> dict:
             if not raw_grid.exists():
                 raw_grid = vdir / "beats.json"
             irregular = False
-            if raw_grid.exists():
+            try:
                 g = BeatGrid.load(raw_grid)
                 fixed = regularize(g)
                 irregular = (fixed.times.tolist() != g.times.tolist()
                              or fixed.positions.tolist() != g.positions.tolist())
+            except (OSError, ValueError, KeyError):
+                pass  # no grid yet
             versions.append({
                 "name": vdir.name,
                 "source": f"{rel}/{sources[0].name}" if sources else None,
@@ -1576,8 +1578,8 @@ def scan_output(root: Path) -> dict:
                 "beats": f"{rel}/beats.json",
                 "irregular": irregular,
                 "raw_bars": (vdir / "keep-raw-bars").exists(),
-                "drums": f"{rel}/{drums[0].relative_to(vdir)}" if drums else None,
-                "drumless": f"{rel}/{drumless[0].relative_to(vdir)}"
+                "drums": f"{rel}/{drums.relative_to(vdir)}" if drums else None,
+                "drumless": f"{rel}/{drumless.relative_to(vdir)}"
                 if drumless else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
                 "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
@@ -1796,7 +1798,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             feedback[key] = {"labels": labels, "text": text}
         else:
             feedback.pop(key, None)
-        fb_file.write_text(json.dumps(feedback, indent=1))
+        atomic.write_text(fb_file, json.dumps(feedback, indent=1))
         gate.keep(fb_file, self.root)
         return feedback
 

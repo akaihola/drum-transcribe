@@ -33,9 +33,11 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | `GET /files/**` | static from the output root |
 
 `scan_output` reports `drumless`, the URL of
-`stems/htdemucs/*/no_drums.flac`, alongside `source` and `drums`. A separate
-"without drums" card beside the drums stem in the flow diagram plays this
-FLAC and offers a download named `<project>-<version>-without-drums.flac`.
+`stems/htdemucs/*/no_drums.ogg` (Opus; older results have only
+`no_drums.flac`, used instead — `progress.playback_stem`), alongside
+`source` and `drums`. A separate "without drums" card beside the drums stem
+in the flow diagram plays this track and offers a download named
+`<project>-<version>-without-drums.<ext>`.
 It uses the same shared volume, score following and play-from-bar controls
 as the other audio.
 Its progress follows the Demucs step; its file also changes the progress
