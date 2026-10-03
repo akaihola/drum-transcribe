@@ -321,6 +321,10 @@ STYLE = """
   practice-audio button:hover { border-color: var(--teal); color: var(--teal-deep); }
   practice-audio.on button { color: white; background: var(--teal); border-color: var(--teal); }
   practice-audio.on button::before { background: white; border-color: white; box-shadow: inset 0 0 0 2px var(--teal); }
+  practice-audio.on button[aria-busy=true]::before { background: none; box-shadow: none;
+    border-color: #ffffff60; border-top-color: white; animation: backing-spin .8s linear infinite; }
+  @keyframes backing-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { practice-audio.on button[aria-busy=true]::before { animation: none; } }
   .player:has(practice-audio.on) { box-shadow: 0 0 0 2px var(--teal); background: #F1F7F8; }
   .delver:hover { color: var(--signal); border-color: var(--signal); }
   .score.placeholder { color: var(--ink-quiet); font-size: .9rem; padding: 1rem; }

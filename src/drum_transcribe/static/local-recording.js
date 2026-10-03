@@ -71,7 +71,7 @@ class PracticeAudio extends HTMLElement {
     if (this.firstChild) return;
     this.innerHTML = `<button type="button" aria-pressed="false">Use as backing</button>`;
     this.querySelector("button").onclick = () =>
-      this.owner.run(() => this.owner.selectBacking(this.dataset.backing));
+      this.owner.requestBacking(this.dataset.backing);
   }
   get paused() {
     return !this.owner?.playing || this.owner.selected !== this.dataset.backing;
@@ -92,20 +92,20 @@ class PracticeAudio extends HTMLElement {
     return this.owner?.bus?.gain.value ?? 1;
   }
   play() {
-    return this.owner.run(async () => {
-      await this.owner.selectBacking(this.dataset.backing);
-      await this.owner.play();
-    });
+    return this.owner.requestBacking(this.dataset.backing, true);
   }
   pause() {
-    if (!this.paused) return this.owner.run(() => this.owner.pause());
+    if (!this.paused) return this.owner.requestPause();
   }
   update() {
-    const on = this.owner.selected === this.dataset.backing,
+    const pending = this.owner.pendingBacking,
+      on = (pending?.key ?? this.owner.selected) === this.dataset.backing,
+      loading = on && !!pending,
       button = this.querySelector("button");
     this.classList.toggle("on", on);
     button.setAttribute("aria-pressed", on);
-    button.textContent = on ? "Backing" : "Use as backing";
+    button.setAttribute("aria-busy", loading);
+    button.textContent = loading ? "Loading…" : on ? "Backing" : "Use as backing";
   }
 }
 customElements.define("practice-audio", PracticeAudio);
@@ -333,7 +333,7 @@ export class Recording {
     this.ui.onchange = (e) => {
       const key = e.target.dataset.control;
       if (key === "backing")
-        this.run(() => this.selectBacking(e.target.value)).then(() => this.sync());
+        this.requestBacking(e.target.value);
     };
     this.ui.querySelector("[data-import]").onchange = (e) => {
       const file = e.target.files[0];
@@ -432,7 +432,7 @@ export class Recording {
     this.messageUntil = 0; // a new action makes the last message stale
     const actions = {
       home: () => this.requestSeek(0),
-      play: () => this.run(() => (this.playing ? this.pause() : this.play())),
+      play: () => (this.playing ? this.requestPause() : this.run(() => this.play())),
       record: () =>
         this.run(() =>
           this.setMode(this.mode === "record" ? "playback" : "record"),
@@ -487,8 +487,14 @@ export class Recording {
     this.showStatus();
   }
   showStatus() {
-    const text =
-      performance.now() < this.messageUntil ? this.message : this.liveStatus();
+    const text = this.pendingBacking
+      ? this.pendingBacking.message +
+        (this.playing && this.backingLevel() > 0
+          ? ` Still hearing ${label(this.selected)}.`
+          : "")
+      : performance.now() < this.messageUntil
+        ? this.message
+        : this.liveStatus();
     const el = this.ui.querySelector("[data-status]");
     if (el.textContent !== text) el.textContent = text;
   }
@@ -923,6 +929,7 @@ export class Recording {
     this.requireWriter(true);
     const reload = this.needsSourceReload || this.sourceChanged;
     this.epoch++;
+    this.cancelBacking();
     clearTimeout(this.auditionTimer);
     this.cancelExport();
     this.abortCapture("");
@@ -1024,11 +1031,21 @@ export class Recording {
     return out;
   }
   draw() {
-    if (!this.duration || !this.ui.offsetWidth) return;
+    if (!this.ui.offsetWidth) return;
+    if (!this.duration) {
+      const [g, w, h] = fit(this.ui.querySelector('[data-draw="backing"]'));
+      g.clearRect(0, 0, w, h);
+      g.font = "11px 'Alegreya Sans', sans-serif";
+      g.textBaseline = "top";
+      this.drawBacking(g, null, 0, 0, w, h);
+      return;
+    }
     const [t0, t1] = (this.shown = this.shownRange()),
       muted = this.mode === "mute",
       key = [t0, t1, this.waveVersion, muted, this.solo, this.mode].join(),
-      refs = [this.backing, this.backingKey, this.grid];
+      refs = [
+        this.backing, this.backingKey, this.grid, this.pendingBacking?.message,
+      ];
     for (const canvas of this.ui.querySelectorAll("canvas")) {
       const [g, w, h] = fit(canvas),
         x = (t) => ((t - t0) / (t1 - t0)) * w,
@@ -1091,9 +1108,12 @@ export class Recording {
     }
   }
   drawBacking(g, x, t0, t1, w, h) {
-    if (!this.backing || this.backingKey !== this.selected) {
+    if (this.pendingBacking || !this.backing || this.backingKey !== this.selected) {
       g.fillStyle = "#6E675C";
-      g.fillText("The backing waveform appears once it has loaded.", 8, h / 2 - 6);
+      g.fillText(
+        this.pendingBacking?.message ?? "The backing waveform appears once it has loaded.",
+        8, h / 2 - 6,
+      );
       return;
     }
     const e = envelope(this.backing),
@@ -1161,39 +1181,131 @@ export class Recording {
     g.fillRect(x(start), 0, x(now) - x(start), 2);
     this.drawSegments(g, x, h, this.passage.parts, "#C40000");
   }
-  async selectBacking(key) {
-    const epoch = this.runningEpoch ?? this.epoch;
-    await this.ready();
-    if (!this.backingFiles()[key]) return;
-    if (
-      this.selected === key &&
-      this.backingKey === key &&
-      !this.backingInvalidated
-    )
-      return;
-    const response = await fetch(this.backingFiles()[key]);
-    if (!response.ok)
-      throw Error("This backing could not be loaded. Try again.");
-    const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer());
-    if (epoch !== this.epoch) return;
-    if (this.passage) await this.finishCapture();
-    if (epoch !== this.epoch) return;
-    this.selected = key;
-    this.backingKey = key;
-    this.backing = buffer;
-    this.backingInvalidated = false;
-    if (this.playing) {
-      this.schedule();
-      if (this.mode === "record") this.beginCapture();
-      this.rememberAudition();
-    }
+  cancelBacking() {
+    this.pendingBacking?.controller.abort();
+    this.pendingBacking = null;
     this.sync();
+  }
+  beginBacking(key) {
+    this.cancelBacking();
+    this.messageUntil = 0;
+    this.pendingBacking = {
+      key,
+      controller: new AbortController(),
+      message: `Loading ${label(key)}…`,
+    };
+    this.sync();
+    return this.pendingBacking;
+  }
+  // A requested choice is visible immediately; selected still names the audio
+  // actually heard, including the mix remembered for export.
+  requestBacking(key, play = false) {
+    if (!this.backingFiles()[key]) return Promise.resolve();
+    if (this.pendingBacking?.key === key && this.pendingBacking.promise) {
+      this.pendingBacking.play ||= play;
+      return this.pendingBacking.promise;
+    }
+    const request = this.beginBacking(key);
+    request.play = play;
+    return (request.promise = this.run(async () => {
+      if (await this.selectBacking(key, request)) {
+        if (request.play && !request.controller.signal.aborted) await this.play();
+      }
+    }));
+  }
+  async backingBytes(response, request) {
+    if (!response.body) return response.arrayBuffer();
+    const reader = response.body.getReader(),
+      total = +response.headers.get("Content-Length"),
+      chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.length;
+      const progress =
+        total > 0
+          ? `${Math.min(100, Math.floor((size / total) * 100))}%`
+          : `${(size / 1048576).toFixed(1)} MB`;
+      const message = `Loading ${label(request.key)}… ${progress}`;
+      if (message !== request.message) {
+        request.message = message;
+        if (this.pendingBacking === request) this.sync();
+      }
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return bytes.buffer;
+  }
+  async selectBacking(key, request = this.beginBacking(key)) {
+    const epoch = this.runningEpoch ?? this.epoch;
+    const stale = () => epoch !== this.epoch || request.controller.signal.aborted;
+    let prepared = false;
+    try {
+      if (stale() || !this.backingFiles()[key]) return false;
+      await this.ready();
+      if (stale()) return false;
+      if (
+        this.selected === key && this.backingKey === key &&
+        this.backing && !this.backingInvalidated
+      )
+        return true;
+      let buffer = this.backing;
+      // initialize() already decoded Original. Reuse it even if restore()
+      // remembered a different choice; no second download is needed.
+      if (!buffer || this.backingKey !== key || this.backingInvalidated) {
+        const response = await fetch(this.backingFiles()[key], {
+          signal: request.controller.signal,
+        });
+        if (!response.ok) throw Error("Backing download failed.");
+        const bytes = await this.backingBytes(response, request);
+        if (stale()) return false;
+        request.message = `Preparing ${label(key)} audio…`;
+        this.sync();
+        buffer = await this.ctx.decodeAudioData(bytes);
+      }
+      if (stale()) return false;
+      prepared = true;
+      if (this.passage) await this.finishCapture();
+      if (stale()) {
+        // A newer choice can arrive while the capture tail drains. Continue
+        // recording the old backing until that choice is ready to replace it.
+        if (epoch === this.epoch && this.playing && this.mode === "record")
+          this.beginCapture();
+        return false;
+      }
+      this.selected = this.backingKey = key;
+      this.backing = buffer;
+      this.backingInvalidated = false;
+      if (this.playing) {
+        this.schedule();
+        if (this.mode === "record") this.beginCapture();
+        this.rememberAudition();
+      }
+      return true;
+    } catch (e) {
+      if (stale()) return false;
+      if (prepared) throw e;
+      this.status(`${label(key)} could not be loaded. Choose it again to retry.`);
+      return false;
+    } finally {
+      if (this.pendingBacking === request) {
+        this.pendingBacking = null;
+        this.sync();
+      }
+    }
   }
   backingLevel() {
     return this.mode === "playback" && this.solo ? 0 : this.backingGain;
   }
   deactivate() {
     this.armingEpoch = (this.armingEpoch ?? 0) + 1;
+    this.cancelBacking();
     return this.run(async () => {
       await this.pause();
       this.disarm();
@@ -1311,7 +1423,7 @@ export class Recording {
     await this.ready();
     if (epoch !== this.epoch || arming !== this.armingEpoch) return;
     if (active && active !== this) {
-      await active.pause();
+      await active.requestPause();
       active.disarm();
       active.backing = null;
       active.backingKey = null;
@@ -1325,10 +1437,16 @@ export class Recording {
         "The source changed. Select Play back and enable Solo to listen to and save your preserved recording. Reload and Clear to start with the new source.",
       );
     if (
-      (this.backingKey !== this.selected || this.backingInvalidated) &&
+      (this.pendingBacking || this.backingKey !== this.selected ||
+        this.backingInvalidated) &&
       (this.mode !== "playback" || !this.solo)
-    )
-      await this.selectBacking(this.selected);
+    ) {
+      const loaded = await this.selectBacking(
+        this.pendingBacking?.key ?? this.selected,
+        this.pendingBacking ?? undefined,
+      );
+      if (!loaded) return;
+    }
     if (this.position >= this.duration) this.position = 0;
     if (this.mode === "record") {
       this.requireWriter();
@@ -1506,6 +1624,10 @@ export class Recording {
     this.endCapture();
     this.status(message);
   }
+  requestPause() {
+    this.cancelBacking();
+    return this.pause();
+  }
   async pause() {
     if (!this.playing) return;
     this.rememberAudition();
@@ -1598,7 +1720,10 @@ export class Recording {
       select.replaceChildren(...keys.map((k) => new Option(label(k), k)));
       select.dataset.keys = keys;
     }
-    select.value = this.selected;
+    select.value = this.pendingBacking?.key ?? this.selected;
+    ui.querySelector('[data-draw="backing"]').setAttribute(
+      "aria-busy", !!this.pendingBacking,
+    );
     for (const key of ["backingGain", "trackGain", "inputGain"]) {
       const db = toDb(this[key]),
         input = ui.querySelector(`[data-control="${key}"]`);

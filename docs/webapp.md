@@ -341,6 +341,18 @@ suffix). Saved takes are drawn from IndexedDB (`preview`) before the first
 user gesture creates the AudioContext. Space, R, M, S, Home and Ctrl/Cmd+Z act
 on the visible version unless focus is in a text field, select or dialog.
 Insecure pages keep the original players.
+
+Choosing a backing immediately highlights its button and updates the Backing
+menu. The button shows a spinner while the waveform lane and status line show
+download progress, then audio preparation. The current audio keeps playing
+until the new backing is ready. Another choice cancels the pending download;
+Pause also cancels it and stops playback immediately. A failed load restores
+the previous choice and offers a retry by choosing the same node again.
+Only the requested choice is displayed early: the playback clock and remembered
+export mix keep using the backing actually heard. Original's initial decoded
+audio is reused, and choosing the already loaded backing does not download it
+again or split an ongoing take. Decoded backings are not accumulated in memory.
+
 Version changes stop/disarm recording and release the decoded backing. Refreshes
 rebind changed controls without replacing the track or active audio graph.
 Changed progress signatures invalidate the decoded backing for the next Play,
