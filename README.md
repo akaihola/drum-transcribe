@@ -63,15 +63,28 @@ Open `http://<the machine's address>:8765/` from any of your machines.
 
 The same site also runs in the cloud at <https://plokkaus.vempai.men/>, so
 it works even when the laptop is off. There you can listen and review
-everything, and also add new pieces or versions — as an upload or a direct
-audio link (YouTube and Google Drive links only work on the laptop, and so
-do links to your own machines at home — the cloud site fetches only links
-that anyone on the internet could open) — as
-long as you tick "process on a rented cloud GPU". Keep the page open while
-it processes. The cloud site sleeps when nobody uses it: the first visit
+everything, and also add new pieces or versions — as an upload, a YouTube
+link or a direct audio link (Google Drive links only work on the laptop,
+and so do links to your own machines at home — the cloud site fetches only
+links that anyone on the internet could open). New pieces there are
+processed on a rented cloud graphics card ("process on a rented cloud
+GPU", ticked by default). Files uploaded to the cloud site can be at most
+100 MB.
+
+You don't need to keep the page open while it processes. The cloud site
+sleeps when nobody uses it: it keeps working for about a quarter of an
+hour after the last visit, and if the work isn't finished by then, it
+carries on by itself the next time anyone opens the site. The first visit
 after a quiet period shows a "Starting up…" page for up to a minute, which
-switches to the real page by itself. Files uploaded to the cloud site can
-be at most 100 MB.
+switches to the real page by itself. If a rented machine breaks down,
+another one takes over where it stopped, up to five machines; after that
+the page says processing failed and offers a **Try again** button.
+Every rented machine ends itself when its time is up, and the rental
+service also deletes it on a timer the site sets, even while the site
+sleeps. One rare gap remains: if the site crashes in the second between
+renting a machine and setting that timer, a machine that never starts
+working keeps billing for its disk (about a cent an hour) until someone
+next opens the site.
 
 Because the cloud site is open to the whole internet, anyone may listen and
 read there, but it only accepts a few new pieces per day from unknown
@@ -128,8 +141,9 @@ submitted, the new version's tab opens. Per version:
   its turn. Point at a bar to see the estimated percentage — an estimate
   from how long each step usually takes, not an exact measurement. With
   the cloud GPU option, an extra bar at the top shows the rented machine
-  starting up (usually 2–5 minutes). Results swap in by themselves as they
-  finish, without reloading. The **pipeline log** is behind the gear
+  starting up (usually 2–10 minutes), or what it waits for, such as
+  "trying another machine (attempt 2 of 5)". Results swap in by
+  themselves as they finish, without reloading. The **pipeline log** is behind the gear
   button (top right);
 - **feedback on the notation**: turn on **Comment on symbols** above the
   score, then tap a note or rest to comment on it, or empty staff space to
@@ -304,11 +318,11 @@ mdx23c is much slower (roughly 10× the song length).
 
 For the slow mdx23c processing there is a shortcut: the same pipeline can
 run on a rented cloud graphics card, which turns half an hour of waiting
-into a couple of minutes and costs two or three cents per song. In the web
-app, just tick "process on a rented cloud GPU" when starting a
-transcription; the results appear in the same places and look exactly the
-same. Setting up the GPU machinery is a developer task — see
-[`docs/gpu-workers.md`][gpu-workers].
+into a few minutes and costs a few cents per song. That happens on the
+cloud site: start the transcription there, and the results appear in the
+same places and look exactly the same. To get them onto the laptop as
+well, they are copied down from the cloud storage. That, like setting up
+the GPU machinery, is a developer task: see [`docs/gpu-workers.md`][gpu-workers].
 
 ## Honest limitations
 

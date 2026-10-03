@@ -35,12 +35,9 @@ bars).
 
 ## Known issues
 
-- **Meter switch half-fails on the cloud copy**: it rewrites `beats.json` and
-  `events.json`, then stops at the missing `pretty_midi`, so the bar overlay and
-  the old score disagree, and the rewritten files are lost at the next cold start
-  (only the keep-raw-bars flag itself reaches the bucket). Running it during a GPU
-  job also starts a second pipeline on the same version. Details:
-  [gpu-resilience-research.md](gpu-resilience-research.md) Part C §5.
+- **Meter switch on cloud versions made before 2026-10-03**: they have no
+  job record, so the cloud site refuses to recompute them (it has no ML
+  libraries). Versions made since then regenerate on a rented GPU.
 - **mdx23c over-detects** (~2× adtof): stem bleed + a generic librosa onset detector.
   Untuned; the cymbal-dominance rule is the only filter so far.
 - **.mscz is forced** (with a warning) when the beat grid is broken (see
@@ -66,26 +63,16 @@ bars).
     direction gives the most value for the least complexity.
 - Make the port 8765 firewall opening permanent (the user does this).
 - Possible GPU rental for batch/faster MDX23C (pre-approved by user).
-- **GPU processing resilience** (decided and designed 2026-10-01, not built):
-  jobs that survive a closed page, crashed or stalled hosts and container
-  restarts, resume on a new host, and never run twice. Decisions (5 tries per
-  song, no periodic wake-ups, Opus playback stems, only the web app rents),
-  design and remaining tests: [gpu-resilience-handoff.md](gpu-resilience-handoff.md).
-  The next two items are part of it.
-- **GPU host health: bucket test at start-up** (planned, 2026-10-01). A rented
-  host can pass every current check (fast internet, working GPU) and still have
-  a crawling route to our Scaleway bucket: the site at 174.164.26.93 (offers
-  51860372 and 51229946 — two machines, one address) fetched the recording at
-  2–12 KB/s on 2026-10-01 and was rented four times. `deploy/gpu-session.sh start` should time a short download of
-  the job's recording next to the existing GPU check, and give the host up if
-  it's slow, so the caller retries elsewhere.
-- **GPU host record** (planned, 2026-10-01). One line per rental — Vast machine
-  ID, date, outcome (worked / stuck downloading the image / parked / slow bucket
-  link / broken GPU), image download time, bucket speed — and the offer search
-  skips machines that failed recently (slow bucket links: skip the whole IP
-  address, since one site can list several machines). Later it tells which offer filters
-  actually predict a good host. Start with laptop runs; cloud-app runs lose
-  their logs, so covering them means keeping the record in the bucket.
+- **GPU processing resilience** (built 2026-10-03): jobs survive a closed
+  page, crashed or stalled hosts and container restarts, resume on a new
+  host, and never run twice. Design, decisions and what is verified:
+  [gpu-resilience-handoff.md](gpu-resilience-handoff.md). This includes
+  the **bucket test at start-up** (the worker times its download of the
+  recording and gives up a slow host before any GPU work) and the
+  **GPU host record** (each rental's machine, host, address, outcome,
+  pull time and bucket speed live in its job record; the offer search
+  skips machines, and for slow bucket links whole addresses, that failed
+  in the past week).
 - PDF export (Verovio can render server-side) if printed parts are wanted.
 - Scanners find the hostname for the issued certificate, and each probe wakes the
   container. That costs a little extra. Let's block the obvious probe paths (`/.env*`,

@@ -20,12 +20,13 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | `GET /` | main page: project list + create form |
 | `GET /p/<project>[/<version>]` | project page: version tabs, players, scores, feedback; opens `<version>`'s tab (else the first), and switching tabs rewrites the address (`history.replaceState`) |
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
-| `POST /api/create` | `{project, version, url, gpu?}` → slugify, start background job; answers the slugs `{project, version}` so the form can open the new tab |
-| `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job; same answer |
+| `POST /api/create` | `{project, version, url, gpu?}` → slugify, start a background job (with `gpu` in the cloud: save the job record first, 503 if that fails); answers the slugs `{project, version}` so the form can open the new tab |
+| `PUT /api/upload?project&version&filename&gpu=1?` | raw file body (no multipart) → job; a body shorter than its Content-Length is refused (400); with `gpu` in the cloud the original is stored in the bucket before the job is accepted; same answer |
 | `POST /api/unlock` | `{password}` → scrypt check → bypass cookie (see Throttling) |
 | `POST /api/feedback` | set/delete one feedback entry, returns variant's map (gated) |
-| `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run (gated) |
-| `POST /api/delete` | `{project, version}` → remove the version dir, and in the cloud its bucket objects (`gate.forget`, else the next cold start re-syncs them); refused while its job thread runs (gated) |
+| `POST /api/rawbars` | `{project, version, raw}` → flip `keep-raw-bars` flag, re-run here, or for a cloud GPU version start a new generation on a GPU; refused while the version has work or an unsettled rental, and for cloud versions made before job records (gated) |
+| `POST /api/delete` | `{project, version}` → remove the version dir, and in the cloud its bucket objects, inputs and job record (`gate.forget`, else the next cold start re-syncs them); refused while it has work or an unsettled rental (gated) |
+| `POST /api/retry` | `{project, version}` → a failed cloud GPU job starts over (new generation, five more rentals) once its rentals are settled (gated) |
 | `POST /api/seek` | `{bar}` from the MuseScore plugin → bump seq; same bar twice flips `playing` |
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
@@ -120,20 +121,29 @@ rebinding (the name is resolved once for the check, again by the fetcher),
 and hops yt-dlp or gdown follow on their own — both need a public host to
 start from.
 
-The new-version form's "process on a rented cloud GPU" checkbox sets
-`gpu`: the source is still fetched locally (so all link types and uploads
-work), then uploaded to the results bucket, presigned (boto3 via
-`uv run --with boto3`, credentials from `.secrets.worker-s3.json`), and
-handed to `deploy/run-on-gpu.sh` — rent (or reuse an open
-`gpu-session.sh` instance), process all variants, sync into
-the same `output/<song>/<version>/`, destroy unless the session owns it. The scripts' stage
-lines (and the worker's, streamed over ssh) go to `pipeline.log`, so the
-progress bars work for GPU jobs too, plus a "cloud GPU" bar for the
-rental start; the result files arrive only when results sync back at
-the end, so finished pipelines show a full bar saying so meanwhile. This works both
-on the laptop and in the cloud container (which has no `uv`: the scripts
-and the presign step fall back to plain `python3`/`vastai`). See
-[gpu-workers.md](gpu-workers.md).
+The new-version form's "process on a rented cloud GPU" checkbox appears
+only in the cloud web app (`jobs.enabled()`: the job-record key and the
+Vast key are set), ticked by default. Such a job is not a thread:
+
+- The request saves a record in the `drum-transcribe-jobs` bucket
+  (`jobs.py`, conditional writes) and wakes the coordinator; an upload's
+  original goes to `sources/<job>/upload.<ext>` first.
+- The coordinator (`coordinator.py`, one thread, at startup and once a
+  minute) fetches the recording beside the rental (`ingest.prepare`:
+  the same fetchers, each within 15 min) and publishes it as
+  `sources/<job>/source.<ext>`; rents a Vast instance whose onstart runs
+  the worker baked into the GPU image; and copies each variant into
+  `output/` once its `done` marker names the record's generation. A
+  failed rental is replaced, up to five per generation; then the page
+  offers "Try again".
+- Its stage lines go to the local `pipeline.log`, which the coordinator
+  also saves as `<song>/<version>.log` in the job bucket and restores
+  after a cold start. The worker's own log arrives as
+  `workers/<claim>.log` beside the results.
+
+On the laptop the checkbox is gone: only the cloud web app rents. Submit
+through the cloud form and pull results with `rclone sync`
+([gpu-workers.md](gpu-workers.md) §3).
 
 ## Front-end notes
 
@@ -256,7 +266,12 @@ it, see below).
 ## Live progress (progress.py)
 
 Every stage line in `pipeline.log` is `== what == <UTC time>`
-(`ingest.marker`; `stage` in gpu-session.sh). `version_progress` takes
+(`ingest.marker`; `stage` in vast-worker.sh). For a cloud GPU version
+the record replaces the job thread: its state gives running/failed/none,
+its `done` list which variants are ready, its `status` the cloud GPU
+bar's text while waiting (checking a previous rental, the daily limit,
+no affordable offer), and the current worker's log is read after the
+web app's own. `version_progress` takes
 the current job's part of the log (after the last `all pipelines
 finished`/`ERROR:`), maps each marker to a task (`src`, `gpu`, `drums`,
 `adtof`, `mdx23c`, `fused`) and step via `STEPS`, and estimates:
@@ -268,16 +283,19 @@ finished`/`ERROR:`), maps each marker to a task (`src`, `gpu`, `drums`,
   On the GPU "writing outputs" includes the per-variant bucket upload,
   the slowest step there. The
   image-pull step is `45 s + 6 × 8 GB / host download speed`, the speed
-  coming from the `instance …, host downloads at N Mbit/s` lines the
-  ssh-wait loop logs (Vast reports no pull progress at all: its
-  `status_msg` stays empty and `disk_usage` is -1 while loading).
+  coming from the offer line the coordinator logs when renting
+  (`host downloads at N Mbit/s`; Vast reports no pull progress at all:
+  its `status_msg` stays empty and `disk_usage` is -1 while loading).
+  The recording's own bar keeps its clock while the rental runs beside
+  it.
 - **Real progress** overrides the guess where a step prints it: yt-dlp's
   `45.3% of`, tqdm's `45%|` (Demucs on CPU; the GPU worker disables tqdm).
 - Past its expected time a step creeps (asymptotically, never to 100 %)
   and says "taking longer than usual"; times left are then unknown.
 - Task states: `queued` (hatched, still bar), `running`, `arriving`
-  (done on the GPU, files not synced yet), `failed`, `stopped` (log
-  unfinished but no job thread — the server restarted). A task with its
+  (done on the GPU, files not copied yet, at most a minute or two),
+  `failed`, `stopped` (log unfinished but no job thread: the laptop
+  server restarted; cloud GPU jobs carry on instead). A task with its
   file present gets no bar, also during a meter re-run (old results stay
   playable; the meter shows "recomputing…").
 

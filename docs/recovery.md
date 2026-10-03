@@ -6,15 +6,15 @@ ability to *maintain* that deployment, plus any results and code not yet
 pushed. This page lists what to keep in the password manager and how to
 get working again on a new machine.
 
-## Keep in the password manager (seven items)
+## Keep in the password manager (six items)
 
-Seven files hold every credential. Save each one as its own secure note,
+Six files hold every credential. Save each one as its own secure note,
 named by its path. Print them all for copying with:
 
 ```bash
 cd ~/prg/drum-transcribe
-for f in .secrets.gpu-ssh .secrets.gpu-ssh.pub .secrets.throttle.env \
-         .secrets.worker-s3.json .secrets.cloudflare.env ~/.config/scw/config.yaml \
+for f in .secrets.throttle.env .secrets.worker-s3.json .secrets.jobs-s3.json \
+         .secrets.cloudflare.env ~/.config/scw/config.yaml \
          ~/.config/vastai/vast_api_key; do
   echo "════ $f"; grep -vE '^\s*(#|$)' "$f"
 done
@@ -22,15 +22,15 @@ done
 
 | file | what it is |
 |---|---|
-| `.secrets.gpu-ssh` + `.pub` | dedicated ssh key the cloud app uses to drive rented GPU instances (its base64 is the container's `GPU_SSH_KEY_B64`) |
 | `.secrets.throttle.env` | web app `CREATE_PASSWORDS` and `TOKEN_SECRET`; **`TOKEN_SECRET` cannot be recreated** — a new one logs every browser out of its password bypass |
 | `.secrets.worker-s3.json` | scoped S3 key for the results bucket (IAM application `drum-transcribe-worker`, expires 2027-03-31) |
+| `.secrets.jobs-s3.json` | the cloud web app's own S3 key, the only one the job-record bucket `drum-transcribe-jobs` admits (IAM application `drum-transcribe-webapp`, expires 2027-09-28); the container's `JOBS_ACCESS_KEY`/`JOBS_SECRET_KEY` |
 | `.secrets.cloudflare.env` | Cloudflare API token (Workers + DNS for `vempai.men`) and account ID — deploys the loading-page Worker, flips the `plokkaus` record |
 | `~/.config/scw/config.yaml` | main Scaleway API key, profile `drum-transcribe` — needed to push images and update the container; expires 2027-09-28 (the previous one lapsed silently, found at a failed push). After renewing, re-run `podman login rg.fr-par.scw.cloud -u nologin` with the new secret key |
-| `~/.config/vastai/vast_api_key` | Vast.ai API key |
+| `~/.config/vastai/vast_api_key` | Vast.ai API key (the container's `VAST_API_KEY` too) |
 
 Why keep all of them, not just the irreplaceable one: updating the
-container's secrets **replaces the whole set of six at once**
+container's secrets **replaces the whole set of seven at once**
 ([operations.md](operations.md)), so changing any single value requires
 having every other value at hand.
 
@@ -55,7 +55,7 @@ image), and **Cloudflare** (the `vempai.men` DNS).
 1. `git clone git@github.com:akaihola/drum-transcribe.git` (needs a
    GitHub ssh key for the new machine).
 2. Restore the six files from the password manager to the paths above;
-   `chmod 600 .secrets.gpu-ssh ~/.config/scw/config.yaml`.
+   `chmod 600 .secrets.* ~/.config/scw/config.yaml`.
 3. `uv sync` in the repo.
 4. Pull results from the bucket into `output/`
    ([gpu-workers.md](gpu-workers.md) §3, rclone with the worker key).

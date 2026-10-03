@@ -1,8 +1,10 @@
 # GPU processing resilience — design handoff
 
-Status (2026-10-02): design reviewed and revisions approved by the user.
-The 2026-10-01 research and tests remain the evidence; the revised design
-is not implemented. Follow the [Honey principles](https://raw.githubusercontent.com/Green-PT/honey-for-devs/refs/heads/main/skills/honey/SKILL.md):
+Status (2026-10-03): implemented and deployed to the cloud web app; see
+[Implementation (2026-10-03)](#implementation-2026-10-03) for where it
+lives, what changed against the design and what was verified on real
+rentals. The design below was reviewed and approved on 2026-10-02; the
+2026-10-01 research and tests remain the evidence. It followed the [Honey principles](https://raw.githubusercontent.com/Green-PT/honey-for-devs/refs/heads/main/skills/honey/SKILL.md):
 reuse the worker already in the image, keep one rental coordinator, and
 make crash recovery explicit. Implement in the order below, in small commits.
 
@@ -62,7 +64,7 @@ to process; the GPU work itself took 6 min. Each failure mode below is real.
 Agent-side mistakes that cost time but are not app problems: the Claude Code
 sandbox blocks ssh, and `$TMPDIR` differs inside and outside it.
 
-## How it works today
+## How it worked until 2026-10-02
 
 Flow for a cloud GPU job (`ingest.py`, `deploy/*.sh`):
 
@@ -152,7 +154,7 @@ split (~36 s GPU).
 | Playback stems | Upload the Demucs drums / without-drums tracks as Opus (`.ogg`, sonify's setting, ≈ 7× smaller), not FLAC. The page's download becomes Opus; the user doesn't need FLAC there. FLAC stays only on the GPU host. |
 | Laptop path | Only the web app rents. The laptop submits through the web form and pulls results with `rclone sync`. `run-on-gpu.sh` and the `gpu-session.sh` keep-alive session go away; the manual `vastai` steps in gpu-workers.md §4 stay for debugging. |
 
-## Design (approved, not implemented)
+## Design (approved 2026-10-02, implemented 2026-10-03)
 
 These choices follow from the approved review, decisions and research.
 Numbered in implementation order.
@@ -398,6 +400,81 @@ scheduled deletion, confirmed cleanup and removal of the idle watchdog.
   and the sweeper (F7). Storage bills during the pull and for up to ~5 min
   after destruction (B §7); the creation/scheduling crash window remains.
 
+## Implementation (2026-10-03)
+
+Where the design lives:
+
+| design | code |
+|---|---|
+| §1 trusted records, claims, caps | `jobs.py` (bucket `drum-transcribe-jobs`, conditional PUTs), `coordinator.py` `rent` |
+| §2 worker | `deploy/vast-worker.sh` (baked into `drum-transcribe-gpu:2026-10-03`, rclone included); `atomic.py`, `cli.py` (`_cached`, lazy Demucs), `separate.py` (`done` marker, Opus copies) |
+| §3 delivery, labels, guards | `coordinator.py` `payload`/`guard`; `vast.py` (REST, `Rejected`/`Uncertain`) |
+| §4 reconcile | `coordinator.py` `reconcile` → per job `prepare`, `collect`, `settle`, `rent`; `sweep` |
+| §5 submission | `serve.py` (`/api/create`, `/api/upload`, `/api/retry`, meter and delete guards), `ingest.prepare` |
+| §6 host record, blocklist | each attempt in the record; `coordinator._blocklist` |
+| §7 page, docs | `progress.py` (record-backed progress), `serve.py` page; README, webapp.md, gpu-workers.md, operations.md, recovery.md |
+| mocked checks | `checks/gpu-jobs.py` (15 checks) |
+
+Infrastructure done the same day: the worker key's policy narrowed to
+`ObjectStorageObjectsRead/Write/Delete` (bucket configuration now denied,
+checked with boto3); new IAM application `drum-transcribe-webapp` with
+its own key and an objects-only policy; bucket `drum-transcribe-jobs`
+whose policy lists only that application and the owner (the worker key
+gets AccessDenied, checked); container secrets now the seven named in
+operations.md; `GPU_SSH_KEY_B64` and the ssh path removed.
+
+Choices made during implementation, beyond the design text:
+
+- **Price and time limits** (user decision 2026-10-03, after the
+  scheduler probes below): offers up to $0.18/h with disk, 15 min to
+  reach `running`, 30 min attempt deadline, 30 rentals a day. The
+  3-cent worst case per rental is not reachable with RTX 3090s: the worst
+  case (worker can't delete itself, site asleep) lasts until the hourly
+  guard, ≤ ~28 ¢. Image pulls bill no bandwidth (all 2026-10-01 invoices
+  show $0), so only our own ~0.2 GB counts as network cost.
+- **Guard timing**: the guard starts just past the first full hour after
+  the deadline (see Verification results: Vast runs hourly jobs from the
+  hour containing the start time).
+- **Unknown creates**: a claim without an instance id is looked up by its
+  label every pass; after 10 min (any request sent before a crash has
+  landed by then) the account audit log decides: an `api.ask_PUT` after
+  the claim that no record accounts for and that Vast doesn't list under
+  another label is this claim's (then gone); none means no rental was
+  created. Either way the claim counts against the caps.
+- **Wake-ups**: requests that change a job (create, upload, retry, meter)
+  wake the coordinator for an immediate pass; otherwise passes run once a
+  minute. Page loads and polls never trigger a pass.
+- **Parked instances** (`intended_status=stopped`, i.e. outbid while
+  loading) are ended on first sight, with no 2-min grace as in the old
+  ssh-wait loop. Seen twice in a row on 2026-10-03; the fixed-price fifth
+  try exists for this.
+- **The recording** is published as `sources/<job>/source.<ext>` and also
+  copied beside the results, so the page's original player works at once,
+  also after a cold start.
+- **Results sync** fetches a variant's files only after its done marker
+  names the current generation; shared files come with the first such
+  variant; files the web app owns (`created`, `source-url.txt`,
+  `keep-raw-bars`, `feedback.json`) are never fetched over local ones.
+- **Page**: the GPU checkbox appears only where renting works (the cloud,
+  ticked by default); "Try again" appears for a failed cloud job once its
+  rentals are settled. Cloud versions made before job records can't
+  change meter (no ML libraries in the container).
+- **Images**: the web app rents the dated GPU image tag named in
+  `coordinator.IMAGE`, so coordinator and worker versions move together.
+
+Known gaps, accepted:
+
+- The creation-to-guard crash window (design §3): an unguarded rental
+  until the next visit; a worker that runs deletes itself at its deadline.
+- Deleting a version deletes its attempt history, so its rentals stop
+  counting towards that day's cap (deletion needs the password).
+- `max_scale 1` is the fence; a redeploy may briefly overlap two
+  containers. Conditional writes keep one claim per job; the daily count
+  could be exceeded by one.
+- The blocklist starts empty: the 2026-10-01 slow site (174.164.26.93)
+  was rented again by a test on 2026-10-03 and is excluded only after a
+  rental there ends as "slow bucket link".
+
 ## Test results (2026-10-01)
 
 Both tests cost ≈ $0.003 (Vast) + €0.01 (Scaleway); everything they
@@ -472,4 +549,73 @@ cheap real rentals. Assert the following, not just that a retry finishes:
   instances and actual costs, and check for leftover scheduled jobs.
 
 Keep runnable checks for these state transitions. Preserve T1/T2 above as
-historical results; the new design's checks have not been run yet.
+historical results. What was run on 2026-10-03, item by item:
+[Verification results](#verification-results-2026-10-03).
+
+## Verification results (2026-10-03)
+
+Mocked (`checks/gpu-jobs.py`, 15 checks, all pass): one record per
+version and one claim per job, also with two coordinators holding the same
+old record (the second gets 412 and creates nothing); a failed claim write
+rents nothing; five rentals then `failed`, caps intact after a restart;
+the daily cap, and its reset the next UTC day; a lost create answer
+recovered by label without a second create; a lost create whose instance
+already died, resolved by the audit log only after 10 min; a claim saved
+just before a crash (no create sent) waits for the audit log, then counts;
+lost and refused guard answers (no duplicate guard; a refused guard
+destroys the rental, no replacement until it is gone); a finished job
+whose DELETEs fail keeps its guard until Vast's guard ends it; startup
+deadline, blocklisting by machine and by site; a bad link fails the job
+once; stray labelled instances swept, manual ones left alone; the
+requests (duplicate create, meter/delete/retry refused while busy,
+generation-1 markers can't finish generation 2, delete, a cut-short
+upload refused, a complete one stored before acceptance).
+
+Worker in its image, on atom's CPU with the GPU check patched out,
+against the real bucket: waited for a recording published 25 s late,
+fetched it (1.5 MB/s), ran adtof, uploaded without FLACs, kit stems,
+done markers or the raw-bar flag, wrote `adtof/done`; a second run with
+generation 2 and raw bars restored the grid and hits (no Demucs, no beat
+tracking) and wrote `done` = 2. Without a GPU it fails the check, uploads
+its log and tries its self-delete three times.
+
+Scheduler probes (cheapest GPUs, tiny image):
+
+| guard | created | start_time | ran |
+|---|---|---|---|
+| probe 1, `min_of_the_hour` then changed to 12 | 10:00 | 10:04 | never (destroyed by hand 11:20) |
+| probe 2 A | 12:15 | 12:15 | 13:00:29 |
+| probe 2 B | 12:15 | 12:35 | 13:00:29 |
+| live rental (old code) | 12:52 | 13:22 (its deadline) | 13:00:29, too early: killed a healthy rental |
+
+So Vast runs an hourly job at minute 0 of every hour from the hour that
+contains `start_time`, from its own servers (audit log: a separate key
+id, IP 13.216.37.47), and changing `min_of_the_hour` afterwards breaks
+it. Guards now start just past the first full hour after the deadline.
+
+Live, on the deployed web app (test project `gpu-resilience-test`,
+1.9-min song):
+
+| test | what happened |
+|---|---|
+| t1: upload, then container redeployed while the worker ran | new container carried on; adtof arrived after the restart |
+| t1: host destroyed mid-variant | closed as "vanished"; replacement restored the grid and hits, logged "adtof: already done", "mdx23c: already done", finished fused, deleted itself (HTTP 200) |
+| t1: replacement destroyed mid-pull | third rental on a host with the image cached, running in 65 s |
+| t1: meter changed after completion; changed again while busy | generation 2 on a GPU; the second change got 400. New `beats.json` = raw grid, all three variants rewritten with `done` = 2, bar counts match the grid |
+| t1 generation 2: two hosts outbid while loading (`intended_status=stopped`) | each ended at once and replaced |
+| t1 generation 2: guard started at the 13:22 deadline | fired at 13:00 and deleted that rental (the bug fixed above); the next try finished |
+| t2: link answering 404 | failed with "could not get the recording", its parallel rental destroyed, "Try again" shown once settled; a retry repeated it (generation 2), a second retry while busy got 400 |
+| t3: YouTube link, container redeployed 4 s after submitting | the new container fetched the recording again from the saved link; first offer refused (410, not counted); 4.6-min song done 8.5 min after submitting, one rental, 2.2 ¢ |
+| delete t1–t3 | records, results and `sources/<job>/` gone; no instances or guards left at Vast |
+
+Vast charges for all of the above, probes included: about $0.17
+(`vastai show invoices-v1 --charges`), bandwidth $0 throughout.
+
+Not run on real rentals (covered only by the mocked checks, or not at
+all): a coordinator killed between claim, create and guard; a restart
+mid-upload or mid-conversion; blocking a host's bucket route with
+`iptables` (needs ssh into a rented host, which the agent sandbox
+blocks); a worker killed after its done markers with a failing DELETE; a
+fixed-price fifth try; the daily cap; a job carried on at a later visit
+after the container fell asleep mid-job (the restarts above are the same
+code path: the first pass of a new container).

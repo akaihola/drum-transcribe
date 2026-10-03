@@ -19,6 +19,10 @@ uv run drum-transcribe serve output --port 8765   # must run OUTSIDE the CC sand
 
 No test suite; verify by running the pipeline on `output/dancing-through-life/taustanauha/source.mp3`
 (all stages cached → seconds) and by driving the web UI with PinchTab.
+The cloud GPU job logic has mocked checks:
+`LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run --with boto3 python checks/gpu-jobs.py`
+(the library path only inside the Claude Code sandbox, where numpy can't
+find libstdc++ otherwise).
 
 The server runs as a systemd user service: `systemctl --user status drum-transcribe`.
 Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-transcribe`
@@ -36,9 +40,13 @@ Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-
 | `score.py` | events → MusicXML drum staff (MuseScore-compatible; see below) |
 | `audition.py`, `sonify.py` | quantized MIDI; original + blips WAV |
 | `export.py` | MusicXML → .mscz; forced with `-f` + `mscz-problems.txt` if refused |
-| `ingest.py` | URL/upload fetch + background pipeline jobs; `check_url` vets links (webapp.md) |
+| `ingest.py` | URL/upload fetch + local background pipeline jobs; `prepare` publishes a cloud job's recording; `check_url` vets links (webapp.md) |
 | `serve.py` | web app: pages, API, score feedback |
-| `gate.py` | cloud webapp gate: creation throttle, password unlock, bypass cookie (edits need it too) |
+| `gate.py` | cloud webapp gate: creation throttle, password unlock, bypass cookie (edits need it too); results-bucket helpers |
+| `jobs.py` | trusted cloud GPU job records in the `drum-transcribe-jobs` bucket (conditional writes) |
+| `coordinator.py` | the cloud web app's one rental owner: reconciles records with Vast and the bucket each minute (gpu-workers.md, gpu-resilience-handoff.md) |
+| `vast.py` | Vast.ai REST calls, failures split into Rejected / Uncertain |
+| `atomic.py` | temp-file-and-rename writes for cached results |
 
 ## Data layout
 

@@ -85,37 +85,50 @@ viewed from anywhere without the laptop being on:
   the `drum-transcribe-results` bucket (see [gpu-workers.md](gpu-workers.md)).
   Local (in-container) processing does not work — the image has no ML
   dependencies — but adding songs/versions **with the "process on a rented
-  cloud GPU" checkbox works**: the container uploads the source to the
-  bucket and drives a Vast.ai instance through `deploy/run-on-gpu.sh`
-  (ssh client + `vastai` + `boto3` are in the image;
+  cloud GPU" checkbox works** (the checkbox appears only here, ticked by
+  default): the request saves a job record and returns, and the
+  coordinator thread (`coordinator.py`) fetches the recording, rents a
+  Vast.ai instance and collects the results (see
+  [gpu-workers.md](gpu-workers.md) and
+  [gpu-resilience-handoff.md](gpu-resilience-handoff.md)).
   Creation is throttled for anonymous visitors, and changing existing
-  results (feedback, meter switch) needs the password outright, via the
-  secret env vars `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
+  results (feedback, meter switch, "Try again") needs the password
+  outright, via the secret env vars `CREATE_PASSWORDS`/`TOKEN_SECRET` (see
   [webapp.md](webapp.md) → Throttling; `drum-transcribe hash-password`
   makes entries). Their values live in the gitignored
   `.secrets.throttle.env` at the repo root on atom; TOKEN_SECRET must stay
   fixed there — changing it revokes every bypass cookie.
   **`scw container container update secret-environment-variables.*`
-  REPLACES the container's whole secret map** — always pass all six
+  REPLACES the container's whole secret map** — always pass all seven
   secrets in one update, or startup crashes on the missing S3 keys
-  (learned 2026-09-21). `deploy/container-start.sh` materializes
-  credentials at startup from the
-  secret env vars `S3_ACCESS_KEY`/`S3_SECRET_KEY`/`VAST_API_KEY`/
-  `GPU_SSH_KEY_B64` — the last is the base64 of the dedicated
-  `.secrets.gpu-ssh` ed25519 key at the repo root on atom). Uploads,
-  direct-download URLs and YouTube links work there (yt-dlp and ffmpeg are
-  in the image); Google Drive links don't (no gdown). Links must point
+  (learned 2026-09-21). The seven (2026-10-03): `S3_ACCESS_KEY`/
+  `S3_SECRET_KEY` (worker key, `.secrets.worker-s3.json`),
+  `JOBS_ACCESS_KEY`/`JOBS_SECRET_KEY` (the web app's own key for the
+  job-record bucket, `.secrets.jobs-s3.json`), `VAST_API_KEY`
+  (`~/.config/vastai/vast_api_key`), `CREATE_PASSWORDS`, `TOKEN_SECRET`.
+  `deploy/container-start.sh` writes the worker key into
+  `.secrets.worker-s3.json` for the bucket code; the rest is read from
+  the environment. Uploads, direct-download URLs and YouTube links work
+  there (yt-dlp and ffmpeg are in the image); Google Drive links don't
+  (no gdown). Links must point
   to public http(s) addresses — on this deployment `check_url` resolves
   the host and refuses private ones ([webapp.md](webapp.md) → Fetching a new
   version), so a visitor can't read the container's own network back out of
   `/files/…`.
-  Caveats: the container keeps full CPU between requests but scales to
-  zero ~17 min after the last one (measured 2026-10-01, see
-  [gpu-resilience-handoff.md](gpu-resilience-handoff.md) → Test results),
-  and a job still running then dies with it — so keep the version's page
-  open until a GPU job finishes. The GPU instance's idle watchdog then
-  self-destructs it (see gpu-workers.md). `pipeline.log` is ephemeral —
-  results persist only via the bucket.
+  Nobody needs to keep the page open: the container keeps full CPU
+  between requests and scales to zero ~17 min after the last one
+  (measured 2026-10-01, see gpu-resilience-handoff.md → Test results).
+  The coordinator works while the container is up and, after it sleeps,
+  carries on at the next visit (the start of every container runs a
+  pass). A rented machine meanwhile finishes on its own and deletes
+  itself; if that fails, Vast deletes it by the scheduled DELETE the web
+  app set up, with no container needed. Job state, the version's log
+  and the results are all in buckets, so nothing is lost when the
+  container sleeps. Remaining gap: if the container dies between renting
+  a machine and setting up its scheduled DELETE (a second or so), only
+  the machine's own worker deletes it (at its deadline) until the next
+  visit; a machine stuck loading the image never starts its worker and
+  bills storage (~1 ¢/h) until someone visits.
 - Data: at every container start, `deploy/sync_bucket.py` downloads the
   bucket into `/app/output` before the server starts, except audio files
   (MP3/FLAC/Opus, ~95 % of the bytes): those become empty stand-ins, and the server
@@ -163,6 +176,14 @@ viewed from anywhere without the laptop being on:
   500 mvCPU, scales to zero when idle — costs nothing while unused,
   as long as no open page is polling it; see
   [musescore-plugin.md](musescore-plugin.md) on the `/api/seek` poll).
+  Buckets `drum-transcribe-results` and `drum-transcribe-jobs` (the job
+  records; its bucket policy lists only the IAM application
+  `drum-transcribe-webapp` b66ac1ed-… and the owner's user id. Anyone
+  else, the worker key included, is locked out; check it with boto3
+  `get_bucket_policy` using the main key). IAM applications
+  `drum-transcribe-worker` (policy `drum-transcribe-worker-s3`) and
+  `drum-transcribe-webapp` (policy `drum-transcribe-webapp-s3`), both
+  objects-only on project dallape.
 
 ## GPU workers
 
