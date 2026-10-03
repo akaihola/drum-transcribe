@@ -42,10 +42,13 @@ TRIES = 5                   # rentals per generation: 1-4 bid, the 5th at a fixe
 DAILY = 30                  # rentals per UTC day, all songs together
 BID = 1.25                  # times the going rate: 1.15 got outbid before the start
 STARTUP = 15 * 60           # s from the claim until the instance must be running
-ATTEMPT = 40 * 60           # s from the claim until the worker's own deadline
+ATTEMPT = 30 * 60           # s from the claim until the worker's own deadline
 GUARD_DELAY = 60 * 60       # s after the deadline Vast's scheduled DELETE may take
-MAX_COST = 0.15             # $ a rental may cost if it lives until its guard fires
-IMAGE_GB = 8                # the image's download; billed by hosts with a bandwidth price
+MAX_HOURLY = 0.18           # $/h with the disk: the dearest offer taken (decided 2026-10-03)
+TRANSFER_GB = 0.2           # recording down, results up, on hosts that bill bandwidth
+# hours a rental can bill if its worker and this app both fail to end it
+# (+5 min: Vast's billing outlasts a delete)
+WORST_HOURS = (ATTEMPT + GUARD_DELAY + 300) / 3600
 QUERY = {"verified": {"eq": True}, "external": {"eq": False}, "rentable": {"eq": True},
          "rented": {"eq": False}, "gpu_name": {"eq": "RTX 3090"}, "num_gpus": {"eq": 1},
          "reliability": {"gt": 0.98}, "inet_down": {"gt": 500},
@@ -447,21 +450,22 @@ def _prepare(vdir: Path, rec: dict) -> None:
 
 def _offer(fixed: bool, recs: list[tuple[dict, str]]) -> dict | None:
     """A random one of the 5 cheapest suitable offers (cheapest-first kept
-    re-renting one broken host), within the cost limit, None if none is.
-    Bids at BID times the going rate; the fixed price can't be outbid."""
+    re-renting one broken host) within the price limit, None if none is.
+    Bids at BID times the going rate; the fixed price can't be outbid.
+    Vast bills the image pull no bandwidth (invoices 2026-10-01: $0 on
+    every rental), so only our own transfers count."""
     q: dict = dict(QUERY, type="on-demand" if fixed else "bid")
     machines, sites = _blocklist(recs)
     if machines:
         q["machine_id"] = {"notin": sorted(machines)}
     if sites:
         q["public_ipaddr"] = {"notin": sorted(sites)}
-    worst_hours = (ATTEMPT + GUARD_DELAY + 300) / 3600  # +5 min: billing outlasts a delete
     fit = []
     for o in vast.offers(q):
         bid = None if fixed else round(o["min_bid"] * BID, 4)
         hourly = o["dph_total"] if fixed else o["dph_total"] - o["dph_base"] + bid
-        network = IMAGE_GB * (o.get("inet_down_cost") or 0) + 0.2 * (o.get("inet_up_cost") or 0)
-        if hourly * worst_hours + network <= MAX_COST:
+        network = TRANSFER_GB * ((o.get("inet_down_cost") or 0) + (o.get("inet_up_cost") or 0))
+        if hourly * WORST_HOURS + network <= MAX_HOURLY * WORST_HOURS:
             fit.append(o | {"bid": bid, "hourly": hourly})
     return random.choice(fit[:5]) if fit else None
 

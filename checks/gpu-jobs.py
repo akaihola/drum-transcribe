@@ -112,8 +112,8 @@ class Vast:
         self.ids, self.gids = iter(range(1000, 2000)), iter(range(1, 1000))
         self.create_mode = self.guard_mode = self.destroy_mode = None
         self.offer_list = [{"id": 70 + i, "machine_id": 500 + i, "host_id": 9,
-                            "public_ipaddr": f"10.0.0.{i}", "min_bid": .03, "dph_base": .03,
-                            "dph_total": .035, "inet_down": 900, "inet_down_cost": 0,
+                            "public_ipaddr": f"10.0.0.{i}", "min_bid": .1, "dph_base": .1,
+                            "dph_total": .115, "inet_down": 900, "inet_down_cost": 0,
                             "inet_up_cost": 0, "geolocation": "XX"} for i in range(8)]
 
     def instances(self):
