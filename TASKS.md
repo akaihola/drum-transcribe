@@ -25,9 +25,6 @@ provide background; their historical plans do not set task status.
 
 ## Ordered backlog
 
-- [4] Compress player nodes UI
-  <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
-
 - [5] Block network scanners
   <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-03T17:40:05.628Z"} -->
 
@@ -35,6 +32,9 @@ provide background; their historical plans do not set task status.
   <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-03T17:41:23.086Z"} -->
 
 ## Scheduled
+
+- [4] Compress player nodes UI
+  <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
 
 ## In Progress
 
