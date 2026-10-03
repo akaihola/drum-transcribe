@@ -1,0 +1,1 @@
+Decide the scope of feedback-driven correction: apply per-note fixes to scores, or tune detector thresholds using corrections. Resolve how feedback maps to hits when regeneration changes notation. See [the proposal](docs/roadmap.md#agreed--floated-next-steps).

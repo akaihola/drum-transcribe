@@ -1,0 +1,1 @@
+Now that waveforms are shown in the separate player and not in the player nodes, we could use UI space more economically in the nodes. Make three proposals for how the arrow-connected nodes could take less space but still remain equally usable both on desktop and on portrait mobile.

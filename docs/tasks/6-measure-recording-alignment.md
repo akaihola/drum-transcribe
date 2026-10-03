@@ -1,0 +1,1 @@
+Measure local recording alignment with real wired hardware against the 10 ms target. Check microphone processing settings and count-in timing before deciding whether automatic click calibration is needed. Requires the user's recording equipment. See [recording validation](docs/local-recording-handoff.md#implementation-results).

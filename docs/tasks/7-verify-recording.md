@@ -1,0 +1,1 @@
+Verify recording on the cloud site and phones, including mobile memory use, WAV export, background operation and screen lock. See [recording validation](docs/local-recording-handoff.md#implementation-results).

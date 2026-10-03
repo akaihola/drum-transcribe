@@ -1,0 +1,1 @@
+Block obvious scanner paths such as `/.env*` and `/.git/*` with a Cloudflare WAF rule so probes do not wake the cloud container. See [the agreed next step](docs/roadmap.md#agreed--floated-next-steps).

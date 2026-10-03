@@ -1,0 +1,1 @@
+Run the cloud GPU checks not yet done on real rentals: coordinator killed between claim, create and guard; restart mid-upload and mid-conversion; a host's bucket route blocked with `iptables`; a failing worker DELETE after its done markers; a fixed-price fifth try. See [verification results](docs/gpu-resilience-handoff.md#verification-results-2026-10-03).

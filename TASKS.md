@@ -8,43 +8,31 @@ provide background; their historical plans do not set task status.
 
 ## Unverified proposals
 
-- [*] Decide the scope of feedback-driven correction: apply per-note fixes to scores, or
-  tune detector thresholds using corrections. Resolve how feedback maps to hits when
-  regeneration changes notation. See
-  [the proposal](docs/roadmap.md#agreed--floated-next-steps).
+- [7] Verify recording
+  <!-- hai:{"id":"simple-b4eb55961f8ad9a7","updatedAt":"2026-10-03T17:40:57.897Z"} -->
 
-- [*] Add PDF export if printed parts are wanted. See
-  [the proposal](docs/roadmap.md#agreed--floated-next-steps).
+- [6] Measure recording alignment
+  <!-- hai:{"id":"simple-12ed7b4195ff20ff","updatedAt":"2026-10-03T17:40:41.277Z"} -->
 
-- [*] Confirm whether port 8765 still needs a permanent firewall opening. This is work
-  for the user. See [operations](docs/operations.md).
+- [1] Decide scope of feedback-driven correction
+  <!-- hai:{"id":"simple-1847537fd7ed7448","updatedAt":"2026-10-03T17:38:43.030Z"} -->
 
-- [*] Now that waveforms are shown in the separate player and not in the player nodes,
-  we could use UI space more economically in the nodes. Make three proposals for how the
-  arrow-connected nodes could take less space but still remain equally usable both on
-  desktop and on portrait mobile.
+- [2] PDF export
+  <!-- hai:{"id":"simple-db8f0589550798ee","updatedAt":"2026-10-03T17:38:59.302Z"} -->
+
+- [3] Check need for firewall rule
+  <!-- hai:{"id":"simple-c856aacf0be13947","updatedAt":"2026-10-03T17:39:20.353Z"} -->
 
 ## Ordered backlog
 
-- [*] Block obvious scanner paths such as `/.env*` and `/.git/*` with a Cloudflare WAF
-  rule so probes do not wake the cloud container. See
-  [the agreed next step](docs/roadmap.md#agreed--floated-next-steps).
+- [4] Compress player nodes UI
+  <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
 
-- [*] Measure local recording alignment with real wired hardware against the 10 ms
-  target. Check microphone processing settings and count-in timing before deciding
-  whether automatic click calibration is needed. Requires the user's recording
-  equipment. See
-  [recording validation](docs/local-recording-handoff.md#implementation-results).
+- [5] Block network scanners
+  <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-03T17:40:05.628Z"} -->
 
-- [*] Verify recording on the cloud site and phones, including mobile memory use, WAV
-  export, background operation and screen lock. See
-  [recording validation](docs/local-recording-handoff.md#implementation-results).
-
-- [*] Run the cloud GPU checks not yet done on real rentals: coordinator killed between
-  claim, create and guard; restart mid-upload and mid-conversion; a host's bucket route
-  blocked with `iptables`; a failing worker DELETE after its done markers; a fixed-price
-  fifth try. See
-  [verification results](docs/gpu-resilience-handoff.md#verification-results-2026-10-03).
+- [8] Cloud GPU checks on real rentals
+  <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-03T17:41:23.086Z"} -->
 
 ## Scheduled
 
@@ -52,21 +40,42 @@ provide background; their historical plans do not set task status.
 
 ## Completed / Accepted
 
-- [ ] [*] Show backing download percentage in the Loading button's circular indicator.
+- [x] [*] Show backing download percentage in the Loading button's circular indicator.
+  <!-- hai:{"id":"simple-8f353ed6b83489a9","updatedAt":"2026-10-03T17:41:33.474Z"} -->
 
-- [ ] [*] Make backing selection respond immediately and show audio loading progress.
+- [x] [*] Make backing selection respond immediately and show audio loading progress.
+  <!-- hai:{"id":"simple-4179ed2eade00883","updatedAt":"2026-10-03T17:41:46.978Z"} -->
 
-- [ ] [*] Make cloud GPU jobs survive closed pages, failed hosts and container restarts,
-      without duplicate rentals (job records, one coordinator, baked worker, deletion
-      guards). See
-      [the handoff](docs/gpu-resilience-handoff.md#implementation-2026-10-03).
+- [x] [9] Robust GPU jobs
+  <!-- hai:{"id":"simple-d8c0e35b43a17e77","updatedAt":"2026-10-03T17:42:31.492Z"} -->
 
-- [ ] [*] Adopt Filemill's TASKS.md convention, link it from AGENTS.md and the roadmap,
+- [x] [*] Adopt Filemill's TASKS.md convention, link it from AGENTS.md and the roadmap,
       and seed it with this project's outstanding work.
+  <!-- hai:{"id":"simple-14d12577ba3cdc94","updatedAt":"2026-10-03T17:42:36.974Z"} -->
 
 [*]: TASKS.md
 
 ---
+
+[1]: docs/tasks/1-decide-scope-of-feedback-driven-correction.md
+
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9 -->
+
+[2]: docs/tasks/2-pdf-export.md
+
+[3]: docs/tasks/3-check-need-for-firewall-rule.md
+
+[4]: docs/tasks/4-compress-player-nodes-ui.md
+
+[5]: docs/tasks/5-block-network-scanners.md
+
+[6]: docs/tasks/6-measure-recording-alignment.md
+
+[7]: docs/tasks/7-verify-recording.md
+
+[8]: docs/tasks/8-cloud-gpu-checks-on-real-rentals.md
+
+[9]: docs/tasks/9-robust-gpu-jobs.md
 
 ## Rules
 

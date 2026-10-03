@@ -1,0 +1,1 @@
+Make cloud GPU jobs survive closed pages, failed hosts and container restarts, without duplicate rentals (job records, one coordinator, baked worker, deletion guards). See [the handoff](docs/gpu-resilience-handoff.md#implementation-2026-10-03).

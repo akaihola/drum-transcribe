@@ -1,0 +1,1 @@
+Confirm whether port 8765 still needs a permanent firewall opening. This is work for the user. See [operations](docs/operations.md).
