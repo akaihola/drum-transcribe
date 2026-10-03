@@ -6,6 +6,9 @@ conventions described below. Read [CLAUDE.md](CLAUDE.md) for binding project
 rules (non-developer user, Honey/minimal style, web-first interaction,
 frequent commits).
 
+Issues are tracked in [TASKS.md](TASKS.md). Follow its rules for scheduling,
+progress, completion and user acceptance.
+
 ## Commands
 
 ```bash

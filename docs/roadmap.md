@@ -1,5 +1,8 @@
 # Status and next steps
 
+Current task status is tracked in [TASKS.md](../TASKS.md). The notes below
+provide project history, known limitations and background for that work.
+
 ## Where things stand (2026-09-20)
 
 One project transcribed: **dancing-through-life** ("Dancing Through Life" from Wicked)
