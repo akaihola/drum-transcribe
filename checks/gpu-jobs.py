@@ -91,6 +91,9 @@ class S3:
     def delete_object(self, Bucket, Key):
         self.objs.pop((Bucket, Key), None)
 
+    def copy_object(self, Bucket, Key, CopySource):
+        self.objs[Bucket, Key] = self.objs[CopySource["Bucket"], CopySource["Key"]]
+
     def upload_file(self, path, Bucket, Key):
         self.objs[Bucket, Key] = Path(path).read_bytes()
 
@@ -261,6 +264,7 @@ def check_one_rental_per_job():
     assert len(w.vast.created) == 1, w.vast.created
     rec = w.rec()
     assert rec["source"] == f"sources/{rec['job']}/source.mp3"
+    assert ("results", f"{SONG}/v1/source.mp3") in w.s3.objs  # the page plays it from there
     assert len(w.vast.guard_jobs) == 1  # guarded right after creation
     # two coordinators (an overlapping deployment) with the same old record:
     w2 = World()

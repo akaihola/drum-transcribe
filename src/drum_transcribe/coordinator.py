@@ -199,7 +199,12 @@ class _Job:
         s3, bucket = gate.results_bucket()
         published = s3.list_objects_v2(Bucket=bucket, Prefix=f"sources/{rec['job']}/source.")
         if published.get("Contents"):
-            rec["source"] = published["Contents"][0]["Key"]
+            key = published["Contents"][0]["Key"]
+            # beside the results too: the page plays the original from there,
+            # also after a cold start, long before the first variant is up
+            s3.copy_object(Bucket=bucket, CopySource={"Bucket": bucket, "Key": key},
+                           Key=f"{rec['song']}/{rec['version']}/{key.rsplit('/', 1)[1]}")
+            rec["source"] = key
             self.save()
             return
         if why := _prep_failed.pop(rec["job"], None):
