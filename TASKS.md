@@ -34,11 +34,21 @@ documents provide background; their historical plans do not set task status.
   use, WAV export, background operation and screen lock.
   See [recording validation](docs/local-recording-handoff.md#implementation-results).
 
+- [*] Run the cloud GPU checks not yet done on real rentals: coordinator
+  killed between claim, create and guard; restart mid-upload and
+  mid-conversion; a host's bucket route blocked with `iptables`; a failing
+  worker DELETE after its done markers; a fixed-price fifth try.
+  See [verification results](docs/gpu-resilience-handoff.md#verification-results-2026-10-03).
+
 ## Scheduled
 
 ## In Progress
 
 ## Completed / Accepted
+
+- [ ] [*] Make cloud GPU jobs survive closed pages, failed hosts and container
+  restarts, without duplicate rentals (job records, one coordinator, baked
+  worker, deletion guards). See [the handoff](docs/gpu-resilience-handoff.md#implementation-2026-10-03).
 
 - [ ] [*] Adopt Filemill's TASKS.md convention, link it from AGENTS.md and the
   roadmap, and seed it with this project's outstanding work.
