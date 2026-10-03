@@ -40,16 +40,18 @@ _SPLIT = ("splitting kit", "Splitting the drums into six per-drum tracks",
           (5, 6.5), (8, .1))
 STEPS = {
     "src": [("downloading", "Downloading the recording", (10, 0), None),
-            ("extracting audio", "Extracting the audio track", (3, .01), None)],
-    "gpu": [("uploading source", "Handing the recording to the cloud",
-             (5, .03), None),
-            ("processing on a rented", "Starting the rental", (3, 0), None),
-            ("searching spot offers", "Looking for a free cloud GPU", (5, 0), None),
-            ("launching instance", "Renting the machine", (8, 0), None),
-            ("waiting for ssh",
+            ("extracting audio", "Extracting the audio track", (3, .01), None),
+            ("handing the recording", "Handing the recording to the cloud",
+             (5, .03), None)],
+    # the web app's lines, then those of the worker on the rented host
+    "gpu": [("renting a cloud GPU", "Renting a cloud GPU", (10, 0), None),
+            ("loading the transcription software",
              "Loading the transcription software onto the machine", "pull", None),
             ("checking the GPU", "Checking that the GPU works", (10, 0), None),
-            ("running ", "Fetching the recording onto the machine", (8, 0), None)],
+            ("waiting for the recording", "Waiting for the recording", (5, 0), None),
+            ("fetching the recording", "Fetching the recording onto the machine",
+             (8, 0), None),
+            ("restoring earlier results", "Picking up earlier results", (3, 0), None)],
     "drums": [("running pipeline", "Starting up", (1, 0), None),
               ("separating drums stem",
                "Demucs is isolating the drums from the rest of the band",
@@ -84,12 +86,14 @@ def playback_stem(vdir: Path, name: str) -> Path | None:
                       vdir.glob(f"stems/htdemucs/*/{name}.flac")), None)
 
 
-def version_progress(vdir: Path, running: bool) -> dict:
+def version_progress(vdir: Path, running: bool, rec: dict | None = None) -> dict:
     """{"job": running|failed|stopped|None, "tasks": {task: {...}}, "sig"}.
 
     A task is listed only while its result is missing, with a state
     (queued, running, arriving, failed, stopped), a percentage, seconds
     until it is ready (None when that can't be told) and what it is doing.
+    ``rec``: the version's cloud GPU job record (jobs.py); its state and
+    done variants then replace the job thread and the result files.
     """
     stems = [playback_stem(vdir, "drums"), playback_stem(vdir, "no_drums")]
     drumless = stems[1] is not None
@@ -100,15 +104,28 @@ def version_progress(vdir: Path, running: bool) -> dict:
     text = log.read_text(errors="replace") if log.exists() else ""
     ends = list(JOB_END.finditer(text))
     current = text[ends[-1].end():] if ends else text
-    if running:
-        job, tasks = "running", _running(vdir, current, ready)
+    if rec:  # a cloud GPU job: the record knows, not a thread or the log
+        ready |= {v: v in rec["done"] for v in rec["variants"]}
+        claims = [a["claim"] for a in rec["attempts"] if a.get("instance")]
+        worker = vdir / "workers" / f"{claims[-1]}.log" if claims else None
+        if worker and worker.exists():  # synced from the bucket about once a minute
+            current += worker.read_text(errors="replace")
+        job = {"open": "running", "failed": "failed"}.get(rec["state"])
+    elif running:
+        job = "running"
     elif current.strip():
         job = "stopped"  # log unfinished, but no job thread: server restarted
     elif ends and ends[-1][1] == "ERROR:":
         job = "failed"
     else:
-        job, tasks = None, {}
-    if job in ("stopped", "failed"):
+        job = None
+    tasks = {}
+    if job == "running":
+        tasks = _running(vdir, current, ready)
+        if rec and rec["status"]:  # waiting on something other than progress
+            tasks["gpu"] = {"state": "running", "pct": 0, "eta": None,
+                            "activity": rec["status"]}
+    elif job in ("stopped", "failed"):
         tasks = {t: {"state": job, "pct": 0, "eta": None, "activity": ""}
                  for t in ready if not ready[t]}
     if not drumless and "drums" in tasks:
@@ -143,31 +160,37 @@ def _running(vdir: Path, log: str, ready: dict) -> dict:
                 marks.append((task, k, t, n))
                 break
     gpu = any(m[0] == "gpu" for m in marks)
-    syncing = "== syncing results" in log
     order = [t for t in STEPS if t != "gpu" or gpu]
     task_now, k_now, started, n_now = marks[-1] if marks else ("src", 0, time.time(), 0)
-    # results downloading from the bucket: every task is done on the GPU
-    i_now = len(order) if syncing else order.index(task_now)
+    i_now = order.index(task_now)
     tail = "\n".join(lines[n_now:])  # log since the current step started
-    tries = sum(1 for m in marks if m[:2] == ("gpu", 2))
+    tries = re.findall(r"renting a cloud GPU \(attempt (\d+) of (\d+)\)", log)
     seconds = _song_seconds(vdir)
 
     out, before = {}, 0.0  # seconds until all tasks so far are done, or None
     for i, task in enumerate(order):
         expected = [_expect(s, seconds, gpu, log) for s in STEPS[task]]
+        if i < i_now and task == "src" and not ready["src"] and gpu:
+            # fetched by the web app while the cloud GPU starts: its own clock
+            _, k, t0, n = [m for m in marks if m[0] == "src"][-1] if any(
+                m[0] == "src" for m in marks) else ("src", 0, time.time(), 0)
+            pct, left, activity = _step(STEPS["src"], k, t0, expected, "\n".join(lines[n:]))
+            out[task] = {"state": "running", "pct": pct,
+                         "eta": None if left is None else round(left), "activity": activity}
+            continue
         if i < i_now:  # done, says the log
             if task != "gpu" and not ready[task]:  # made on the GPU, not here yet
                 out[task] = {"state": "arriving", "pct": 100, "eta": None,
-                             "activity": "Downloading the results from the cloud"
-                             if syncing else "Done on the cloud GPU — the files "
-                             "arrive when all pipelines are finished"}
+                             "activity": "Done on the cloud GPU — the files arrive "
+                             "within a minute or two"}
             continue
         if i > i_now:
             pct, left, activity = 0, sum(expected), f"Starts after {NAMES[order[i - 1]]}"
         else:
             pct, left, activity = _step(STEPS[task], k_now, started, expected, tail)
-            if task == "gpu" and tries > 1:
-                activity += f" (the first machine failed; try {tries} of 3)"
+            if task == "gpu" and tries and int(tries[-1][0]) > 1:
+                activity += (" — trying another machine (attempt "
+                             f"{tries[-1][0]} of {tries[-1][1]})")
         before = None if before is None or left is None else before + left
         if task != "gpu" and ready[task]:
             continue  # a re-run: the old result stays playable meanwhile

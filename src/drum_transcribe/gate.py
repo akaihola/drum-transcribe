@@ -102,21 +102,27 @@ def keep(path: Path, root: Path) -> None:
         _UPLOADS.submit(_mirror, path, path.relative_to(root).as_posix())
 
 
-def forget(version_dir: Path) -> None:
-    """In the cloud, delete a version from the bucket too — else the next
-    cold start's sync brings it back."""
+def forget(prefix: str) -> None:
+    """In the cloud, delete everything under ``prefix`` (a version, or a
+    job's inputs) from the bucket too — else the next cold start's sync
+    brings it back."""
     if not enabled():
         return
-    s3, bucket = _bucket()
-    prefix = f"{version_dir.parent.name}/{version_dir.name}/"
+    s3, bucket = results_bucket()
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket,
                                                               Prefix=prefix):
         for obj in page.get("Contents", []):
             s3.delete_object(Bucket=bucket, Key=obj["Key"])
 
 
+def upload(path: Path, key: str) -> None:
+    """Copy a file to the bucket now, and wait for it (unlike ``keep``)."""
+    s3, bucket = results_bucket()
+    s3.upload_file(str(path), bucket, key)
+
+
 @functools.cache
-def _bucket():
+def results_bucket():
     """(boto3 client, bucket name) from the container's worker credentials."""
     import boto3  # ty: ignore[unresolved-import]
 
@@ -128,14 +134,14 @@ def _bucket():
 
 def presigned(key: str) -> str:
     """Temporary download link for a bucket object (audio left out of the sync)."""
-    s3, bucket = _bucket()
+    s3, bucket = results_bucket()
     return s3.generate_presigned_url(
         "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=12 * 3600)
 
 
 def _mirror(path: Path, key: str) -> None:
     try:
-        s3, bucket = _bucket()
+        s3, bucket = results_bucket()
         if path.exists():
             s3.upload_file(str(path), bucket, key)
         else:

@@ -12,10 +12,10 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from textwrap import dedent
 from urllib.parse import urlparse
 
 from . import gate
@@ -23,6 +23,7 @@ from . import gate
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
 VARIANTS = ("adtof", "mdx23c", "fused")
 RUNNING: set[Path] = set()  # version dirs with a job thread going (progress.py)
+FETCH_LIMIT = 15 * 60  # s for a recording's download, and again for its conversion
 
 
 def marker(what: str) -> str:
@@ -31,8 +32,9 @@ def marker(what: str) -> str:
 
 
 def start_version_job(version_dir: Path, url: str | None = None,
-                      upload: Path | None = None, gpu: bool = False) -> None:
-    _start(_job, version_dir, url, upload, gpu)
+                      upload: Path | None = None) -> None:
+    """Process on this machine's CPU (cloud GPU jobs: coordinator.py)."""
+    _start(_job, version_dir, url, upload)
 
 
 def _start(job, version_dir: Path, *args) -> None:
@@ -72,76 +74,35 @@ def _run_variant(version_dir: Path, source: Path, variant: str) -> None:
         )
 
 
-def _job(version_dir: Path, url: str | None, upload: Path | None,
-         gpu: bool = False) -> None:
+def _job(version_dir: Path, url: str | None, upload: Path | None) -> None:
     version_dir.mkdir(parents=True, exist_ok=True)
     try:
         source = _fetch(version_dir, url, upload)
-        if gpu:
-            _run_on_gpu(version_dir, source)
-        else:
-            for variant in VARIANTS:
-                _run_variant(version_dir, source, variant)
+        for variant in VARIANTS:
+            _run_variant(version_dir, source, variant)
         _log(version_dir, marker("all pipelines finished"))
     except Exception as e:  # noqa: BLE001 - surfaced via the log on the page
         _log(version_dir, f"ERROR: {e!r}")
 
 
-def _repo() -> Path:
-    """Repo root with deploy/ and .secrets.worker-s3.json.
-
-    A source checkout when running from one; the CWD in the cloud container,
-    where the package is pip-installed and /app carries deploy/ + secrets.
-    """
-    src = Path(__file__).resolve().parents[2]
-    return src if (src / "deploy").is_dir() else Path.cwd()
-
-
-def _boto3_python() -> list[str]:
-    """Command prefix for a python that has boto3 (stdin script follows)."""
-    try:
-        import boto3  # noqa: F401  # ty: ignore[unresolved-import]
-
-        return [sys.executable, "-"]
-    except ImportError:
-        return ["uv", "run", "--with", "boto3", "python", "-"]
-
-
-_PRESIGN_PY = dedent("""\
-    import json, sys, boto3
-    c = json.load(open(".secrets.worker-s3.json"))
-    s3 = boto3.client("s3", endpoint_url=c["endpoint"], region_name=c["region"],
-                      aws_access_key_id=c["access_key"],
-                      aws_secret_access_key=c["secret_key"])
-    path, key = sys.argv[1:3]
-    s3.upload_file(path, c["bucket"], key)
-    print(s3.generate_presigned_url(
-        "get_object", Params={"Bucket": c["bucket"], "Key": key},
-        ExpiresIn=24 * 3600))
-    """)
-
-
-def _run_on_gpu(version_dir: Path, source: Path) -> None:
-    """Process on a rented cloud GPU via deploy/run-on-gpu.sh.
-
-    The fetched source is uploaded to the results bucket and handed to the
-    worker as a presigned URL; run-on-gpu.sh rents the instance, waits, syncs
-    results into output/<song>/<version>/ and destroys the instance.
-    """
-    song, version = version_dir.parent.name, version_dir.name
-    repo = _repo()
-    _log(version_dir, marker("uploading source for the GPU worker"))
-    presigned = subprocess.run(
-        [*_boto3_python(), str(source), f"{song}/{version}/{source.name}"],
-        input=_PRESIGN_PY, capture_output=True, text=True, check=True, cwd=repo,
-    ).stdout.strip()
-    _log(version_dir, marker("processing on a rented cloud GPU"))
-    with open(version_dir / "pipeline.log", "a") as logf:
-        subprocess.run(
-            [str(repo / "deploy" / "run-on-gpu.sh"),
-             presigned, song, version, " ".join(VARIANTS)],
-            stdout=logf, stderr=logf, check=True, cwd=repo,
-        )
+def prepare(version_dir: Path, rec: dict) -> None:
+    """Fetch a cloud GPU job's recording and publish it for the worker as
+    sources/<job>/source.<ext> in the results bucket. One object upload, so
+    it appears complete or not at all. Repeatable: after a restart it starts
+    over from the saved link or the uploaded original."""
+    version_dir.mkdir(parents=True, exist_ok=True)
+    for stale in version_dir.glob("fetched.*"):  # an interrupted earlier try
+        stale.unlink()
+    s3, bucket = gate.results_bucket()
+    if rec["upload"]:
+        fetched = version_dir / Path(rec["upload"]).name
+        if not fetched.exists():  # uploaded to an earlier container
+            s3.download_file(bucket, rec["upload"], str(fetched))
+    else:
+        fetched = _download(version_dir, rec["url"])
+    source = _as_source(version_dir, fetched)
+    _log(version_dir, marker("handing the recording to the cloud"))
+    s3.upload_file(str(source), bucket, f"sources/{rec['job']}/{source.name}")
 
 
 def start_rerun_job(version_dir: Path) -> None:
@@ -221,7 +182,7 @@ def _download(version_dir: Path, url: str) -> Path:
                 [sys.executable, "-m", "yt_dlp", "-f", "bestaudio", "-x",
                  "--audio-format", "mp3", "--audio-quality", "0",
                  "-o", str(version_dir / "fetched.%(ext)s"), url],
-                stdout=logf, stderr=logf, check=True,
+                stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
             )
         return next(version_dir.glob("fetched.*"))
     if "drive.google.com" in url:
@@ -238,9 +199,12 @@ def _download(version_dir: Path, url: str) -> Path:
     suffix = Path(url.split("?")[0]).suffix or ".bin"
     fetched = version_dir / f"fetched{suffix}"
     opener = urllib.request.build_opener(_CheckedRedirect)
+    give_up = time.monotonic() + FETCH_LIMIT
     with opener.open(url, timeout=60) as r, open(fetched, "wb") as f:
         while chunk := r.read(1 << 20):
             f.write(chunk)
+            if time.monotonic() > give_up:
+                raise TimeoutError(f"download took over {FETCH_LIMIT // 60} min")
     return fetched
 
 
@@ -257,6 +221,6 @@ def _as_source(version_dir: Path, fetched: Path) -> Path:
     with open(version_dir / "pipeline.log", "a") as logf:
         subprocess.run(
             ["ffmpeg", "-y", "-i", str(fetched), "-vn", "-ac", "2", str(source)],
-            stdout=logf, stderr=logf, check=True,
+            stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
         )
     return source

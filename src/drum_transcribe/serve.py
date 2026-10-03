@@ -21,7 +21,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import atomic, gate
+from . import atomic, coordinator, gate, ingest, jobs
 from .beats import BeatGrid, regularize
 from .export import PROBLEMS
 from .ingest import (
@@ -29,6 +29,7 @@ from .ingest import (
     RUNNING,
     VARIANTS,
     check_url,
+    marker,
     start_rerun_job,
     start_version_job,
 )
@@ -425,11 +426,14 @@ HELP_HTML = """
   and roughly how long is left. A hatched, empty bar is waiting its turn.
   Point at a bar for the estimated percentage — it is an estimate from how
   long each step usually takes. (The full technical log is behind the
-  gear button, top right.) Ticking <b>process on a rented cloud GPU</b> rents
-  a fast machine for the job (all results in ~5&ndash;15 minutes, costs about
-  a cent); an extra bar at the top shows the machine starting up, which
-  usually takes 2&ndash;5 minutes, and the result files show up all at once
-  when it finishes.</p>
+  gear button, top right.) On the cloud site, <b>process on a rented cloud
+  GPU</b> rents a fast machine for the job (all results in ~5&ndash;20
+  minutes, a few cents); an extra bar at the top shows the machine starting
+  up, which usually takes 2&ndash;10 minutes, and each pipeline's results
+  appear as soon as they are ready. You may close the page: the site keeps
+  working for about a quarter of an hour after the last visit, and picks up
+  where it left off at the next one. A machine that fails is replaced by
+  another, up to five; after that the page offers <b>Try again</b>.</p>
 
   <h3>2. Versions and pipelines</h3>
   <svg viewBox="0 0 340 70" width="340">
@@ -539,8 +543,7 @@ CREATE_FORM = """
   <input type="text" name="url" placeholder="https://...">
   <label>… or upload a sound/video file</label>
   <input type="file" name="file" accept="audio/*,video/*">
-  <label><input type="checkbox" name="gpu">
-    Process on a rented cloud GPU (faster, costs ~1 cent)</label>
+  __GPU_OPTION__
   <label class="unlock" hidden>Many new pieces were added recently, so a
     password is needed just now — ask the site owner for one. It is
     remembered on this browser.
@@ -555,7 +558,7 @@ async function submitCreate(form) {
   const version = form.version.value;
   const file = form.file.files[0];
   const url = form.url.value.trim();
-  const gpu = form.gpu.checked;
+  const gpu = form.gpu?.checked;
   if (!file && !url) { alert("Give a link or choose a file."); return false; }
   try {
     if (form.password.value) {  // throttled earlier: unlock, then proceed
@@ -592,6 +595,15 @@ async function submitCreate(form) {
 }
 </script>
 """
+
+GPU_OPTION = """<label><input type="checkbox" name="gpu" checked>
+    Process on a rented cloud GPU (faster, costs a few cents)</label>"""
+
+
+def create_form() -> str:
+    """Only the cloud web app rents GPUs; elsewhere the checkbox would lie."""
+    return CREATE_FORM.replace("__GPU_OPTION__", GPU_OPTION if jobs.enabled() else "")
+
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -966,6 +978,12 @@ async function deleteVersion(version) {
   else alert("Deleting failed: " + ((await r.json()).error || r.statusText));
 }
 
+async function retryVersion(version) {
+  const r = await postGated("/api/retry", { project: PROJECT, version });
+  if (r.ok) { await refreshVersion(version); pollProgress(); }
+  else alert("Trying again failed: " + ((await r.json()).error || r.statusText));
+}
+
 async function setRawBars(version, raw) {
   const r = await postGated("/api/rawbars", { project: PROJECT, version, raw });
   if (r.ok) pollProgress();
@@ -978,7 +996,8 @@ async function setRawBars(version, raw) {
 function versionPieces(v) {
   const pieces = {
     err: `<p class="error" data-piece="err" ${v.error ? "" : "hidden"}>Processing
-      failed — the pipeline log (gear button, top right) tells what went wrong.</p>`,
+      failed — the pipeline log (gear button, top right) tells what went wrong.
+      ${v.retry ? `<button onclick="retryVersion('${v.name}')">Try again</button>` : ""}</p>`,
     src: node("src", "node-src", IC_WAVE, "original", infoBtn(v.name, "original"),
               v.youtube && v.source && !(isSecureContext && window.AudioWorkletNode) ? `<yt-audio video="${v.youtube}"></yt-audio>`
                                     : audioTag(v.source)),
@@ -1508,6 +1527,11 @@ def slugify(text: str) -> str:
     return slug
 
 
+def _slugs(version_dir: Path) -> tuple[str, str]:
+    """(song, version) of output/<song>/<version>."""
+    return version_dir.parent.name, version_dir.name
+
+
 def youtube_id(version_dir: Path) -> str | None:
     """Video id if the version was made from a YouTube link (source-url.txt)."""
     link = version_dir / "source-url.txt"
@@ -1535,6 +1559,7 @@ def scan_output(root: Path) -> dict:
         versions = []
         for vdir in sorted(p for p in project_dir.iterdir() if p.is_dir()):
             rel = f"/files/{project_dir.name}/{vdir.name}"
+            rec = jobs.known(project_dir.name, vdir.name)
             sources = sorted(vdir.glob("source.*"))
             drums = playback_stem(vdir, "drums")
             drumless = playback_stem(vdir, "no_drums")
@@ -1577,14 +1602,17 @@ def scan_output(root: Path) -> dict:
                 "youtube": youtube_id(vdir),
                 "beats": f"{rel}/beats.json",
                 "irregular": irregular,
-                "raw_bars": (vdir / "keep-raw-bars").exists(),
+                "raw_bars": rec["raw_bars"] if rec else (vdir / "keep-raw-bars").exists(),
                 "drums": f"{rel}/{drums.relative_to(vdir)}" if drums else None,
                 "drumless": f"{rel}/{drumless.relative_to(vdir)}"
                 if drumless else None,
                 "log": f"{rel}/pipeline.log" if log.exists() else None,
-                "error": log.exists() and "ERROR:" in log.read_text()[-2000:],
+                "error": rec["state"] == "failed" if rec
+                else log.exists() and "ERROR:" in log.read_text()[-2000:],
+                # a failed cloud GPU job can start over once its rentals are settled
+                "retry": bool(rec) and rec["state"] == "failed" and not jobs.unsettled(rec),
                 "tracked": (vdir / "beats.json").exists(),
-                "progress": version_progress(vdir, vdir in RUNNING),
+                "progress": version_progress(vdir, vdir in RUNNING, rec),
                 "variants": variants,
             })
         if versions:
@@ -1621,7 +1649,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
-            html = MAIN_HTML.replace("__CREATE_FORM__", CREATE_FORM)
+            html = MAIN_HTML.replace("__CREATE_FORM__", create_form())
             html = html.replace("__FONTS__", FONTS)
             html = html.replace("__STYLE__", STYLE).replace("__HELP__", HELP_HTML).replace(
                 "__PROJECT_FIELD__",
@@ -1629,7 +1657,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             ).replace("__FORM_TITLE__", "Transcribe a new piece")
             self._send(html.encode(), "text/html; charset=utf-8")
         elif path.startswith("/p/"):
-            html = PROJECT_HTML.replace("__CREATE_FORM__", CREATE_FORM)
+            html = PROJECT_HTML.replace("__CREATE_FORM__", create_form())
             html = (html.replace("__FONTS__", FONTS)
                     .replace("__STYLE__", STYLE)
                     .replace("__HELP__", HELP_HTML)
@@ -1653,7 +1681,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.send_error(404)
                 return
             self._send(json.dumps({
-                v.name: version_progress(v, v in RUNNING)
+                v.name: version_progress(v, v in RUNNING, jobs.known(project, v.name))
                 for v in sorted(pdir.iterdir()) if v.is_dir()}).encode(),
                 "application/json")
         elif path == "/api/seek":
@@ -1715,10 +1743,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return
                 url = check_url(data["url"].strip())
                 version_dir = self._new_version_dir(data["project"], data["version"])
+                gpu = bool(data.get("gpu")) and jobs.enabled()
+                if gpu and not self._save_job(jobs.new(*_slugs(version_dir), url=url)):
+                    return
                 gate.write_marker(version_dir, authorized=kind == "auth")
                 (link := version_dir / "source-url.txt").write_text(url + "\n")
                 gate.keep(link, self.root)
-                start_version_job(version_dir, url=url, gpu=bool(data.get("gpu")))
+                if not gpu:
+                    start_version_job(version_dir, url=url)
                 self._send_json(200, {"project": version_dir.parent.name,
                                       "version": version_dir.name})
             elif path == "/api/unlock":
@@ -1745,6 +1777,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                     return
                 self._delete_version(data)
                 self._send_json(200, {"ok": True})
+            elif path == "/api/retry":
+                if not self._may_edit():
+                    return
+                self._retry(data)
+                self._send_json(200, {"ok": True})
             elif path == "/api/seek":
                 bar = int(data["bar"])
                 SEEK.update(seq=SEEK["seq"] + 1, bar=bar,
@@ -1766,24 +1803,76 @@ class AppHandler(SimpleHTTPRequestHandler):
         return found
 
     def _delete_version(self, data: dict) -> None:
-        """Remove one version with all its results (and its bucket copy)."""
+        """Remove one version with all its results (and in the cloud its
+        bucket copy, inputs and job record)."""
         version_dir = self._existing_dir(data["project"], data["version"])
-        if version_dir in RUNNING:
-            raise ValueError("it is still being processed — try again when "
-                             "it has finished")
-        gate.forget(version_dir)
+        rec, _ = self._idle_record(version_dir)
+        gate.forget(f"{data['project']}/{data['version']}/")
+        if rec:
+            gate.forget(f"sources/{rec['job']}/")
+            jobs.remove(*_slugs(version_dir))
         shutil.rmtree(version_dir)
 
-    def _set_raw_bars(self, data: dict) -> None:
-        """Flip the keep-raw-bars flag for one version and regenerate results."""
+    def _idle_record(self, version_dir: Path) -> tuple[dict | None, str | None]:
+        """The version's job record and etag, if any; ValueError while it
+        still has work or a rental to settle (or a local job thread runs)."""
+        rec, etag = jobs.load(*_slugs(version_dir)) if jobs.enabled() else (None, None)
+        if version_dir in RUNNING or (rec and jobs.busy(rec)):
+            raise ValueError("it is still being processed — try again when "
+                             "it has finished")
+        return rec, etag
+
+    def _retry(self, data: dict) -> None:
+        """Another round of up to five rentals for a failed cloud GPU job."""
         version_dir = self._existing_dir(data["project"], data["version"])
+        rec, etag = jobs.load(*_slugs(version_dir)) if jobs.enabled() else (None, None)
+        if not rec or rec["state"] != "failed" or jobs.unsettled(rec):
+            raise ValueError("there is nothing to try again just now")
+        self._regenerate(version_dir, rec, etag)
+
+    def _regenerate(self, version_dir: Path, rec: dict, etag: str) -> None:
+        """Start a new generation: old done markers no longer count."""
+        rec.update(generation=rec["generation"] + 1, state="open", done=[], status="")
+        try:
+            jobs.save(rec, etag)
+        except jobs.Conflict as e:
+            raise ValueError("it changed meanwhile — reload and try again") from e
+        ingest._log(version_dir, marker(f"starting again (round {rec['generation']})"))
+        coordinator.wake()
+
+    def _save_job(self, rec: dict) -> bool:
+        """Persist a new job record before accepting the job; else answer
+        with the error and False."""
+        try:
+            jobs.save(rec, None)
+        except jobs.Conflict:
+            self._send_json(400, {"error": f"version '{rec['version']}' already exists"})
+            return False
+        except Exception as e:  # noqa: BLE001 - storage trouble: accept nothing
+            self._send_json(503, {"error": f"could not save the job, try again ({e})"})
+            return False
+        coordinator.wake()
+        return True
+
+    def _set_raw_bars(self, data: dict) -> None:
+        """Flip the keep-raw-bars flag for one version and regenerate results:
+        on a rented GPU if it was made there, else here."""
+        version_dir = self._existing_dir(data["project"], data["version"])
+        rec, etag = self._idle_record(version_dir)
+        if jobs.enabled() and not rec:
+            raise ValueError("this version was made before the cloud site kept "
+                             "track of its jobs, so it can't be recomputed here")
+        if rec:
+            rec["raw_bars"] = bool(data["raw"])
+            self._regenerate(version_dir, rec, etag)
         flag = version_dir / "keep-raw-bars"
         if data["raw"]:
             flag.touch()
         else:
             flag.unlink(missing_ok=True)
         gate.keep(flag, self.root)
-        start_rerun_job(version_dir)
+        if not rec:
+            start_rerun_job(version_dir)
 
     def _save_feedback(self, data: dict) -> dict:
         """Set or delete one feedback entry; returns the variant's feedback map."""
@@ -1815,10 +1904,10 @@ class AppHandler(SimpleHTTPRequestHandler):
             if suffix not in UPLOAD_EXTS:
                 raise ValueError(f"unsupported file type: {suffix or 'none'}")
             version_dir = self._new_version_dir(q["project"], q["version"])
-        except (ValueError, KeyError) as e:
+            version_dir.mkdir(parents=True)
+        except (ValueError, KeyError, FileExistsError) as e:
             self._send_json(400, {"error": str(e)})
             return
-        gate.write_marker(version_dir, authorized=kind == "auth")
         upload = version_dir / f"upload{suffix}"
         remaining = int(self.headers.get("Content-Length", 0))
         with open(upload, "wb") as f:
@@ -1828,7 +1917,28 @@ class AppHandler(SimpleHTTPRequestHandler):
                     break
                 f.write(chunk)
                 remaining -= len(chunk)
-        start_version_job(version_dir, upload=upload, gpu=q.get("gpu") == "1")
+        if remaining or not upload.stat().st_size:  # a part of a recording is no job
+            shutil.rmtree(version_dir)
+            self._send_json(400, {"error": "the upload was cut short, please try again"})
+            return
+        if q.get("gpu") == "1" and jobs.enabled():
+            # the original goes to the bucket before the job is accepted:
+            # a restarted container prepares it from there
+            rec = jobs.new(*_slugs(version_dir))
+            rec["upload"] = f"sources/{rec['job']}/{upload.name}"
+            try:
+                gate.upload(upload, rec["upload"])
+            except Exception as e:  # noqa: BLE001 - storage trouble: accept nothing
+                shutil.rmtree(version_dir)
+                self._send_json(503, {"error": f"could not store the upload, try again ({e})"})
+                return
+            if not self._save_job(rec):
+                gate.forget(f"sources/{rec['job']}/")
+                shutil.rmtree(version_dir)
+                return
+        else:
+            start_version_job(version_dir, upload=upload)
+        gate.write_marker(version_dir, authorized=kind == "auth")
         self._send_json(200, {"project": version_dir.parent.name,
                               "version": version_dir.name})
 
@@ -1889,6 +1999,8 @@ def serve(root: Path, host: str = "0.0.0.0", port: int = 8765) -> None:
     if gate.enabled() and not os.environ.get("TOKEN_SECRET"):
         raise SystemExit("CREATE_PASSWORDS is set but TOKEN_SECRET is not")
     root.mkdir(parents=True, exist_ok=True)
+    if jobs.enabled():
+        coordinator.start(root)
     handler = partial(AppHandler, root=root)
     httpd = ThreadingHTTPServer((host, port), handler)
     print(f"web app: http://{host}:{port}/ (projects in {root})", flush=True)
