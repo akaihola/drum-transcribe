@@ -11,6 +11,14 @@ systemctl --user status|restart drum-transcribe
 Unit: `~/.config/systemd/user/drum-transcribe.service`, runs
 `uv run drum-transcribe serve output --port 8765` in the repo.
 
+On NixOS, the service also needs
+`LD_LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib` to load NumPy's
+native libraries. The `nix-libraries.conf` drop-in in the unit's `.service.d/`
+directory sets this with `Environment="LD_LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib"`
+under `[Service]`. Without it, the server exits before opening its port with
+`libstdc++.so.6: cannot open shared object file`. This missing setting was
+already causing a restart loop when investigated on 2026-10-03.
+
 **A restart can silently do nothing:** a `drum-transcribe serve` started by
 hand keeps port 8765, so the unit crash-loops on `Address already in use`
 while the old process goes on answering — and `systemctl --user is-active`
