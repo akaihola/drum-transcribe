@@ -18,6 +18,7 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | route | what |
 |---|---|
 | `GET /` | main page: project list + create form |
+| `GET /player-layouts` | three interactive compact-node proposals, with existing recordings and a portrait preview; project layouts are unchanged |
 | `GET /p/<project>[/<version>]` | project page: version tabs, players, scores, feedback; opens `<version>`'s tab (else the first), and switching tabs rewrites the address (`history.replaceState`) |
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
 | `POST /api/create` | `{project, version, url, gpu?}` → slugify, start a background job (with `gpu` in the cloud: save the job record first, 503 if that fails); answers the slugs `{project, version}` so the form can open the new tab |

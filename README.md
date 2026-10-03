@@ -61,6 +61,11 @@ uv run drum-transcribe serve
 
 Open `http://<the machine's address>:8765/` from any of your machines.
 
+To compare three proposals for smaller player nodes, open `/player-layouts`
+on that server. Select a layout and a recording, then choose a track and press
+play. The portrait preview lets you compare phone layouts on a larger screen.
+These are proposals; the project pages keep their current layout.
+
 The same site also runs in the cloud at <https://plokkaus.vempai.men/>, so
 it works even when the laptop is off. There you can listen and review
 everything, and also add new pieces or versions — as an upload, a YouTube

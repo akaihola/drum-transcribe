@@ -31,3 +31,54 @@ disclosure, help, downloads and sample progress. Review the code and run the
 cached pipeline smoke check before merging. Record findings here and mark the
 proposal task complete awaiting user acceptance. Implementing a chosen design
 is a later task.
+
+## Proposals and verification, 2026-10-03
+
+The interactive comparison is at `/player-layouts`. Each proposal uses the same
+recording selector, audio player, track descriptions, hit counts and downloads.
+Selecting a track pauses playback and preserves its position; changing layouts
+or opening the source branch preserves playback. Sample processing and failure
+states let the unavailable tracks be inspected without starting a job.
+
+Recommended proposal: **compact tree**. It keeps all six tracks one tap away
+and retains the existing fork-and-merge layout. Fold-away sources needs an extra
+tap to return to source tracks, so it trades convenience for space.
+
+Measured diagram heights with ready tracks in Chromium:
+
+| Proposal | Desktop, 1280 px screen | Phone, 390 px screen |
+| --- | ---: | ---: |
+| Compact tree | 314 px | 308 px |
+| Sideways flow | 140 px | 366 px |
+| Fold-away sources, closed | 216 px | 212 px |
+
+The existing phone pad diagram measured 542 px at 390 px screen width. The
+compact tree is about 43% shorter. These measurements cover the diagram only;
+the shared player and selected-track details sit below it.
+
+Validation:
+
+- PinchTab checked 320, 360, 390, 430 and 1280 px viewports. All three layouts
+  fit without horizontal page scrolling. Visible buttons, selectors and download
+  links measured at least 44 px in both dimensions. The closed source summary
+  wraps at 320 px, making that diagram 237 px tall.
+- Checked the six arrows, collapsed and expanded sources, track selection,
+  Tab focus, sample progress at 42%, failure text, hit counts and download URLs.
+  Unavailable tracks remain selectable for their details, with no audio loaded.
+  Browser playback advanced; opening sources kept it playing, and selecting a
+  different track paused it while retaining the position.
+- Inspected phone tree and rail screenshots and the desktop sideways flow.
+  PinchTab screenshots outside the viewport intermittently timed out; bringing
+  its tab forward and scrolling to the diagram allowed visual inspection.
+- JavaScript syntax, Python compilation and `git diff --check` passed. `ty`
+  reports the same two pre-existing optional `etag` argument errors in
+  `serve.py` on both main and the feature branch.
+- Cached ADTOF smoke run used a temporary copy of the taustanauha recording
+  and caches. It produced 393 beats, 834 events, MIDI, MusicXML and Opus, with
+  one event over 35 ms quantization error. MuseScore export succeeded after
+  clearing `LD_LIBRARY_PATH` for that subprocess; the inherited Nix libraries
+  otherwise conflict with MuseScore's glibc. Original results were unchanged.
+
+The preview is served on the laptop's existing port 8765. It has not been
+deployed to the cloud. The chosen layout still needs a separate implementation
+task; this issue requests the three proposals only.

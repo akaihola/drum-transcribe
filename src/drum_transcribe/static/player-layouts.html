@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player layout proposals · drum-transcribe</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: light; --paper: #FAF9F6; --ink: #232019; --quiet: #6E675C;
+    --teal: #0E7386; --line: #E2DDD2; --brass: #A66300; --red: #C40000; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font: 17px/1.5 "Alegreya Sans", system-ui, sans-serif; }
+  main { max-width: 1160px; padding: 24px; margin: auto; }
+  h1, h2 { font-family: "Alegreya", Georgia, serif; font-weight: 500; line-height: 1.2; }
+  h1 { margin: 16px 0 8px; } h2 { margin: 0 0 8px; }
+  p { max-width: 65ch; margin: 8px 0 16px; }
+  a { color: #0A5766; }
+  button, select, summary, .files a { min-height: 44px; font: inherit; }
+  button, select { color: inherit; background: white; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button:hover, summary:hover { border-color: var(--quiet); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .choices, .settings { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .choices button { border-radius: 999px; }
+  .choices button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+  label { display: flex; flex-direction: column; font-size: 15px; min-width: 0; }
+  select { max-width: 100%; }
+  #recording-label { flex: 1 1 280px; }
+  .quiet, small { color: var(--quiet); }
+  .recommend { font-weight: 700; }
+  #stage { container-type: inline-size; width: 100%; margin: 24px auto 0;
+    border-block: 1px solid var(--line); padding-block: 16px; }
+  #stage.portrait { max-width: 390px; }
+  .graph { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 30px 24px; margin: 0; }
+  .node { position: relative; z-index: 1; min-width: 0; width: 100%; min-height: 56px;
+    padding: 5px 10px; text-align: left; line-height: 1.2; }
+  .node b, .node small { display: block; overflow-wrap: anywhere; }
+  .node small { font-size: 13px; margin-top: 3px; }
+  .node[aria-pressed=true] { border-color: var(--teal); background: #F1F7F8;
+    box-shadow: inset 4px 0 var(--teal); }
+  .node[data-available=false] { border-style: dashed; }
+  .node.working small { color: var(--brass); } .node.failed small { color: var(--red); }
+  .node progress { display: block; height: 5px; width: 100%; accent-color: var(--brass); margin-top: 4px; }
+  .source-toggle { display: none; }
+  [data-key=src] { grid-column: 2 / 4; grid-row: 1; }
+  [data-key=drumless] { grid-column: 1 / 3; grid-row: 2; }
+  [data-key=drums] { grid-column: 3 / 5; grid-row: 2; }
+  [data-key=adtof] { grid-column: 1 / 3; grid-row: 3; }
+  [data-key=mdx23c] { grid-column: 3 / 5; grid-row: 3; }
+  [data-key=fused] { grid-column: 2 / 4; grid-row: 4; }
+  svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: visible; color: var(--quiet); }
+  .graph.rail { gap: 28px 34px; align-items: center; }
+  .rail [data-key=src] { grid-column: 1; grid-row: 1 / 3; }
+  .rail [data-key=drumless] { grid-column: 2; grid-row: 1; }
+  .rail [data-key=drums] { grid-column: 2; grid-row: 2; }
+  .rail [data-key=adtof] { grid-column: 3; grid-row: 1; }
+  .rail [data-key=mdx23c] { grid-column: 3; grid-row: 2; }
+  .rail [data-key=fused] { grid-column: 4; grid-row: 1 / 3; }
+  .fold .source-toggle { display: block; grid-column: 1 / 5; grid-row: 1;
+    text-align: left; z-index: 1; background: var(--paper); }
+  .source-toggle::before { content: "▸ "; }
+  .source-toggle[aria-expanded=true]::before { content: "▾ "; }
+  .fold.collapsed .source-node { display: none; }
+  .fold [data-key=src] { grid-column: 1 / 5; grid-row: 2; }
+  .fold [data-key=drumless], .fold [data-key=drums] { grid-row: 3; }
+  .fold [data-key=adtof], .fold [data-key=mdx23c] { grid-row: 4; }
+  .fold [data-key=fused] { grid-row: 5; }
+  .fold.collapsed [data-key=adtof], .fold.collapsed [data-key=mdx23c] { grid-row: 2; }
+  .fold.collapsed [data-key=fused] { grid-row: 3; }
+  .player { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .player h2 { font-size: 24px; } audio { width: 100%; display: block; margin: 12px 0; }
+  #message { min-height: 1.5em; }
+  .files { display: flex; flex-wrap: wrap; gap: 8px; }
+  .files a { display: inline-flex; align-items: center; padding: 8px 12px;
+    border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+  .explanation { margin: 12px 0; } .explanation summary { padding: 8px 0; cursor: pointer; }
+  #measurement { margin-top: 16px; font-size: 14px; }
+  @container (max-width: 680px) {
+    .graph { gap: 28px 14px; }
+    .graph.rail { display: flex; flex-direction: column; gap: 12px; padding-left: 52px; }
+    .rail .node { min-height: 48px; }
+  }
+  @media (max-width: 600px) {
+    main { padding: 16px 12px; } h1 { font-size: 30px; }
+    .settings > label { flex: 1 1 130px; } #recording-label { flex-basis: 100%; }
+  }
+</style>
+<main>
+  <a href="/">All projects</a>
+  <h1>Smaller player nodes</h1>
+  <p>Three layout proposals. Choose a track, then press play in the shared player.
+    These previews use your existing recordings. Your project pages keep their current layout.</p>
+  <div class="choices" role="group" aria-label="Layout proposal">
+    <button data-layout="tree" aria-pressed="true">1. Compact tree</button>
+    <button data-layout="rail" aria-pressed="false">2. Sideways flow</button>
+    <button data-layout="fold" aria-pressed="false">3. Fold-away sources</button>
+  </div>
+  <p id="description"></p>
+  <p class="recommend">My recommendation: compact tree. All six tracks stay one tap away, and the branches stay familiar.</p>
+  <div class="settings">
+    <label id="recording-label">Recording<select id="recording"><option>Loading recordings…</option></select></label>
+    <label>Preview width<select id="width"><option value="full">Fit this screen</option><option value="portrait">Portrait phone · 390 px</option></select></label>
+    <label>Track states<select id="states"><option value="real">Real recordings</option><option value="working">Sample: processing</option><option value="failed">Sample: failed</option></select></label>
+  </div>
+  <p id="notice" role="status">Loading existing recordings…</p>
+  <section id="stage" aria-label="Interactive layout preview">
+    <div class="graph tree" aria-label="Tracks and their connections">
+      <button class="source-toggle" aria-expanded="false" aria-controls="source-src source-drumless source-drums">Source tracks <small>· drums stem feeds the transcriptions</small></button>
+      <button class="node source-node" id="source-src" data-key="src" aria-pressed="false"><b>Original</b><small></small></button>
+      <button class="node source-node" id="source-drumless" data-key="drumless" aria-pressed="false"><b>Without drums</b><small></small></button>
+      <button class="node source-node" id="source-drums" data-key="drums" aria-pressed="false"><b>Drums stem</b><small></small></button>
+      <button class="node" data-key="adtof" aria-pressed="false"><b>ADTOF</b><small></small></button>
+      <button class="node" data-key="mdx23c" aria-pressed="false"><b>MDX23C</b><small></small></button>
+      <button class="node" data-key="fused" aria-pressed="false"><b>Fused</b><small></small></button>
+      <svg class="arrows" aria-hidden="true"></svg>
+    </div>
+    <p id="measurement" class="quiet"></p>
+    <div class="player">
+      <h2 id="selection">Choose a track</h2>
+      <div id="message" role="status"></div>
+      <audio id="audio" aria-label="Selected track" controls preload="none" hidden></audio>
+      <p id="track-info"></p>
+      <p id="counts" class="quiet"></p>
+      <div id="files" class="files" aria-label="Downloads for selected track"></div>
+    </div>
+  </section>
+  <details class="explanation"><summary>How the arrows connect</summary>
+    <p>Demucs separates the original into without drums and drums stem.
+      ADTOF finds hits in the drums stem. MDX23C splits that same stem into six drum tracks.
+      Fused combines ADTOF's hits with those six drum tracks.</p>
+  </details>
+  <p class="quiet">The preview player checks listening and track selection. The full waveform,
+    recording controls and score stay on the project page. Switching layouts keeps the selected track
+    and playback position. Switching tracks pauses playback at the same position.</p>
+</main>
+<script>
+  const $ = selector => document.querySelector(selector);
+  const nodes = [...document.querySelectorAll('.node')];
+  const graph = $('.graph'), sourceToggle = $('.source-toggle'), audio = $('#audio');
+  const descriptions = {
+    tree: 'Four short rows keep every branch visible. Help, hit counts and files follow the selected track below. This saves repeated controls while keeping every track directly available.',
+    rail: 'Four columns use less height on a wide screen. On a phone they become six full-width rows, with the arrows in the left margin. Long track states have more room, but the phone list is taller.',
+    fold: 'Fold the three source tracks away when comparing transcriptions. This leaves ADTOF, MDX23C and Fused within reach. Returning to the original or without-drums track takes an extra tap to open the sources.'
+  };
+  const help = {
+    src: 'The full original recording, before drum separation.',
+    drumless: 'The rest of the band with the drums removed. Use it to play along on your own kit.',
+    drums: 'The drums isolated from the original recording. Both transcription methods start here.',
+    adtof: 'The original with a blip at each detected hit. ADTOF detects five drum categories; ride and crash share one category.',
+    mdx23c: 'The original with a blip at each detected hit. Six separate drum tracks distinguish ride from crash, but may add too many hits.',
+    fused: 'The original with a blip at each detected hit. ADTOF supplies the hits; the six drum tracks refine cymbal names and loudness.'
+  };
+  const fileNames = {'score.mscz': 'MuseScore', 'score.musicxml': 'MusicXML', 'audition.mid': 'MIDI',
+    'events.json': 'Hits · JSON', 'onsets.json': 'Raw hits · JSON', 'feedback.json': 'Feedback · JSON'};
+  let layout = 'tree', selected = null, version = null, recordings = [], resumeAt = 0;
+
+  function track(key) {
+    const variant = version?.variants.find(v => v.name === key);
+    const url = key === 'src' ? version?.source : version?.[key] ||
+      variant?.files['sonification.ogg'] || variant?.files['sonification.wav'];
+    const progress = version?.progress?.tasks?.[key];
+    let state = url ? 'Ready' : progress?.activity || 'Not available';
+    let ready = !!url, working = false, failed = false, percent;
+    if (!url && progress) {
+      working = ['running', 'arriving'].includes(progress.state);
+      failed = progress.state === 'failed';
+      percent = progress.pct;
+      state = progress.activity || progress.state || state;
+    }
+    if ($('#states').value !== 'real' && ['mdx23c', 'fused'].includes(key)) {
+      ready = false;
+      working = key === 'mdx23c' && $('#states').value === 'working';
+      failed = key === 'mdx23c' && $('#states').value === 'failed';
+      state = key === 'fused' ? 'Waiting for MDX23C' : working ? 'Splitting drums · 42%' : 'Failed · see details';
+      percent = working ? 42 : undefined;
+    }
+    return {url, variant, ready, state, working, failed, percent};
+  }
+
+  function updateNodes() {
+    for (const node of nodes) {
+      const t = track(node.dataset.key), chosen = node.dataset.key === selected;
+      node.setAttribute('aria-pressed', chosen);
+      node.dataset.available = t.ready;
+      node.classList.toggle('working', t.working);
+      node.classList.toggle('failed', t.failed);
+      node.querySelector('small').textContent = chosen ? `Selected · ${t.state}` : t.state;
+      node.querySelector('progress')?.remove();
+      if (t.working) {
+        const bar = document.createElement('progress');
+        bar.max = 100;
+        if (Number.isFinite(t.percent)) bar.value = t.percent;
+        bar.setAttribute('aria-label', `${node.querySelector('b').textContent} progress`);
+        node.append(bar);
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  function selectTrack(key, reset = false) {
+    if (selected === key && !reset) return;
+    resumeAt = reset ? 0 : audio.hasAttribute('src') && audio.readyState > 0 ? audio.currentTime : resumeAt;
+    audio.pause();
+    selected = key;
+    const t = track(key), label = nodes.find(n => n.dataset.key === key).querySelector('b').textContent;
+    $('#selection').textContent = `Selected: ${label}`;
+    $('#track-info').textContent = help[key];
+    $('#counts').textContent = t.variant ? `${t.variant.n_events} hits · ${t.variant.n_suspect} suspect hits` : '';
+    $('#message').textContent = t.ready ? 'Press play to listen.' : t.failed ?
+      ($('#states').value === 'failed' ? 'Sample failure: the rented machine stopped. ' : 'Processing failed. ') +
+      'Open the project page for its log and available retry controls.' : t.state;
+    audio.hidden = !t.ready;
+    if (t.ready) audio.src = t.url;
+    else { audio.removeAttribute('src'); audio.load(); }
+    $('#files').replaceChildren();
+    const files = t.ready ? t.variant?.files || {'Audio download': t.url} : {};
+    for (const [name, url] of Object.entries(files)) {
+      if (t.variant && !fileNames[name]) continue;
+      const link = document.createElement('a');
+      link.href = url; link.download = ''; link.textContent = fileNames[name] || name;
+      $('#files').append(link);
+    }
+    if (t.variant?.mscz_problems) {
+      $('#counts').textContent += ' · MuseScore reported problems: ' + t.variant.mscz_problems;
+    }
+    updateNodes();
+  }
+  audio.addEventListener('loadedmetadata', () => {
+    audio.currentTime = Math.min(resumeAt, Number.isFinite(audio.duration) ? audio.duration : resumeAt);
+  });
+  audio.addEventListener('play', () => { $('#message').textContent = 'Playing'; });
+  audio.addEventListener('pause', () => { if (!audio.hidden) $('#message').textContent = 'Paused'; });
+  audio.addEventListener('ended', () => { $('#message').textContent = 'Finished'; });
+  audio.addEventListener('error', () => { if (audio.hasAttribute('src')) $('#message').textContent = 'Audio could not load. Try another track or reload the page.'; });
+  for (const node of nodes) node.onclick = () => {
+    // Unavailable tracks remain inspectable, but never start or load audio.
+    selectTrack(node.dataset.key);
+  };
+
+  function draw() {
+    const svg = $('svg.arrows'), box = graph.getBoundingClientRect();
+    const at = element => {
+      const r = element.getBoundingClientRect();
+      return {l: r.left - box.left, r: r.right - box.left, t: r.top - box.top,
+        b: r.bottom - box.top, x: r.left - box.left + r.width / 2, y: r.top - box.top + r.height / 2};
+    };
+    const compact = layout === 'fold' && graph.classList.contains('collapsed');
+    const links = compact ? [['summary', 'adtof'], ['summary', 'mdx23c']] :
+      [['src', 'drumless'], ['src', 'drums'], ['drums', 'adtof'], ['drums', 'mdx23c']];
+    links.push(['adtof', 'fused'], ['mdx23c', 'fused']);
+    const verticalRail = layout === 'rail' && getComputedStyle(graph).display === 'flex';
+    const rect = key => at(key === 'summary' ? sourceToggle : $(`[data-key="${key}"]`));
+    const paths = links.map(([from, to], i) => {
+      const a = rect(from), b = rect(to);
+      if (verticalRail) {
+        const lane = 6 + i * 7;
+        return `M${a.l - 3},${a.y} H${lane} V${b.y} H${b.l - 5}`;
+      }
+      if (layout === 'rail') {
+        const x = (a.r + b.l) / 2;
+        return `M${a.r + 3},${a.y} H${x} V${b.y} H${b.l - 5}`;
+      }
+      const x = a.x === b.x ? a.x : Math.max(a.l + 12, Math.min(a.r - 12, b.x));
+      const y = (a.b + b.t) / 2;
+      return `M${x},${a.b + 3} V${y} H${b.x} V${b.t - 5}`;
+    });
+    svg.innerHTML = '<defs><marker id="tip" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L8 4 L0 8z" fill="currentColor"/></marker></defs>' +
+      paths.map(d => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#tip)"/>`).join('');
+    $('#measurement').textContent = `Diagram height: ${Math.round(box.height)} px · ${compact ? '3 tracks shown, 3 in source tracks' : '6 tracks shown'}`;
+  }
+
+  for (const button of document.querySelectorAll('[data-layout]')) button.onclick = () => {
+    layout = button.dataset.layout;
+    graph.className = `graph ${layout}${layout === 'fold' ? ' collapsed' : ''}`;
+    sourceToggle.setAttribute('aria-expanded', layout !== 'fold');
+    $('#description').textContent = descriptions[layout];
+    for (const b of document.querySelectorAll('[data-layout]')) b.setAttribute('aria-pressed', b === button);
+    draw();
+  };
+  sourceToggle.onclick = () => {
+    const collapsed = graph.classList.toggle('collapsed');
+    sourceToggle.setAttribute('aria-expanded', !collapsed);
+    draw();
+  };
+  new ResizeObserver(draw).observe(graph);
+  $('#width').onchange = () => { $('#stage').classList.toggle('portrait', $('#width').value === 'portrait'); };
+  $('#states').onchange = () => {
+    $('#notice').textContent = $('#states').value === 'real' ? 'Existing recordings. Selecting a track does not alter saved results.' :
+      'Sample states only. No processing job is running in this preview.';
+    selectTrack(selected || 'src', true);
+  };
+  $('#recording').onchange = () => {
+    version = recordings[$('#recording').value].version;
+    selectTrack('src', true);
+  };
+  $('#description').textContent = descriptions.tree;
+  updateNodes();
+  fetch('/api/index').then(response => {
+    if (!response.ok) throw new Error('Could not load recordings.');
+    return response.json();
+  }).then(index => {
+    recordings = index.projects.flatMap(project => project.versions.map(version => ({project: project.name, version})));
+    $('#recording').replaceChildren();
+    recordings.forEach((entry, i) => $('#recording').add(new Option(`${entry.project} / ${entry.version.name}`, i)));
+    if (!recordings.length) { $('#notice').textContent = 'No recordings yet. The layouts can still be compared.'; return; }
+    const preferred = recordings.findIndex(r => r.project === 'dancing-through-life' && r.version.name === 'taustanauha');
+    $('#recording').value = Math.max(0, preferred);
+    $('#recording').onchange();
+    $('#notice').textContent = 'Existing recordings. Selecting a track does not alter saved results.';
+  }).catch(() => { $('#notice').textContent = 'Recordings could not load. Reload to try again; the layout previews still work.'; });
+</script>
+</html>

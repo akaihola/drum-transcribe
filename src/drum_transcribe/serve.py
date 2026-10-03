@@ -1676,6 +1676,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         elif path in STATIC_ASSETS:
             f = Path(__file__).parent / path[1:]
             self._send(f.read_bytes(), self.guess_type(str(f)))
+        elif path == "/player-layouts":
+            preview = Path(__file__).parent / "static" / "player-layouts.html"
+            self._send(preview.read_bytes(), "text/html; charset=utf-8")
         elif path == "/style":
             guide = Path(__file__).parents[2] / "docs" / "style-guide.html"
             self._send(guide.read_bytes(), "text/html; charset=utf-8")
