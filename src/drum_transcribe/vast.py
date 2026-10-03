@@ -91,10 +91,18 @@ def guard_target(guard: dict) -> int | None:
 
 
 def add_guard(instance_id: int, at: float) -> int:
-    """Have Vast's own servers DELETE the instance from ``at`` on, hourly
-    until it is gone, with or without the web app; the guard's id."""
+    """Have Vast's own servers DELETE the instance from the first full hour
+    after ``at`` on, hourly until it is gone, with or without the web app;
+    the guard's id.
+
+    Vast runs an HOURLY job at minute 0 of every hour from the hour that
+    *contains* start_time (probes 2026-10-03: start 13:22 ran at 13:00),
+    so the start goes just past the next full hour. Setting
+    min_of_the_hour afterwards stopped a job from running at all.
+    """
+    start = -(-int(at) // 3600) * 3600 + 1
     return int(call("POST", "/api/v0/commands/schedule_job/", {
-        "start_time": int(at), "end_time": int(at) + 24 * 3600,
+        "start_time": start, "end_time": start + 24 * 3600,
         "api_endpoint": f"/api/v0/instances/{instance_id}/", "request_method": "DELETE",
         "request_body": {}, "day_of_the_week": None, "hour_of_the_day": None,
         "frequency": "HOURLY", "instance_id": instance_id})["scheduled_job_id"])
