@@ -30,6 +30,11 @@ RUN curl -fsSL -o /tmp/ms.AppImage https://github.com/musescore/MuseScore/releas
     && chmod +x /tmp/ms.AppImage && cd /opt && /tmp/ms.AppImage --appimage-extract >/dev/null \
     && mv squashfs-root musescore && rm /tmp/ms.AppImage \
     && ln -s /opt/musescore/AppRun /usr/local/bin/musescore
+# rclone moves the worker's files to and from the bucket (vast-worker.sh)
+RUN curl -fsSL -o /tmp/rclone.zip https://downloads.rclone.org/v1.75.0/rclone-v1.75.0-linux-amd64.zip \
+    && echo "aa2804e08f48250e71009c727124b6341cd0288465804a9a09d14663cabafbaa  /tmp/rclone.zip" | sha256sum -c \
+    && python3 -c "import zipfile; zipfile.ZipFile('/tmp/rclone.zip').extractall('/tmp/rc')" \
+    && install -m 755 /tmp/rc/rclone-*/rclone /usr/local/bin/rclone && rm -rf /tmp/rclone.zip /tmp/rc
 COPY src ./src
 RUN uv pip install --python /venv/main/bin/python --no-cache --no-deps .
 COPY deploy ./deploy
