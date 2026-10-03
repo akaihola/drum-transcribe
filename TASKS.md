@@ -44,9 +44,9 @@ documents provide background; their historical plans do not set task status.
 
 ## In Progress
 
-- [~] [*] Make backing selection respond immediately and show audio loading progress.
-
 ## Completed / Accepted
+
+- [ ] [*] Make backing selection respond immediately and show audio loading progress.
 
 - [ ] [*] Make cloud GPU jobs survive closed pages, failed hosts and container
   restarts, without duplicate rentals (job records, one coordinator, baked
