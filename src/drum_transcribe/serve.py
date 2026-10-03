@@ -323,6 +323,9 @@ STYLE = """
   practice-audio.on button::before { background: white; border-color: white; box-shadow: inset 0 0 0 2px var(--teal); }
   practice-audio.on button[aria-busy=true]::before { background: none; box-shadow: none;
     border-color: #ffffff60; border-top-color: white; animation: backing-spin .8s linear infinite; }
+  practice-audio.on button[data-progress]::before { border: 0; animation: none;
+    background: conic-gradient(white var(--backing-progress), #ffffff60 0);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0); }
   @keyframes backing-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { practice-audio.on button[aria-busy=true]::before { animation: none; } }
   .player:has(practice-audio.on) { box-shadow: 0 0 0 2px var(--teal); background: #F1F7F8; }
@@ -667,7 +670,7 @@ __HELP__
 <div id="addform" hidden>
 __CREATE_FORM__
 </div>
-<script type="module" src="/static/local-recording.js?v=20261003-backing"></script>
+<script type="module" src="/static/local-recording.js?v=20261003-backing-ring"></script>
 <script>
 // Each version has its own address, /p/<project>/<version>.
 const [PROJECT, VERSION] = location.pathname.split("/").slice(2).map(decodeURIComponent);

@@ -105,6 +105,11 @@ class PracticeAudio extends HTMLElement {
     this.classList.toggle("on", on);
     button.setAttribute("aria-pressed", on);
     button.setAttribute("aria-busy", loading);
+    const progress = loading ? pending.progress : null;
+    button.toggleAttribute("data-progress", progress != null);
+    if (progress != null)
+      button.style.setProperty("--backing-progress", `${progress}%`);
+    else button.style.removeProperty("--backing-progress");
     button.textContent = loading ? "Loading…" : on ? "Backing" : "Use as backing";
   }
 }
@@ -1195,6 +1200,7 @@ export class Recording {
     this.pendingBacking = {
       key,
       controller: new AbortController(),
+      progress: null,
       message: `Loading ${label(key)}…`,
     };
     this.sync();
@@ -1222,14 +1228,19 @@ export class Recording {
       total = +response.headers.get("Content-Length"),
       chunks = [];
     let size = 0;
+    request.progress = total > 0 ? 0 : null;
+    if (this.pendingBacking === request) this.sync();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       chunks.push(value);
       size += value.length;
+      request.progress = total > 0
+        ? Math.min(100, Math.floor((size / total) * 100))
+        : null;
       const progress =
-        total > 0
-          ? `${Math.min(100, Math.floor((size / total) * 100))}%`
+        request.progress != null
+          ? `${request.progress}%`
           : `${(size / 1048576).toFixed(1)} MB`;
       const message = `Loading ${label(request.key)}… ${progress}`;
       if (message !== request.message) {
@@ -1268,6 +1279,7 @@ export class Recording {
         if (!response.ok) throw Error("Backing download failed.");
         const bytes = await this.backingBytes(response, request);
         if (stale()) return false;
+        request.progress = null;
         request.message = `Preparing ${label(key)} audio…`;
         this.sync();
         buffer = await this.ctx.decodeAudioData(bytes);

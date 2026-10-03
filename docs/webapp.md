@@ -343,8 +343,9 @@ on the visible version unless focus is in a text field, select or dialog.
 Insecure pages keep the original players.
 
 Choosing a backing immediately highlights its button and updates the Backing
-menu. The button shows a spinner while the waveform lane and status line show
-download progress, then audio preparation. The current audio keeps playing
+menu. The button's ring fills from 0 to 100% with the same download percentage
+as the waveform lane and status line. It spins while the download size is
+unknown or the audio is being prepared. The current audio keeps playing
 until the new backing is ready. Another choice cancels the pending download;
 Pause also cancels it and stops playback immediately. A failed load restores
 the previous choice and offers a retry by choosing the same node again.
