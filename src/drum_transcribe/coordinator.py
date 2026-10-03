@@ -361,9 +361,9 @@ class _Job:
     def close(self, a: dict) -> None:
         """Vast no longer lists the instance: drop its guards, record why it ended."""
         iid = a["instance"]
-        for g in self.p.guards:
-            if vast.guard_target(g) == iid:
-                vast.remove_guard(g["id"])  # if this fails, the next pass retries
+        for g in [g for g in self.p.guards if vast.guard_target(g) == iid]:
+            vast.remove_guard(g["id"])  # if this fails, the next pass retries
+            self.p.guards.remove(g)  # so the sweep doesn't remove it again
         a["closed"] = time.time()
         a["outcome"] = a.get("ending") or self.worker_outcome(a)
         self.save()
