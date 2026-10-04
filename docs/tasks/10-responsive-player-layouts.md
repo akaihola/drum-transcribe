@@ -127,3 +127,15 @@ new backing selection, immediately hide the previous video or waveform while
 the replacement loads. Show loading status in its place and reveal the new
 player only once ready. Verify both video-to-waveform and waveform-to-waveform
 changes with a held download, including failure recovery.
+
+The correction restores the original 2.6rem crop with a 4.4rem iframe offset
+up by 0.6rem. The shared backing area shows loading text instead of either
+player whenever a backing request is pending. Success reveals the replacement;
+failure or cancellation restores the still-selected backing.
+
+Verified in the T3 browser on port 8768: actual Highway Star YouTube playback
+inside the 42px strip, a held video-to-waveform download, a held
+waveform-to-waveform download, and a simulated HTTP 503 with recovery of the
+previous waveform and its error message. JavaScript syntax and whitespace
+checks passed. This correction changes only presentation; the pipeline and
+capture code are unchanged.

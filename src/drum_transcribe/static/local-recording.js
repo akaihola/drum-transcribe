@@ -335,7 +335,7 @@ export class Recording {
         <select data-control="backing" aria-label="Backing"></select>
         <label class="rec-fader">${fader("backingGain", -60, 6, "Backing level")}</label>
         <span class="rec-meter" data-meter="backing"><i></i></span>
-      </div><div class="backing-media"><canvas data-draw="backing"></canvas></div>
+      </div><div class="backing-media"><output class="backing-loading" data-backing-loading role="status" hidden></output><canvas data-draw="backing"></canvas></div>
       <div class="rec-head you"><b>Your drums <span>
         <button class="rec-t rec" data-action="record" title="Record (R)" aria-label="Record" aria-pressed="false">${ICON.record}</button><button class="rec-t" data-action="mute" title="Mute (M)" aria-pressed="false">M</button><button class="rec-t" data-action="solo" title="Solo (S)" aria-pressed="false">S</button></span></b>
         <label class="rec-fader">${fader("trackGain", -60, 6, "Your track level")}</label>
@@ -1765,10 +1765,13 @@ export class Recording {
     this.player()?.dispatchEvent(new Event("timeupdate"));
   }
   sync() {
-    if (this.video) {
-      this.video.hidden = !this.wantsVideo();
-      this.ui.querySelector('[data-draw="backing"]').hidden = this.wantsVideo();
-    }
+    const loading = !!this.pendingBacking, video = this.wantsVideo();
+    if (this.video) this.video.hidden = loading || !video;
+    this.ui.querySelector('[data-draw="backing"]').hidden = loading || video;
+    const waiting = this.ui.querySelector('[data-backing-loading]');
+    waiting.hidden = !loading;
+    waiting.textContent = this.pendingBacking?.message ?? "";
+    this.ui.querySelector('.backing-media').setAttribute('aria-busy', loading);
     const ui = this.ui,
       armed = this.mode === "record",
       play = ui.querySelector('[data-action="play"]');

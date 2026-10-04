@@ -338,11 +338,13 @@ script for whoever clicked the note.
 On the laptop use `http://localhost:8765`. Plain HTTP at `http://atom:8765`
 allows backing playback but disables browser microphone/recording support.
 
-For a YouTube original, the Backing lane shows a full embedded player while
+For a YouTube original, the Backing lane shows the cropped YouTube timeline/control strip while
 listening to the backing alone. With an audible saved local track, local Solo,
 or Record armed, it shows the waveform and uses decoded audio instead. Muting
 the local track or setting its gain to silence brings the video back. Playback
-position is transferred when switching. Video time drives the shared counter
+position is transferred when switching. While a newly selected backing loads,
+the previous video or waveform is hidden and its replacement shows loading
+status. Failed or cancelled loads restore the current backing display. Video time drives the shared counter
 while YouTube plays, so buffering does not advance the recording timeline.
 An embed error falls back to downloaded audio with a status message. The
 `backing-video` element shares the IFrame API wrapper with `yt-audio`, but is
