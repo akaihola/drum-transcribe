@@ -33,11 +33,13 @@ provide background; their historical plans do not set task status.
 
 ## Scheduled
 
+- [10] Use compact tree and sideways player layouts
+
 ## In Progress
 
 ## Completed / Accepted
 
-- [ ] [4] Compress player nodes UI
+- [x] [4] Compress player nodes UI
   <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
 
 - [x] [*] Show backing download percentage in the Loading button's circular indicator.
@@ -76,6 +78,8 @@ provide background; their historical plans do not set task status.
 [8]: docs/tasks/8-cloud-gpu-checks-on-real-rentals.md
 
 [9]: docs/tasks/9-robust-gpu-jobs.md
+
+[10]: docs/tasks/10-responsive-player-layouts.md
 
 ## Rules
 
