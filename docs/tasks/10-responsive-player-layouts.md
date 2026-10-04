@@ -139,3 +139,17 @@ waveform-to-waveform download, and a simulated HTTP 503 with recovery of the
 previous waveform and its error message. JavaScript syntax and whitespace
 checks passed. This correction changes only presentation; the pipeline and
 capture code are unchanged.
+
+## Layout refinements requested, 2026-10-05
+
+Simplify the phone Listen tab by hiding recording buttons, the routine Hearing
+status, Backing title/selector and the whole local-take lane. Remove routine
+saved/restored notices everywhere but retain storage failures. Add desktop
+track info buttons and put the selected track's info/download icons alongside
+the Backing title. Align record/mute/solo buttons, playback/microphone sliders
+and dB readings; use recording red for the mic slider. Fill the backing lane
+with its waveform. Tuck the desktop grid hint beneath Original, aligned with
+the lower row's status, without a separate gap before the recording view.
+Use a bent-left-arrow Undo icon and red on Delete this version. Put Versions
+beside its buttons, and center the desktop title in the top navigation row.
+Check narrow and wide layouts, info/downloads and recording/playback controls.
