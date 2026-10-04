@@ -33,9 +33,10 @@ provide background; their historical plans do not set task status.
 
 ## Scheduled
 
-- [10] Use compact tree and sideways player layouts
-
 ## In Progress
+
+- [~] [10] Use compact tree and sideways player layouts
+  - Depends on: [4]
 
 ## Completed / Accepted
 
