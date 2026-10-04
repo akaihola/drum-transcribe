@@ -234,6 +234,7 @@ export class Recording {
         this.preview = saved;
         this.duration ??= saved.length / saved.rate;
         this.waveVersion++;
+        this.sync();
       })
       .catch(() => {});
     const audio = (this.metadata = new Audio(this.version.source));
@@ -273,6 +274,37 @@ export class Recording {
   }
   setMaster(value) {
     if (this.bus) this.bus.gain.value = value;
+    if (this.video) this.video.volume = Math.min(1, value * this.backingGain);
+  }
+  wantsVideo() {
+    return !!this.video && !this.videoFailed && this.selected === "src" &&
+      this.mode !== "record" && !this.solo &&
+      (this.mode === "mute" || this.trackGain === 0 ||
+        !(this.track ?? this.preview)?.segments.length);
+  }
+  mountVideo() {
+    const video = this.video = document.createElement("backing-video");
+    video.setAttribute("video", this.version.youtube);
+    video.setAttribute("aria-label", "YouTube backing track");
+    this.ui.querySelector(".backing-media").append(video);
+    video.addEventListener("play", () => {
+      if (!this.wantsVideo()) { video.pause(); return; }
+      if (!this.playing) {
+        this.position = video.currentTime;
+        this.run(() => this.play());
+      }
+    });
+    for (const event of ["pause", "ended", "blocked"])
+      video.addEventListener(event, () => {
+        if (this.videoActive && this.playing) this.requestPause();
+        if (event === "blocked") this.status("Press Play in the YouTube player to listen.");
+      });
+    video.addEventListener("error", () => {
+      this.videoFailed = true;
+      if (this.playing) this.schedule();
+      this.sync();
+      this.status("YouTube could not play here. Using the downloaded audio.");
+    });
   }
   mount() {
     const fader = (key, min, max, name) =>
@@ -299,11 +331,11 @@ export class Recording {
     </div>
     <div class="rec-grid">
       <div class="rec-head ruler">bars</div><canvas data-draw="ruler"></canvas>
-      <div class="rec-head"><b>Backing</b>
+      <div class="rec-head backing"><b>Backing</b>
         <select data-control="backing" aria-label="Backing"></select>
         <label class="rec-fader">${fader("backingGain", -60, 6, "Backing level")}</label>
         <span class="rec-meter" data-meter="backing"><i></i></span>
-      </div><canvas data-draw="backing"></canvas>
+      </div><div class="backing-media"><canvas data-draw="backing"></canvas></div>
       <div class="rec-head you"><b>Your drums <span>
         <button class="rec-t rec" data-action="record" title="Record (R)" aria-label="Record" aria-pressed="false">${ICON.record}</button><button class="rec-t" data-action="mute" title="Mute (M)" aria-pressed="false">M</button><button class="rec-t" data-action="solo" title="Solo (S)" aria-pressed="false">S</button></span></b>
         <label class="rec-fader">${fader("trackGain", -60, 6, "Your track level")}</label>
@@ -311,7 +343,16 @@ export class Recording {
         <span class="rec-meter" data-meter="mic"><i></i></span>
       </div><canvas data-draw="track"></canvas>
     </div>`;
-    this.section.querySelector(".flow").after(this.ui);
+    const flow = this.section.querySelector(".flow");
+    flow.after(this.ui);
+    if (this.supported) {
+      const details = document.createElement("details");
+      details.className = "backing-details";
+      details.innerHTML = "<summary>Track help and downloads</summary>";
+      this.ui.querySelector(".rec-head.backing").append(details);
+      details.append(flow);
+      if (this.version.youtube) this.mountVideo();
+    }
     this.ui.onclick = (e) => {
       const button = e.target.closest("[data-action], [data-view]");
       if (!button) return;
@@ -416,6 +457,8 @@ export class Recording {
     window.addEventListener("pagehide", () => {
       this.abortCapture("");
       this.stopSources();
+      this.videoActive = false;
+      this.video?.pause();
       this.playing = false;
       this.disarm();
       clearTimeout(this.auditionTimer);
@@ -1330,6 +1373,8 @@ export class Recording {
     });
   }
   balance() {
+    if (this.playing && !!this.videoActive !== this.wantsVideo()) this.schedule();
+    if (this.video) this.video.volume = Math.min(1, this.backingGain * +(localStorage.volume ?? 1));
     for (const { gain, local } of this.gains ?? [])
       gain.gain.value = local ? this.trackGain : this.backingLevel();
     this.rememberAudition();
@@ -1355,6 +1400,7 @@ export class Recording {
     this.auditionTimer = setTimeout(() => this.persist(), 250);
   }
   current() {
+    if (this.playing && this.videoActive) return this.video.currentTime;
     return this.playing
       ? Math.min(
           this.duration,
@@ -1525,7 +1571,21 @@ export class Recording {
     source.start(this.anchor + lo, offset + lo - start, hi - lo);
   }
   schedule() {
+    const position = this.current(), useVideo = this.wantsVideo();
+    if (this.videoActive && !useVideo) {
+      this.videoActive = false;
+      this.video.pause();
+      this.from = position;
+      this.anchor = this.ctx.currentTime + 0.05 - position;
+    }
     this.stopSources();
+    if (useVideo) {
+      this.videoActive = true;
+      this.video.currentTime = position;
+      this.video.volume = Math.min(1, this.backingGain * +(localStorage.volume ?? 1));
+      this.video.play();
+      return;
+    }
     if (this.backing)
       this.scheduleSource(
         this.backing,
@@ -1554,7 +1614,7 @@ export class Recording {
     this.sources.push(tone);
   }
   scheduleLocal() {
-    if (this.mode !== "playback") return;
+    if (this.mode !== "playback" || this.videoActive) return;
     const position = this.current(),
       horizon = position + 2;
     while (this.nextSegment < this.track.segments.length) {
@@ -1650,6 +1710,8 @@ export class Recording {
     this.position = Math.max(this.current(), this.recordFrom ?? 0);
     this.recordFrom = null;
     this.playing = false;
+    this.videoActive = false;
+    this.video?.pause();
     this.stopSources();
     this.sync();
     await finishing;
@@ -1703,6 +1765,10 @@ export class Recording {
     this.player()?.dispatchEvent(new Event("timeupdate"));
   }
   sync() {
+    if (this.video) {
+      this.video.hidden = !this.wantsVideo();
+      this.ui.querySelector('[data-draw="backing"]').hidden = this.wantsVideo();
+    }
     const ui = this.ui,
       armed = this.mode === "record",
       play = ui.querySelector('[data-action="play"]');
@@ -1765,6 +1831,7 @@ addEventListener("keydown", (e) => {
   if (
     !r?.supported ||
     e.defaultPrevented ||
+    (key === " " && e.target.closest?.("button, summary")) ||
     e.altKey ||
     ((e.ctrlKey || e.metaKey) && !undo) ||
     e.target.closest?.("input:not([type=range]), select, textarea, [contenteditable], dialog, #fbmenu")

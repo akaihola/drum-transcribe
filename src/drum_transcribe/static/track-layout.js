@@ -45,10 +45,10 @@ window.TrackLayout = (() => {
     const picker = document.createElement('div');
     picker.className = 'track-picker';
     picker.innerHTML = `<div class="track-grid" role="group" aria-label="Choose a track">
-      ${Object.entries(tracks).map(([key, name]) => `<button type="button" class="track-choice"
-        data-track="${key}" style="grid-area:${key}" aria-pressed="false"><b>${name}</b><small></small></button>`).join('')}
-      </div><p class="track-hint">Choose a track. Its controls, help and downloads appear below.</p>`;
-    flow.before(picker);
+      ${Object.entries(tracks).map(([key, name]) => `<div class="track-choice"
+        data-track="${key}" style="grid-area:${key}"><button type="button" class="track-select" aria-pressed="false"><b>${name}</b><small></small></button><button type="button" class="track-play" aria-label="Play ${name}">▶</button></div>`).join('')}
+      </div><p class="track-hint">Choose a backing track. Press its triangle to play.</p>`;
+    (section.recording?.supported ? section.recording.ui : flow).before(picker);
     flow.classList.add('track-details');
     const grid = picker.querySelector('.track-grid');
     const media = key => flow.querySelector(`[data-piece="${key}"]`)?.querySelector(mediaSelector);
@@ -71,7 +71,11 @@ window.TrackLayout = (() => {
         else if (player && key === shown) status = 'Selected · Ready';
         button.querySelector('small').textContent = status;
         button.title = progress?.dataset.tip || status;
-        button.setAttribute('aria-pressed', key === shown);
+        button.querySelector('.track-select').setAttribute('aria-pressed', key === shown);
+        const play = button.querySelector('.track-play');
+        play.disabled = !player;
+        play.textContent = player && !player.paused ? 'Ⅱ' : '▶';
+        play.setAttribute('aria-label', `${player && !player.paused ? 'Pause' : 'Play'} ${tracks[key]}`);
         button.setAttribute('aria-busy', control?.getAttribute('aria-busy') === 'true');
         button.classList.toggle('working', progress?.classList.contains('running') || progress?.classList.contains('arriving'));
         button.classList.toggle('failed', progress?.classList.contains('failed'));
@@ -88,7 +92,11 @@ window.TrackLayout = (() => {
       if (!button) return;
       shown = button.dataset.track;
       const player = media(shown);
-      if (player?.tagName === 'PRACTICE-AUDIO') player.querySelector('button').click();
+      const play = !!event.target.closest('.track-play');
+      if (player?.tagName === 'PRACTICE-AUDIO') {
+        if (play && !player.paused) player.pause();
+        else player.owner.requestBacking(shown, play);
+      }
       else if (player) {
         const previous = [...flow.querySelectorAll(mediaSelector)].find(p => !p.paused);
         const position = previous?.currentTime ?? 0;
@@ -97,8 +105,10 @@ window.TrackLayout = (() => {
           if (player.readyState) player.currentTime = position;
           else player.addEventListener('loadedmetadata', () => { player.currentTime = position; }, {once: true});
         }
-        if (player.paused) player.play()?.catch?.(() => {});
-        else player.pause();
+        if (play) {
+          if (player.paused) player.play()?.catch?.(() => {});
+          else player.pause();
+        }
       }
       paint();
     };

@@ -13,7 +13,7 @@
 .track-choice { font: inherit; padding: 6px 10px; text-align: left; cursor: pointer; line-height: 1.2; }
 .track-choice b, .track-choice small { display: block; }
 .track-choice small { font-size: 13px; color: var(--ink-quiet); margin-top: 3px; overflow-wrap: anywhere; }
-.track-choice[aria-pressed=true] { border-color: var(--teal); background: #F1F7F8; box-shadow: inset 4px 0 var(--teal); }
+.track-choice:has([aria-pressed=true]) { border-color: var(--teal); background: #F1F7F8; box-shadow: inset 4px 0 var(--teal); }
 .track-choice.working small { color: var(--brass); }
 .track-choice.failed small { color: var(--signal); }
 .track-choice.unavailable { border-style: dashed; }
@@ -45,3 +45,25 @@ svg.track-arrows { position: absolute; inset: 0; width: 100%; height: 100%;
     grid-template-areas: "src drumless adtof fused" "src drums mdx23c fused";
   }
 }
+
+/* Separate controls share one outline; buttons are never nested. */
+.track-choice { display: flex; align-items: stretch; padding: 0; overflow: hidden; }
+.track-select { flex: 1; min-width: 0; padding: 6px 10px; text-align: left;
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.track-play, .pad-play { flex: none; width: 44px; min-height: 44px;
+  border: 0; background: none; color: var(--teal); font: inherit; cursor: pointer; }
+.track-play:disabled, .pad-play:disabled { opacity: .3; cursor: default; }
+.mlisten .pad-hit { width: calc(100% - 88px); }
+.mlisten .pad-play { position: absolute; right: 44px; top: 50%; transform: translateY(-50%); }
+.backing-details { min-width: 0; }
+.backing-details summary { cursor: pointer; padding: 8px 0; }
+.backing-details .flow { margin: 0; }
+.backing-details practice-audio { display: none; }
+.backing-details .player { padding: 0; border: 0; }
+.backing-media { min-width: 0; }
+backing-video { display: block; position: relative; width: min(100%, 640px); height: auto; min-height: 200px; aspect-ratio: 16 / 9;
+  margin: 0 auto; border-radius: 0; background: #000; }
+backing-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+.backing-media [hidden] { display: none !important; }
+html.mobile[data-mtab="listen"] .local-recording { display: block !important; }
+html.mobile .backing-details { display: none; }

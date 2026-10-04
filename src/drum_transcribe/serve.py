@@ -753,17 +753,20 @@ let ytApi;
 class YtAudio extends HTMLElement {
   connectedCallback() {
     if (this.firstChild) return;
-    ytApi ??= new Promise(resolve => {
+    ytApi ??= new Promise((resolve, reject) => {
       window.onYouTubeIframeAPIReady = resolve;
       document.head.append(Object.assign(document.createElement("script"),
-        { src: "https://www.youtube.com/iframe_api" }));
+        { src: "https://www.youtube.com/iframe_api", onerror: reject }));
     });
-    this.innerHTML = `<div></div><button title="play"></button>`;
-    this.lastChild.onclick = () => this.play();
+    this.innerHTML = `<div></div>`;
+    if (this.tagName === "YT-AUDIO") {
+      this.insertAdjacentHTML("beforeend", `<button title="play"></button>`);
+      this.lastChild.onclick = () => this.play();
+    }
     this.playing = false;
     ytApi.then(() => { if (!this.isConnected) return; this.yt = new YT.Player(this.firstChild, {
       videoId: this.getAttribute("video"),
-      playerVars: { playsinline: 1, rel: 0 },
+      playerVars: { playsinline: 1, rel: 0, origin: location.origin },
       events: {
         onReady: () => {
           this.ready = true;
@@ -778,10 +781,16 @@ class YtAudio extends HTMLElement {
             this.querySelector("button")?.remove();
             this.dispatchEvent(new Event("play"));
             this.timer = setInterval(() => this.dispatchEvent(new Event("timeupdate")), 250);
-          } else if (e.data !== YT.PlayerState.BUFFERING) this.playing = false;
+          } else if (e.data !== YT.PlayerState.BUFFERING) {
+            this.playing = false;
+            if (e.data === YT.PlayerState.PAUSED) this.dispatchEvent(new Event("pause"));
+            if (e.data === YT.PlayerState.ENDED) this.dispatchEvent(new Event("ended"));
+          }
         },
+        onError: () => this.dispatchEvent(new Event("error")),
+        onAutoplayBlocked: () => this.dispatchEvent(new Event("blocked")),
       },
-    }); });
+    }); }).catch(() => this.dispatchEvent(new Event("error")));
   }
   disconnectedCallback() { clearInterval(this.timer); this.yt?.destroy(); }
   get paused() { return !this.playing; }
@@ -794,6 +803,7 @@ class YtAudio extends HTMLElement {
   pause() { this.playing = false; if (this.ready) this.yt.pauseVideo(); }
 }
 customElements.define("yt-audio", YtAudio);
+customElements.define("backing-video", class extends YtAudio {});
 const MEDIA = "audio, yt-audio, practice-audio";
 
 function dragFile(e, name, url) {

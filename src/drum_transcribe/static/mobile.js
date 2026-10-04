@@ -131,6 +131,7 @@ function padHtml(key) {
   return `<div class="pad" data-key="${key}" style="grid-area:${key}">
     <button type="button" class="pad-hit"><span class="pad-ic">${ic}
       <span class="eq"><i></i><i></i><i></i><i></i></span></span><b>${name}</b><span class="pad-sub"></span></button>
+    <button type="button" class="pad-play" aria-label="Play ${name}">▶</button>
     <button type="button" class="pad-i" aria-label="What is ${name}?"><span>i</span></button></div>`;
 }
 
@@ -154,22 +155,22 @@ function readySub(section, key) {
 // Share the compact tree / sideways connections with the desktop selector.
 function drawPadArrows(grid) { TrackLayout.draw(grid); }
 
-function tapPad(section, key) {
+function tapPad(section, key, play) {
   const v = section.dataset.song, el = mediaOf(section, key);
   if (!el) return openInfo(section, key);
-  if (!el.paused) return el.pause();
+  if (play && !el.paused) return el.pause();
   const from = mediaOf(section, cur[v]);
   cur[v] = key;
   lastAudio[v] = el;  // a tap on the score then plays this pad too
   // secure mode: one shared transport, so choosing the backing keeps the position
-  if (el.tagName === "PRACTICE-AUDIO") return quiet(el.play());
+  if (el.tagName === "PRACTICE-AUDIO") return quiet(el.owner.requestBacking(key, play));
   const t = from ? from.currentTime : 0;
   $$(MEDIA, section).forEach(a => a !== el && a.pause());
   if (from && from !== el) {
     if (el.readyState) el.currentTime = t;
     else el.addEventListener("loadedmetadata", () => { el.currentTime = t; }, { once: true });
   }
-  quiet(el.play());
+  if (play) quiet(el.play());
 }
 
 function openInfo(section, key) {
@@ -187,7 +188,7 @@ document.addEventListener("click", e => {
   if (pad) {
     const section = pad.closest("section[data-song]");
     if (e.target.closest(".pad-i")) openInfo(section, pad.dataset.key);
-    else tapPad(section, pad.dataset.key);
+    else tapPad(section, pad.dataset.key, !!e.target.closest(".pad-play"));
   }
   const z = e.target.closest("[data-zoom]");
   if (z) zoom(+z.dataset.zoom);
@@ -242,8 +243,8 @@ function decorate(panel) {
   if (!section) return;  // the "add a version" panel
   $(".flow", section).inert = true;  // hidden controls must not receive Tab focus
   if (!$(".mlisten", section)) {
-    $(".flow", section).insertAdjacentHTML("beforebegin", `<div class="mlisten">
-      <p class="mhint">Tap a pad to listen. Tap another to compare.</p>
+    (section.recording?.supported ? section.recording.ui : $(".flow", section)).insertAdjacentHTML("beforebegin", `<div class="mlisten">
+      <p class="mhint">Choose a backing track. Tap its triangle to play.</p>
       <div class="mgrid">${Object.keys(PADS).map(padHtml).join("")}</div></div>`);
     const grid = $(".mgrid", section);
     new ResizeObserver(() => drawPadArrows(grid)).observe(grid);
@@ -316,6 +317,7 @@ function paint() {
   const v = section.dataset.song;
   const playing = $$(MEDIA, section).find(a => !a.paused);
   if (playing && keyOf(playing)) cur[v] = keyOf(playing);
+  if (section.recording?.supported) cur[v] = section.recording.pendingBacking?.key ?? section.recording.selected;
   const el = mediaOf(section, cur[v]);
   const pos = el ? el.currentTime / duration(el) : 0;
   for (const pad of $$(".pad", section)) {
@@ -328,8 +330,13 @@ function paint() {
       pad.className = cls;
       pad.dataset.st = p.st;
       $(".pad-hit", pad).setAttribute("aria-label",
-        `${PADS[key][0]}: ${p.st === "ready" ? (cls.includes("playing") ? "pause" : "play") : "details"}`);
+        `${PADS[key][0]}: ${p.st === "ready" ? "select as backing" : "details"}`);
     }
+    $(".pad-hit", pad).setAttribute("aria-pressed", key === cur[v]);
+    const play = $(".pad-play", pad), isPlaying = p.media && !p.media.paused;
+    play.disabled = !p.media;
+    play.textContent = isPlaying ? "Ⅱ" : "▶";
+    play.setAttribute("aria-label", `${isPlaying ? "Pause" : "Play"} ${PADS[key][0]}`);
     const sub = p.st === "ready" ? readySub(section, key) : WAITING[p.st](p);
     const subEl = $(".pad-sub", pad);
     if (subEl.innerHTML !== sub) subEl.innerHTML = sub;
