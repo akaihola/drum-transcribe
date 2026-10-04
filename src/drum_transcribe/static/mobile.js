@@ -34,8 +34,8 @@ const IC = {
 // Pad key (= the page's data-piece) -> [name, icon, INFO key, subtitle when ready]
 const PADS = {
   src: ["original", IC.wave, "original", "the full recording"],
-  drums: ["drums stem", IC.drum, "drums", "drums only"],
   drumless: ["without drums", IC.band, "drumless", "the band, no drums"],
+  drums: ["drums stem", IC.drum, "drums", "drums only"],
   adtof: ["adtof", IC.blips, "adtof"],
   mdx23c: ["mdx23c", IC.blips, "mdx23c"],
   fused: ["fused", IC.blips, "fused"],
@@ -151,34 +151,8 @@ function readySub(section, key) {
   return PADS[key][3] || "sonification";
 }
 
-// Arrows between the pads, from their live positions (the grid's width
-// follows the phone). Straight down where two pads overlap, else diagonal.
-function drawPadArrows(grid) {
-  if (!grid.offsetWidth) return;
-  const g = grid.getBoundingClientRect();
-  const box = k => {
-    const r = $(`[data-key="${k}"]`, grid).getBoundingClientRect();
-    return { l: r.left - g.left, r: r.right - g.left, t: r.top - g.top, b: r.bottom - g.top };
-  };
-  const [s, d, l, a, m, f] = Object.keys(PADS).map(box);
-  const x = (p, q) => (Math.max(p.l, q.l) + Math.min(p.r, q.r)) / 2;
-  const mid = (p, q) => (p.b + q.t) / 2 + 4.5;
-  const down = (p, q) => `<path d="M${x(p, q)} ${p.b + 5}V${q.t - 6}"/>`;
-  const text = (tx, ty, anchor, t) => `<text x="${tx}" y="${ty}" text-anchor="${anchor}">${t}</text>`;
-  // drums stem forks: straight down to adtof, an elbow across to mdx23c
-  const xd = x(d, a), xm = (m.l + m.r) / 2, ym = (d.b + m.t) / 2, r = 8;
-  grid.querySelector("svg.parrows")?.remove();
-  grid.insertAdjacentHTML("beforeend", `<svg class="parrows" aria-hidden="true">
-    <defs><marker id="pa" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
-      orient="auto"><path d="M0 0 L8 4 L0 8 z"/></marker></defs>
-    <g class="lines">${down(s, d)}${down(s, l)}${down(d, a)}
-      <path d="M${xd} ${d.b + 5}V${ym - r}Q${xd} ${ym} ${xd + r} ${ym}H${xm - r}Q${xm} ${ym} ${xm} ${ym + r}V${m.t - 6}"/>${down(a, f)}${down(m, f)}</g>
-    ${text((x(s, d) + x(s, l)) / 2, mid(s, d), "middle", "Demucs")}
-    ${text(x(d, a) - 9, mid(d, a), "end", "ADTOF")}
-    ${text((xd + xm) / 2, ym - 7, "middle", "MDX23C")}
-    ${text(x(a, f) - 9, mid(a, f), "end", "hits")}
-    ${text(x(m, f) + 9, mid(m, f), "start", "6 drum tracks")}</svg>`);
-}
+// Share the compact tree / sideways connections with the desktop selector.
+function drawPadArrows(grid) { TrackLayout.draw(grid); }
 
 function tapPad(section, key) {
   const v = section.dataset.song, el = mediaOf(section, key);
@@ -203,7 +177,7 @@ function openInfo(section, key) {
   const status = p.st === "ready" ? "" : `<p class="sh-status ${p.st}">${
     (p.tip || WAITING[p.st](p)).split("\n").join("<br>")}</p>`;
   sheet.innerHTML = `<div class="grab"></div><h3>${name}</h3>${status}<p>${INFO[info]}</p>` +
-    (pipeline ? `<h4>What the pad plays</h4><p>${INFO.sonis}</p>` : "") +
+    (pipeline ? `<p>${readySub(section, key)}</p><h4>What the pad plays</h4><p>${INFO.sonis}</p>` : "") +
     `<button type="button" class="sh-close" onclick="this.closest('dialog').close()">Close</button>`;
   sheet.showModal();
 }
@@ -266,6 +240,7 @@ function zoom(step) {
 function decorate(panel) {
   const section = $("section[data-song]", panel);
   if (!section) return;  // the "add a version" panel
+  $(".flow", section).inert = true;  // hidden controls must not receive Tab focus
   if (!$(".mlisten", section)) {
     $(".flow", section).insertAdjacentHTML("beforebegin", `<div class="mlisten">
       <p class="mhint">Tap a pad to listen. Tap another to compare.</p>

@@ -62,7 +62,7 @@ provide background; their historical plans do not set task status.
 
 [1]: docs/tasks/1-decide-scope-of-feedback-driven-correction.md
 
-<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9 -->
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10 -->
 
 [2]: docs/tasks/2-pdf-export.md
 

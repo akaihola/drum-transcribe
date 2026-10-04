@@ -49,7 +49,7 @@ STATIC_ASSETS = {f"/static/{name}" for name in (
     "musescore.svg", "musicxml.png", "local-recording.js",
     "recording-core.js", "recording-worklet.js", "recording-store.js",
     "recording-wav.js", "recording-export.js", "recording-grid.js",
-    "mobile.css", "mobile.js",
+    "mobile.css", "mobile.js", "track-layout.css", "track-layout.js",
 )}
 
 # Visual language: docs/style-guide.md ("ink on a drumhead"; live specimen
@@ -644,6 +644,8 @@ PROJECT_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>drum-transcribe</title>__FONTS__<style>__STYLE__</style>
+<link rel="stylesheet" href="/static/track-layout.css">
+<script src="/static/track-layout.js"></script>
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 <script>
 // Phones get their own layout (static/mobile.css + .js, "drum pads"); the
@@ -897,53 +899,7 @@ function meterCtl(v) {
 // positions, so it survives any wrapping; redrawn on tab switches and
 // resizes (hidden panels have no layout).
 function drawArrows(panel) {
-  const flow = panel && panel.querySelector(".flow");
-  if (!flow || !flow.clientWidth) return;
-  flow.querySelector("svg.arrows")?.remove();
-  const base = flow.getBoundingClientRect();
-  const rel = el => {
-    const r = el.getBoundingClientRect();
-    return { left: r.left - base.left, right: r.right - base.left,
-             top: r.top - base.top, bottom: r.bottom - base.top,
-             cx: r.left - base.left + r.width / 2,
-             cy: r.top - base.top + r.height / 2 };
-  };
-  const label = (x, y, anchor, t) => `<text x="${x}" y="${y}"
-    text-anchor="${anchor}" font-size="12" fill="currentColor">${t}</text>`;
-  // a -> b: sideways if b is right of a, else downwards (straight where the
-  // two overlap horizontally, an elbow otherwise); label beside the tip.
-  const link = (a, b, t) => {
-    let p, mx, my;
-    if (b.left >= a.right) {
-      p = `M ${a.right + 5} ${a.cy} L ${b.left - 7} ${b.cy}`;
-      mx = (a.right + b.left) / 2; my = a.cy - 8;
-      return arrow(p) + label(mx, my, "middle", t);
-    }
-    const lo = Math.max(a.left, b.left), hi = Math.min(a.right, b.right);
-    const x1 = lo < hi ? (lo + hi) / 2 : a.cx, x2 = lo < hi ? x1 : b.cx;
-    const y1 = a.bottom + 5, y2 = b.top - 7;
-    my = (y1 + y2) / 2;
-    const r = Math.min(8, Math.abs(x2 - x1) / 2), s = Math.sign(x2 - x1);
-    p = `M ${x1} ${y1} V ${my - r} Q ${x1} ${my} ${x1 + s * r} ${my}
-         H ${x2 - s * r} Q ${x2} ${my} ${x2} ${my + r} V ${y2}`;
-    return arrow(p) + label(x2 + 8, (my + y2) / 2 + 5, "start", t);
-  };
-  const arrow = p => `<path d="${p}" fill="none" stroke="currentColor"
-                      stroke-width="1.5" marker-end="url(#arr)"/>`;
-  const at = sel => rel(flow.querySelector(sel));
-  const src = at(".node-src"), drumless = at(".drumless"), drums = at(".node-drums"),
-        adtof = at('[data-name="adtof"]'), mdx = at('[data-name="mdx23c"]'),
-        fused = at('[data-name="fused"]');
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", "arrows");
-  svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4"
-    markerWidth="6.5" markerHeight="6.5" orient="auto">
-    <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/></marker></defs>` +
-    link(src, drumless, "Demucs") + link(src, drums, "Demucs") +
-    link(drums, adtof, "ADTOF") +
-    link(drums, mdx, "MDX23C") + link(adtof, fused, "hits") +
-    link(mdx, fused, "6 drum tracks");
-  flow.appendChild(svg);
+  TrackLayout.draw(panel?.querySelector(".track-grid"));
 }
 // Show a version tab's contents: arrows, and the players' durations (fetched
 // only for the visible version, to spare bandwidth).

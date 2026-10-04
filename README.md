@@ -61,10 +61,9 @@ uv run drum-transcribe serve
 
 Open `http://<the machine's address>:8765/` from any of your machines.
 
-To compare three proposals for smaller player nodes, open `/player-layouts`
-on that server. Select a layout and a recording, then choose a track and press
-play. The portrait preview lets you compare phone layouts on a larger screen.
-These are proposals; the project pages keep their current layout.
+Project pages use a compact tree on narrow screens and a sideways diagram when
+there is room for four columns. The original design comparisons remain at
+`/player-layouts` on that server.
 
 The same site also runs in the cloud at <https://plokkaus.vempai.men/>, so
 it works even when the laptop is off. There you can listen and review
@@ -111,12 +110,14 @@ submitted, the new version's tab opens. Per version:
 - players for the **original**, the **drums stem**, and each pipeline's
   **sonification**, laid out as a diagram whose arrows show what is made
   from what; one **volume** slider (top right) sets the volume of all of
-  them. With local recording available, each box has a **Use as backing**
-  button instead of its own player: it chooses what the recording panel
+  them. Choose a track in the diagram to see its controls, help and downloads
+  below it. With local recording available, choosing a track sets the backing
+  for the recording panel
   below the diagram plays (see [Record your own drums](#record-your-own-drums-in-the-browser)).
   The original uses the downloaded audio, including for YouTube links.
-  Where local recording is unavailable, each box keeps its own player, and
-  a YouTube original plays in YouTube's player. A progress bar appears until
+  Where local recording is unavailable, choosing a track plays it and reveals
+  its player below the diagram. A YouTube original uses YouTube's player.
+  A progress bar appears until
   the audio is ready;
 - a **without drums** player above the score, with a **Download** link.
   The track is stereo Opus (the same compact format as the sonifications,
@@ -133,7 +134,7 @@ submitted, the new version's tab opens. Per version:
   by default the bar lines are straightened automatically; choose the
   changing-meter option only if the piece really changes meter, and the
   scores are recomputed with the bar lines exactly as detected;
-- **downloadable files** as small icons beside each sonification player — click
+- **downloadable files** below the diagram for the selected track. Click
   to download or drag into your file manager: MusicXML (opens directly in
   MuseScore), MIDI, the raw detection data (JSON), and a ready MuseScore
   file. A red "!" on the MuseScore icon means MuseScore found bars that
@@ -176,7 +177,8 @@ the bottom:
   and you hear the same moment through that one, so comparing by ear is one
   tap. Tap the pad that is playing to stop it. A pad still being made fills
   up with brass as the work progresses and says how long is left. The ⓘ on a
-  pad explains what it is.
+  pad explains what it is and shows the full hit counts. The compact tree turns
+  sideways when the window becomes wide enough, without interrupting playback.
 - **Score** shows the notation big enough to read, with − and + to change
   its size. Tap a bar to play from there; the speech-bubble button switches
   to commenting.

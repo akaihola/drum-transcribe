@@ -196,17 +196,24 @@ through the cloud form and pull results with `rclone sync`
   tabbar ends with a "+ add a version" tab whose panel adopts the
   server-rendered `#addform` node. Meter-switch buttons (`.mopt`) share the
   tabbar styling but have no `data-target`, so the tab handler skips them.
-- The project page is a flow diagram per version, four rows on a 4-column
-  grid: original centred at the top; original —Demucs→ without drums and
-  drums stem, side by side; drums stem —ADTOF→ adtof and
-  —MDX23C→ mdx23c; both of those → fused (centred below; "hits" from ADTOF,
-  "6 drum tracks" from the MDX23C kit split). Pipeline cards hold the
-  sonification player (slimmed to 2rem) with small download tiles on the
-  same line (`.soniline`): the MuseScore and MusicXML logos, served from
-  `src/drum_transcribe/static/` at `/static/`, a MIDI plug, and braces for
-  JSON; the tooltip names the file; drag-out downloadable via `DownloadURL`. Arrows are an SVG overlay drawn from live
-  element positions (`drawArrows`) — redrawn on tab switches and resizes
-  because hidden panels have no layout. Players stretch to the card width;
+- `static/track-layout.css` uses a four-row compact tree below 44rem of available
+  container width and a four-column sideways diagram above it. This applies to
+  the desktop selector and phone pads, including resizing without reloading.
+  `track-layout.js` draws the same six derivation arrows from the nodes' current
+  positions, with a unique SVG marker per version and an accessible description.
+  The original splits into without drums and drums stem; the drums stem feeds
+  ADTOF and MDX23C; both feed Fused.
+  On desktop the script adds a `.track-picker` and keeps the existing `.flow`
+  as `.track-details`. Only the selected track's original controls, help,
+  hit counts and downloads are visible. All media remain in the DOM, so the
+  shared transport, score seeking and live piece replacement continue to work.
+  A mutation observer reflects backing download progress and pipeline status;
+  a resize observer redraws arrows. Choosing a ready track uses its existing
+  backing selector, or plays its native player where recording is unavailable.
+  An unavailable track opens its progress details without starting any job.
+  Download tiles are at least 44px, retain their tooltips and drag-out
+  `DownloadURL`, and use the existing MuseScore, MusicXML, MIDI and JSON icons.
+  Players stretch to the details width;
   Chromium's per-player volume controls are hidden in favour of one shared
   `.vol` slider (remembered in `localStorage`). Players are `preload="none"`
   until their version tab is shown (`showPanel` flips them to `metadata`),
@@ -258,7 +265,10 @@ The phone layout ("drum pads", chosen from three prototypes in September
 narrow screens (`html.mobile`). It decorates the desktop DOM rather than
 replacing it: the real players stay in the hidden `.flow`, and the pads,
 header, version `<select>`, bottom tabs (Listen/Score/Files/Record) and mini
-player drive them. Live refresh replaces `[data-piece]` elements, so the
+player drive them. The hidden `.flow` is inert to keep its invisible controls
+out of keyboard navigation. The compact pads keep their separate 44px help
+buttons; help also shows full hit counts when the short pad caption is clipped.
+Live refresh replaces `[data-piece]` elements, so the
 decoration is idempotent and re-runs on the `rendered` event that `build`
 and `refreshVersion` dispatch. In the Record tab the transport is one line
 (Undo moves into the ⋯ menu, the view switch is hidden; pinch zoom replaces
