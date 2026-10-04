@@ -63,3 +63,14 @@ part of this change. Task [4] is accepted by the user's choice; this
 implementation awaits separate acceptance.
 
 [4]: 4-compress-player-nodes-ui.md
+
+## Follow-up requested, 2026-10-04
+
+The user confirmed that recording works at localhost:8765. Plain HTTP at atom
+disables microphone access. Merge the selected player into the backing lane.
+Clicking a grid track selects it; a separate triangle inside its right edge
+selects and plays it. Apply this on phones and wider screens. For YouTube
+originals, show the embedded video when listening to the backing alone, and the
+waveform with decoded audio when recording or mixing the local take. Preserve
+transport position, recording, downloads and help. Verify actual playback,
+selection without playback, video transitions and recording in the browser.
