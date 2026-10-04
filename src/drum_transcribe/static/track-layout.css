@@ -84,8 +84,8 @@ html.mobile .backing-details { display: none; }
   display: flex; align-items: center; gap: 4px;
 }
 .backing-heading { justify-content: space-between; gap: 8px; }
-.backing-tools { flex-wrap: wrap; justify-content: flex-end; }
-.backing-tools .minfo, .backing-tools .doc { flex: none; width: 28px; height: 28px; margin: 0; }
+.backing-tools { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.backing-tools .minfo, .backing-tools .doc { flex: none; width: 26px; height: 28px; margin: 0; }
 .backing-tools .doc svg { fill: none; }
 .rec-head.you .rec-t { margin: 0; vertical-align: middle; line-height: 1; }
 .local-recording input[data-control="inputGain"] { accent-color: var(--signal); }
@@ -96,6 +96,7 @@ html.mobile .backing-details { display: none; }
 .track-info-popover p:last-child { margin-bottom: 0; }
 .delver { color: var(--signal); border-color: var(--signal); }
 
+html:not(.mobile) .rec-grid { grid-template-columns: 19rem minmax(0, 1fr); }
 html:not(.mobile) .rec-head.you .rec-fader {
   display: grid; grid-template-columns: 1.8rem minmax(0, 1fr) 4.4em 2.5rem; gap: .35rem;
 }
@@ -115,3 +116,11 @@ html:not(.mobile) .vtabs > .tabbar > .grouplbl { margin: 0 .4rem 0 0; align-self
     margin: 0; font-size: 13px; line-height: 1.2; }
 }
 html:not(.mobile) .track-picker + .local-recording { margin-top: 0; }
+
+.track-choice .track-info span { display: grid; place-items: center; width: 22px; height: 22px;
+  box-sizing: border-box; margin: auto; border: 1.5px solid var(--ink-quiet); border-radius: 50%;
+  font: italic 500 14px/1 var(--serif); }
+.track-select { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 7.5px; }
+@container tracks (min-width: 44rem) {
+  .track-choice:not([data-track="src"]):not([data-track="fused"]) { align-self: stretch; }
+}

@@ -204,9 +204,12 @@ through the cloud form and pull results with `rclone sync`
   The original splits into without drums and drums stem; the drums stem feeds
   ADTOF and MDX23C; both feed Fused.
   On desktop the script adds a `.track-picker` and keeps the existing `.flow`
-  as `.track-details` inside the Backing lane's help/download disclosure on
-  recording-capable pages. Only the selected track's help, hit counts and
-  downloads are shown; playback uses the shared recording transport. All media remain in the DOM, so the
+  as a hidden media store on recording-capable pages. Desktop nodes have
+  separate info buttons that open help without selecting or playing a track.
+  The Backing heading shows the selected track's info button and download icons
+  in the same row. Info includes the sonification explanation and hit counts;
+  downloads keep their file icons, tooltips and drag-to-folder behavior.
+  Playback uses the shared recording transport. All media remain in the DOM, so the
   shared transport, score seeking and live piece replacement continue to work.
   A mutation observer reflects backing download progress and pipeline status;
   a resize observer redraws arrows. Clicking a track selects the backing without
@@ -275,7 +278,10 @@ buttons; help also shows full hit counts when the short pad caption is clipped.
 Live refresh replaces `[data-piece]` elements, so the
 decoration is idempotent and re-runs on the `rendered` event that `build`
 and `refreshVersion` dispatch. The shared backing/recording view is available
-below the grid in Listen, and by itself in Record. The transport is compact
+below the grid in Listen, and by itself in Record. Listen hides recording
+buttons, routine Hearing text, the Backing heading/selector and the Your drums
+lane. Loading and error messages remain visible. Record shows all controls.
+The transport is compact
 (Undo moves into the ⋯ menu, the view switch is hidden; pinch zoom replaces
 it, see below).
 
@@ -333,7 +339,15 @@ put it in the DOM via `textContent`/`.value` only — it was once interpolated
 into the edit menu's `innerHTML`, where `</textarea><img onerror=…>` ran as
 script for whoever clicked the note.
 
+Desktop pages center the project title between the back link and toolbar, and
+put Versions beside its buttons. In the sideways diagram the hint sits beneath
+Original, alongside the lower nodes' status text. Recording/playback and mic
+faders share slider and dB columns; the mic fader uses recording red. The Undo
+icon is a bent left arrow; Delete this version uses red text and border.
+
 ## Browser-local drum recording
+
+Routine saved/restored notifications are omitted; storage failures remain visible.
 
 On the laptop use `http://localhost:8765`. Plain HTTP at `http://atom:8765`
 allows backing playback but disables browser microphone/recording support.

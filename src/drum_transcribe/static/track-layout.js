@@ -78,7 +78,7 @@ window.TrackLayout = (() => {
     picker.className = 'track-picker';
     picker.innerHTML = `<div class="track-grid" role="group" aria-label="Choose a track">
       ${Object.entries(tracks).map(([key, name]) => `<div class="track-choice"
-        data-track="${key}" style="grid-area:${key}"><button type="button" class="track-select" aria-pressed="false"><b>${name}</b><small></small></button><button type="button" class="minfo track-info" aria-label="About ${name}">i</button><button type="button" class="track-play" aria-label="Play ${name}">▶</button></div>`).join('')}
+        data-track="${key}" style="grid-area:${key}"><button type="button" class="track-select" aria-pressed="false"><b>${name}</b><small></small></button><button type="button" class="minfo track-info" aria-label="About ${name}"><span>i</span></button><button type="button" class="track-play" aria-label="Play ${name}">▶</button></div>`).join('')}
       </div><p class="track-hint">Choose a backing track. Press its triangle to play.</p>`;
     (section.recording?.supported ? section.recording.ui : flow).before(picker);
     flow.classList.add('track-details');
@@ -118,7 +118,7 @@ window.TrackLayout = (() => {
       const piece = flow.querySelector(`[data-piece="${shown}"]`);
       if (actions && piece) {
         const links = [...piece.querySelectorAll('a.doc, a.download')];
-        const signature = shown + links.map(a => a.outerHTML).join('');
+        const signature = shown + section.recording.backingFiles()[shown] + links.map(a => a.outerHTML).join('');
         if (signature !== toolsContent) {
           toolsContent = signature;
           const info = Object.assign(document.createElement('button'), {type: 'button', className: 'minfo', textContent: 'i'});

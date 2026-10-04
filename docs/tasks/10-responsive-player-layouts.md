@@ -153,3 +153,34 @@ the lower row's status, without a separate gap before the recording view.
 Use a bent-left-arrow Undo icon and red on Delete this version. Put Versions
 beside its buttons, and center the desktop title in the top navigation row.
 Check narrow and wide layouts, info/downloads and recording/playback controls.
+
+Implemented the requested changes. Listen mode means the existing phone Listen
+tab; desktop keeps its recording controls. The selected desktop backing now
+has one row of info/download actions, and each desktop node has an independent
+info button. These open help without changing selection. Routine save/restore
+notifications are removed; storage failures remain visible.
+
+Browser checks used an isolated server at port 8768:
+
+- Listen hides Record buttons, routine Hearing text, Backing title/selector
+  and both the Your drums controls and waveform. Record shows them again.
+  Checked 320, 390, 640, 768 and 1024px with no horizontal overflow.
+- Desktop at 768, 834, 1024 and 1280px: playback/mic sliders have equal right
+  edges and usable widths; corresponding dB outputs share their right edge.
+  Record/mute/solo buttons have identical top/bottom coordinates. Mic and
+  Delete this version use the recording red.
+- The backing waveform's rendered height matches its lane. Six download icons
+  plus info fit on one row beside Backing, including at tablet widths. An extra
+  icon was temporarily cloned in the test DOM to check the six-file case.
+- Desktop node info and Backing info show the explanation and complete hit
+  counts without selecting or playing another track. A download retained its
+  accessible filename/tooltip and returned HTTP 206 for a byte-range request.
+- Desktop title is centered in the top navigation row; Versions is the first
+  item in the version-button row. The sideways hint aligns with the lower-row
+  status text, and the recording area follows the grid without an extra gap.
+- JavaScript syntax and whitespace checks passed. Capture/pipeline algorithms
+  are unchanged, so the earlier pipeline and AudioWorklet checks were not
+  repeated. Browser screenshot capture failed at the preview client; these
+  checks used live DOM, computed styles, element measurements and interactions.
+
+Deployment is to the laptop service. User acceptance remains pending.
