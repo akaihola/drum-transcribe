@@ -7,7 +7,7 @@ const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><path d="M6 4h4.2v16H6zM13.8 4H18v16h-4.2z"/></svg>',
   record: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg>',
-  undo: '<svg viewBox="0 0 24 24"><path d="M9 7.5H4.5V3M5 8a8 8 0 1 1-.9 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  undo: '<svg viewBox="0 0 24 24"><path d="M9 4 3 10l6 6M3 10h10a7 7 0 0 1 7 7v3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
   more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
 };
 const label = (key) =>
@@ -331,7 +331,7 @@ export class Recording {
     </div>
     <div class="rec-grid">
       <div class="rec-head ruler">bars</div><canvas data-draw="ruler"></canvas>
-      <div class="rec-head backing"><b>Backing</b>
+      <div class="rec-head backing"><div class="backing-heading"><b>Backing</b><div class="backing-tools"></div></div>
         <select data-control="backing" aria-label="Backing"></select>
         <label class="rec-fader">${fader("backingGain", -60, 6, "Backing level")}</label>
         <span class="rec-meter" data-meter="backing"><i></i></span>
@@ -548,6 +548,7 @@ export class Recording {
         : this.liveStatus();
     const el = this.ui.querySelector("[data-status]");
     if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("hearing", text.startsWith("Hearing "));
   }
   liveStatus() {
     if (!this.supported)
@@ -709,11 +710,11 @@ export class Recording {
           this.trackGain = this.audition.trackGain;
           this.solo = this.audition.solo;
         }
-        this.storageMessage("Recording restored from browser storage.");
+        this.storageMessage("");
         this.status(
           this.sourceChanged
             ? "The backing source changed. Download your take, then Clear to start over."
-            : "Recording restored from this browser.",
+            : "",
         );
       }
     } catch (e) {
@@ -753,7 +754,6 @@ export class Recording {
       );
       return;
     }
-    this.storageMessage("Saving in this browser...");
     const epoch = this.epoch,
       segments = this.track.segments;
     const state = {
@@ -768,7 +768,7 @@ export class Recording {
         if (epoch !== this.epoch) return;
         await saveTrack(this.key, state, segments);
         if (epoch === this.epoch) {
-          this.storageMessage("✓ saved in this browser");
+          this.storageMessage("");
         }
       })
       .catch((e) => {

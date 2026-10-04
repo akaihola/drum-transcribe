@@ -38,6 +38,38 @@ window.TrackLayout = (() => {
         marker-end="url(#${id})"/>`).join('')}</svg>`);
   }
 
+  function showInfo(section, key, button) {
+    const piece = section.querySelector(`[data-piece="${key}"]`);
+    const pop = section.querySelector('.track-info-popover') ||
+      section.appendChild(Object.assign(document.createElement('div'), {className: 'popcard track-info-popover'}));
+    pop.setAttribute('popover', 'auto');
+    const paragraphs = [...piece.querySelectorAll('.popcard')].map(p => p.innerHTML);
+    const stats = piece.querySelector('.stats')?.cloneNode(true);
+    stats?.querySelectorAll('button, [popover]').forEach(e => e.remove());
+    pop.innerHTML = `<b>${tracks[key]}</b>` + paragraphs.map(p => `<p>${p}</p>`).join('') +
+      (stats ? `<p>${stats.textContent}</p>` : '');
+    pop.showPopover();
+    placeNote(pop, button);
+  }
+
+  function header() {
+    if (document.documentElement.classList.contains('mobile')) return;
+    if (!document.querySelector('.project-heading')) {
+      const back = document.querySelector('body > p > a[href="/"]')?.parentElement;
+      if (back) {
+        const heading = document.createElement('header');
+        heading.className = 'project-heading';
+        back.before(heading);
+        const tools = document.createElement('div');
+        tools.className = 'project-tools';
+        tools.append(document.querySelector('#gear-btn'), document.querySelector('#help-btn'));
+        heading.append(back, document.querySelector('#title'), tools);
+      }
+    }
+    const versions = document.querySelector('#app > .grouplbl');
+    if (versions) document.querySelector('.vtabs > .tabbar').prepend(versions);
+  }
+
   function decorate(section) {
     if (document.documentElement.classList.contains('mobile')) return;
     const flow = section.querySelector('.flow');
@@ -46,13 +78,13 @@ window.TrackLayout = (() => {
     picker.className = 'track-picker';
     picker.innerHTML = `<div class="track-grid" role="group" aria-label="Choose a track">
       ${Object.entries(tracks).map(([key, name]) => `<div class="track-choice"
-        data-track="${key}" style="grid-area:${key}"><button type="button" class="track-select" aria-pressed="false"><b>${name}</b><small></small></button><button type="button" class="track-play" aria-label="Play ${name}">▶</button></div>`).join('')}
+        data-track="${key}" style="grid-area:${key}"><button type="button" class="track-select" aria-pressed="false"><b>${name}</b><small></small></button><button type="button" class="minfo track-info" aria-label="About ${name}">i</button><button type="button" class="track-play" aria-label="Play ${name}">▶</button></div>`).join('')}
       </div><p class="track-hint">Choose a backing track. Press its triangle to play.</p>`;
     (section.recording?.supported ? section.recording.ui : flow).before(picker);
     flow.classList.add('track-details');
     const grid = picker.querySelector('.track-grid');
     const media = key => flow.querySelector(`[data-piece="${key}"]`)?.querySelector(mediaSelector);
-    let shown = 'src', lastBacking, queued = false;
+    let shown = 'src', lastBacking, toolsContent, queued = false;
 
     function paint() {
       queued = false;
@@ -82,6 +114,35 @@ window.TrackLayout = (() => {
         button.classList.toggle('unavailable', !player);
         if (piece && piece.hidden !== (key !== shown)) piece.hidden = key !== shown;
       }
+      const actions = section.querySelector('.backing-tools');
+      const piece = flow.querySelector(`[data-piece="${shown}"]`);
+      if (actions && piece) {
+        const links = [...piece.querySelectorAll('a.doc, a.download')];
+        const signature = shown + links.map(a => a.outerHTML).join('');
+        if (signature !== toolsContent) {
+          toolsContent = signature;
+          const info = Object.assign(document.createElement('button'), {type: 'button', className: 'minfo', textContent: 'i'});
+          info.setAttribute('aria-label', `About ${tracks[shown]}`);
+          const key = shown;
+          info.onclick = () => showInfo(section, key, info);
+          actions.replaceChildren(info, ...links.map(a => a.cloneNode(true)));
+          if (!links.length && section.recording.backingFiles()[shown]) {
+            const link = document.createElement('a');
+            link.href = section.recording.backingFiles()[shown];
+            link.download = '';
+            link.className = 'download';
+            actions.append(link);
+          }
+          for (const link of actions.querySelectorAll('a')) {
+            if (link.classList.contains('download')) {
+              link.className = 'doc';
+              link.title = `Download ${tracks[shown]}`;
+              link.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg>';
+            }
+            link.setAttribute('aria-label', link.title);
+          }
+        }
+      }
       draw(grid);
     }
     function schedule() {
@@ -90,6 +151,10 @@ window.TrackLayout = (() => {
     grid.onclick = event => {
       const button = event.target.closest('[data-track]');
       if (!button) return;
+      if (event.target.closest('.track-info')) {
+        showInfo(section, button.dataset.track, event.target.closest('button'));
+        return;
+      }
       const previousKey = shown;
       shown = button.dataset.track;
       const player = media(shown);
@@ -123,6 +188,9 @@ window.TrackLayout = (() => {
     new ResizeObserver(() => draw(grid)).observe(grid);
     paint();
   }
-  document.addEventListener('rendered', () => document.querySelectorAll('section[data-song]').forEach(decorate));
+  document.addEventListener('rendered', () => {
+    header();
+    document.querySelectorAll('section[data-song]').forEach(decorate);
+  });
   return {draw};
 })();

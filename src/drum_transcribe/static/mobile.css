@@ -262,3 +262,9 @@ html.mobile #fbmenu .row button { flex: 1; min-height: 48px; }
   .pad, .pad.cur::after, .pad::before { transition: none; }
   .eq i, .pad:is(.running, .arriving)::after { animation: none; }
 }
+
+/* Listen keeps transport and backing audio, without the recording controls. */
+html.mobile[data-mtab="listen"] .local-recording :is(
+  [data-action="record"], [data-status].hearing, .backing-heading,
+  [data-control="backing"], .rec-head.you, [data-draw="track"]
+) { display: none !important; }
