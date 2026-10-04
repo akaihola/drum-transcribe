@@ -119,3 +119,11 @@ Verified with the T3 browser on an isolated server at port 8768:
 
 Laptop deployment only, at http://localhost:8765/p/highway-star. Task [10]
 remains pending user acceptance.
+
+## Cropping correction requested, 2026-10-05
+
+Restore the cropped YouTube timeline/control strip in the Backing lane. On a
+new backing selection, immediately hide the previous video or waveform while
+the replacement loads. Show loading status in its place and reveal the new
+player only once ready. Verify both video-to-waveform and waveform-to-waveform
+changes with a held download, including failure recovery.
