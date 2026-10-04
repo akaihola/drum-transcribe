@@ -74,3 +74,48 @@ originals, show the embedded video when listening to the backing alone, and the
 waveform with decoded audio when recording or mixing the local take. Preserve
 transport position, recording, downloads and help. Verify actual playback,
 selection without playback, video transitions and recording in the browser.
+
+## Follow-up implementation and verification, 2026-10-05
+
+The user confirmed recording works at localhost; plain HTTP at atom was the
+cause of the reported disabled recording controls. The follow-up merges the
+selected track's help/downloads into the Backing lane and uses its shared
+transport. Track labels select without starting playback; separate right-edge
+triangles select and play, or pause the current track. Phone Listen now also
+shows the backing/recording view. The Record tab still opens that view directly.
+
+YouTube originals use a full embedded player for backing-only listening. The
+waveform and decoded audio take over for recording or an audible local take.
+Mute switches back to video; unmuting restores waveform playback. The video
+clock drives the counter while the embed plays, including buffering. Embed
+errors fall back to downloaded audio with a message.
+
+Verified with the T3 browser on an isolated server at port 8768:
+
+- Actual Highway Star YouTube playback, shared seeking to 60 seconds, pause and
+  resume through the YouTube API controls, and a simulated embed error. The
+  fallback kept playing decoded audio at the same position without duplicate
+  sources. The embed itself loaded from YouTube, not a mock.
+- Selection without playback and triangle playback on desktop and phone;
+  the same selection/play distinction with native audio at insecure atom HTTP.
+- Capture through the real AudioWorklet using a generated 440 Hz MediaStream
+  in place of the microphone. Recorded about 6.7 seconds, verified nonzero
+  captured samples, and replayed them with both local and backing sources.
+  Recording switched video to waveform; Mute and unmute switched both ways
+  while preserving position. This checks capture and transport integration,
+  not physical microphone permissions or measured acoustic alignment.
+  The generated take was cleared from the test origin afterwards. Production
+  browser recordings and saved project files were not modified.
+- Phone layouts at 320, 390, 640, 768, 834 and 1024px, using same-origin frames.
+  No horizontal overflow. Selection buttons were at least 51px wide in these
+  checks; play and help targets are 44px. The diagram switches from tree to
+  sideways as space grows. Listen shows the shared transport and lanes.
+- JavaScript modules and interpreted inline scripts passed syntax checks;
+  Python compilation and whitespace checks passed. Type checking reports only
+  the two previously documented optional-etag errors in serve.py.
+- Cached ADTOF pipeline smoke run in a temporary directory produced 393 beats,
+  834 events, MIDI, MusicXML, MuseScore and Opus audio. One event exceeded
+  35 ms quantization error, as in the previous check.
+
+Laptop deployment only, at http://localhost:8765/p/highway-star. Task [10]
+remains pending user acceptance.
