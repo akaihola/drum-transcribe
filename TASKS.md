@@ -37,8 +37,9 @@ provide background; their historical plans do not set task status.
 
 ## Completed / Accepted
 
-- [ ] [10] Use compact tree and sideways player layouts
+- [x] [10] Use compact tree and sideways player layouts
   - Depends on: [4]
+  <!-- hai:{"updatedAt":"2026-10-04T21:50:32.789Z"} -->
 
 - [x] [4] Compress player nodes UI
   <!-- hai:{"id":"simple-0082f116ae303884","updatedAt":"2026-10-03T17:39:46.164Z"} -->
