@@ -278,7 +278,7 @@ export class Recording {
   }
   wantsVideo() {
     return !!this.video && !this.videoFailed && this.selected === "src" &&
-      this.mode !== "record" && !this.solo &&
+      this.mode !== "record" && !(this.mode === "playback" && this.solo) &&
       (this.mode === "mute" || this.trackGain === 0 ||
         !(this.track ?? this.preview)?.segments.length);
   }

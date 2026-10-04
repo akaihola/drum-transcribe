@@ -18,7 +18,7 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | route | what |
 |---|---|
 | `GET /` | main page: project list + create form |
-| `GET /player-layouts` | three interactive compact-node proposals, with existing recordings and a portrait preview; project layouts are unchanged |
+| `GET /player-layouts` | three interactive compact-node proposals, with existing recordings and a portrait preview |
 | `GET /p/<project>[/<version>]` | project page: version tabs, players, scores, feedback; opens `<version>`'s tab (else the first), and switching tabs rewrites the address (`history.replaceState`) |
 | `GET /api/index` | JSON of projects → versions → variants (from `scan_output`) |
 | `POST /api/create` | `{project, version, url, gpu?}` → slugify, start a background job (with `gpu` in the cloud: save the job record first, 503 if that fails); answers the slugs `{project, version}` so the form can open the new tab |
@@ -204,12 +204,15 @@ through the cloud form and pull results with `rclone sync`
   The original splits into without drums and drums stem; the drums stem feeds
   ADTOF and MDX23C; both feed Fused.
   On desktop the script adds a `.track-picker` and keeps the existing `.flow`
-  as `.track-details`. Only the selected track's original controls, help,
-  hit counts and downloads are visible. All media remain in the DOM, so the
+  as `.track-details` inside the Backing lane's help/download disclosure on
+  recording-capable pages. Only the selected track's help, hit counts and
+  downloads are shown; playback uses the shared recording transport. All media remain in the DOM, so the
   shared transport, score seeking and live piece replacement continue to work.
   A mutation observer reflects backing download progress and pipeline status;
-  a resize observer redraws arrows. Choosing a ready track uses its existing
-  backing selector, or plays its native player where recording is unavailable.
+  a resize observer redraws arrows. Clicking a track selects the backing without
+  starting playback. A separate triangle within its right edge selects and plays
+  it, or pauses it if already playing. Native players follow the same selection
+  rule where recording is unavailable.
   An unavailable track opens its progress details without starting any job.
   Download tiles are at least 44px, retain their tooltips and drag-out
   `DownloadURL`, and use the existing MuseScore, MusicXML, MIDI and JSON icons.
@@ -225,7 +228,7 @@ through the cloud form and pull results with `rclone sync`
   element a `display` (e.g. `form.create label { display: block }`) beats
   the bare attribute, which kept the create form's password field on show
   for everyone until 2026-09-28.
-- YouTube originals: when `v.youtube` is set and the recording has been
+- YouTube originals on pages without recording support: when `v.youtube` is set and the recording has been
   downloaded (a progress bar until then), the original node holds a
   `<yt-audio video=ID>` custom element instead of `<audio>`. It wraps the
   IFrame API player behind the `<audio>` surface the page uses (`paused`,
@@ -266,11 +269,13 @@ narrow screens (`html.mobile`). It decorates the desktop DOM rather than
 replacing it: the real players stay in the hidden `.flow`, and the pads,
 header, version `<select>`, bottom tabs (Listen/Score/Files/Record) and mini
 player drive them. The hidden `.flow` is inert to keep its invisible controls
-out of keyboard navigation. The compact pads keep their separate 44px help
+out of keyboard navigation. A pad selects the backing; its right-hand triangle
+plays or pauses it. The compact pads keep separate 44px play and help
 buttons; help also shows full hit counts when the short pad caption is clipped.
 Live refresh replaces `[data-piece]` elements, so the
 decoration is idempotent and re-runs on the `rendered` event that `build`
-and `refreshVersion` dispatch. In the Record tab the transport is one line
+and `refreshVersion` dispatch. The shared backing/recording view is available
+below the grid in Listen, and by itself in Record. The transport is compact
 (Undo moves into the ⋯ menu, the view switch is hidden; pinch zoom replaces
 it, see below).
 
@@ -330,13 +335,27 @@ script for whoever clicked the note.
 
 ## Browser-local drum recording
 
+On the laptop use `http://localhost:8765`. Plain HTTP at `http://atom:8765`
+allows backing playback but disables browser microphone/recording support.
+
+For a YouTube original, the Backing lane shows a full embedded player while
+listening to the backing alone. With an audible saved local track, local Solo,
+or Record armed, it shows the waveform and uses decoded audio instead. Muting
+the local track or setting its gain to silence brings the video back. Playback
+position is transferred when switching. Video time drives the shared counter
+while YouTube plays, so buffering does not advance the recording timeline.
+An embed error falls back to downloaded audio with a status message. The
+`backing-video` element shares the IFrame API wrapper with `yt-audio`, but is
+owned by `Recording`; `practice-audio` still represents the shared transport.
+
+
 `local-recording.js` adds one `Recording` per version once its source is ready,
 including when live progress supplies that source. On secure pages with
 AudioWorklet support, `practice-audio` replaces the native players and YouTube
 iframe with a "Use as backing" button; it keeps the media-element interface
 (`paused`, `currentTime`, `play()`, `volume`, events) that score highlighting,
 click-a-bar and MuseScore polling use. The one transport lives in the arrange
-view mounted after `.flow`: a toolbar (transport, bar.beat counter, Undo,
+view below the track grid: a toolbar (transport, bar.beat counter, Undo,
 whole-song/follow-16-bars view, status line, ⋯ menu with export, import,
 latency and Clear), a bar ruler, a Backing lane and a Your drums lane, all
 canvases whose static layer is cached per view and redrawn with the playhead

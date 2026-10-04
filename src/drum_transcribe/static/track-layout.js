@@ -90,6 +90,7 @@ window.TrackLayout = (() => {
     grid.onclick = event => {
       const button = event.target.closest('[data-track]');
       if (!button) return;
+      const previousKey = shown;
       shown = button.dataset.track;
       const player = media(shown);
       const play = !!event.target.closest('.track-play');
@@ -98,7 +99,7 @@ window.TrackLayout = (() => {
         else player.owner.requestBacking(shown, play);
       }
       else if (player) {
-        const previous = [...flow.querySelectorAll(mediaSelector)].find(p => !p.paused);
+        const previous = [...flow.querySelectorAll(mediaSelector)].find(p => !p.paused) || media(previousKey);
         const position = previous?.currentTime ?? 0;
         if (previous && previous !== player) {
           previous.pause();

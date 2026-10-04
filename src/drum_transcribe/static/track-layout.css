@@ -54,7 +54,7 @@ svg.track-arrows { position: absolute; inset: 0; width: 100%; height: 100%;
   border: 0; background: none; color: var(--teal); font: inherit; cursor: pointer; }
 .track-play:disabled, .pad-play:disabled { opacity: .3; cursor: default; }
 .mlisten .pad-hit { width: calc(100% - 88px); }
-.mlisten .pad-play { position: absolute; right: 44px; top: 50%; transform: translateY(-50%); }
+.mlisten .pad-play { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 .backing-details { min-width: 0; }
 .backing-details summary { cursor: pointer; padding: 8px 0; }
 .backing-details .flow { margin: 0; }
@@ -65,5 +65,11 @@ backing-video { display: block; position: relative; width: min(100%, 640px); hei
   margin: 0 auto; border-radius: 0; background: #000; }
 backing-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
 .backing-media [hidden] { display: none !important; }
-html.mobile[data-mtab="listen"] .local-recording { display: block !important; }
 html.mobile .backing-details { display: none; }
+
+.mlisten .pad-i { right: 44px; }
+
+@container tracks (max-width: 22rem) {
+  .mlisten .mgrid { margin-inline: 8px; column-gap: 8px; }
+  .mlisten .pad-hit { padding-left: 6px; }
+}

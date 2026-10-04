@@ -42,7 +42,7 @@ html.mobile .gpu { margin: 14px 16px 0; font-size: 16px; }
 html.mobile:not([data-mtab="listen"]) :is(.mlisten, .gpu, [data-piece="err"]),
 html.mobile:not([data-mtab="score"]) .stabs,
 html.mobile:not([data-mtab="files"]) :is(.mfiles, .delver),
-html.mobile:not([data-mtab="record"]) .local-recording { display: none !important; }
+html.mobile:not([data-mtab="record"]):not([data-mtab="listen"]) .local-recording { display: none !important; }
 .mtabs { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; display: flex;
   padding: 0 6px env(safe-area-inset-bottom); background: var(--card);
   border-top: 1px solid var(--hairline); box-shadow: 0 -2px 14px rgba(35,32,25,.07); }
@@ -208,13 +208,13 @@ html.mobile .rec-menu > * { min-height: 48px; font-size: 16px; }
 html.mobile .rec-menu input { min-height: 40px; font-size: 16px; }
 /* each lane's controls above its waveform, both full width; bar numbers
    between the backing controls and the backing waveform */
-html.mobile .rec-grid { grid-template-columns: 1fr; }
+html.mobile .rec-grid { grid-template-columns: minmax(0, 1fr); }
 html.mobile .rec-head.ruler { display: none; }
 html.mobile .rec-grid > .rec-head:nth-child(3) { order: -1; }
 html.mobile .rec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
   padding: 10px 40px 10px 16px; border-right: 0; font-size: 16px; }
 html.mobile .rec-head > b { flex: 1 0 auto; }
-html.mobile .rec-head select { flex: 1; min-height: 44px; font-size: 16px; }
+html.mobile .rec-head select { flex: 1; min-width: 0; min-height: 44px; font-size: 16px; }
 html.mobile .rec-fader { flex-basis: 100%; }
 html.mobile .rec-fader input { height: 32px; }
 html.mobile .rec-t { width: 44px; height: 38px; font-size: 15px; }
