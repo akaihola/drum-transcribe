@@ -19,6 +19,8 @@ uv run drum-transcribe serve output --port 8765   # must run OUTSIDE the CC sand
 
 No test suite; verify by running the pipeline on `output/dancing-through-life/taustanauha/source.mp3`
 (all stages cached → seconds) and by driving the web UI with PinchTab.
+Downloads and `/files/` must never become pages of the site (stored XSS):
+`LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run python checks/files-sandbox.py`.
 The cloud GPU job logic has mocked checks:
 `LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run --with boto3 python checks/gpu-jobs.py`
 (the library path only inside the Claude Code sandbox, where numpy can't

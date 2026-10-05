@@ -37,6 +37,11 @@ provide background; their historical plans do not set task status.
 
 ## Completed / Accepted
 
+- [ ] [*] Stop links from planting web pages on the site (stored XSS): save
+      downloads as `fetched.bin`, send only real YouTube/Drive links to
+      yt-dlp/gdown, delete downloads after conversion, sandbox `/files/`.
+      MP3/AAC/Opus links keep their audio as it is (FLAC only for the rest).
+
 - [x] [10] Use compact tree and sideways player layouts
   - Depends on: [4]
   <!-- hai:{"updatedAt":"2026-10-04T21:50:32.789Z"} -->

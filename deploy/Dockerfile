@@ -1,6 +1,6 @@
 FROM docker.io/python:3.12-slim
 WORKDIR /app
-# ffmpeg: yt-dlp audio extraction + ingest._as_source video handling
+# ffmpeg: yt-dlp audio extraction + ingest._as_source (links' downloads, videos)
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./

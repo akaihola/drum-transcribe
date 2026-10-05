@@ -1617,7 +1617,20 @@ class AppHandler(SimpleHTTPRequestHandler):
         # revalidate (cheap 304s via Last-Modified) so a reload never renders
         # stale artifacts from the heuristic cache.
         self.send_header("Cache-Control", "no-cache")
+        try:  # do_GET's own test
+            files = urlparse(self.path).path.startswith("/files/")
+        except (AttributeError, ValueError):  # answering a garbled request
+            files = True
+        if files:
+            # A visitor's link or a rented GPU host can put any file here:
+            # never let the browser run one as a page of this site.
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Security-Policy", "sandbox; default-src 'none'")
         super().end_headers()
+
+    def translate_path(self, path: str) -> str:
+        """/files/<project>/… is <root>/<project>/…"""
+        return super().translate_path(path.removeprefix("/files"))
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -1664,7 +1677,6 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send(json.dumps(SEEK | {"boot": BOOT}).encode(),
                        "application/json")
         elif path.startswith("/files/"):
-            self.path = self.path[len("/files"):]
             self._send_file()
         else:
             self.send_error(404)

@@ -8,6 +8,16 @@ responses carry `Cache-Control: no-cache` (re-runs replace files in place;
 without it browsers heuristically cache and render stale scores), and
 `/files/**` supports byte ranges (Chromium won't seek audio otherwise).
 
+`/files/**` responses also carry `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: sandbox; default-src 'none'`. A visitor's link or
+a rented GPU host can put any file under the output root; a `.html` or
+`.svg` there would otherwise open as a page of this site, its script acting
+with the viewer's unlock cookie (delete versions, start paid GPU jobs).
+The sandbox has one visible cost: Chrome won't play an audio file opened
+directly in its own tab. The app never does that — its players embed the
+audio, and its file links are downloads. `checks/files-sandbox.py`
+covers both halves of this fix (names and headers).
+
 Browser-local drum recordings use IndexedDB and never enter server storage.
 Their transport, capture and export code is in explicitly served JavaScript
 modules under `src/drum_transcribe/static/`. See the local recording section
@@ -32,7 +42,7 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
 | `GET /static/<asset>` | explicit image and recording-module allowlist, with their content types |
-| `GET /files/**` | static from the output root |
+| `GET /files/**` | static from the output root, sandboxed (see above) |
 
 `scan_output` reports `drumless`, the URL of
 `stems/htdemucs/*/no_drums.ogg` (Opus; older results have only
@@ -91,14 +101,27 @@ it):
 
 ## Fetching a new version (ingest.py)
 
-Daemon thread per new version: fetch (yt-dlp for YouTube, gdown fuzzy for
-Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
-unknown containers) → run `python -m drum_transcribe.cli run` per variant
+Daemon thread per new version: fetch (by the link's host name: yt-dlp for
+YouTube, gdown for Drive share links, urllib otherwise) → `source.<ext>` → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`. A link-created
 version also keeps its link in `source-url.txt` (uploaded to the bucket in
 the cloud, like `created`); `scan_output` reports a YouTube video id from it
 as `youtube`.
+
+A link's download is never saved under a name the link or Drive gives it
+(`x.html` would be served back as a page): gdown and urllib save it as
+`fetched.bin`. yt-dlp names it after YouTube's format (`.webm`, `.m4a`), so
+it gets only links whose host is YouTube's — "youtube.com" anywhere else in
+a link once sent attacker pages to yt-dlp's generic fallback, which saved a
+page's `<audio src="x.svg">` as `fetched.svg`. Then ffmpeg takes out the
+first audio track: MP3, AAC and Opus are copied as they are into
+`source.mp3`, `.m4a` or `.ogg` (re-encoding them as FLAC made them 5–10×
+bigger, and the page loads the whole original before it plays); anything
+else becomes `source.flac` (lossless: the link may be a `.wav`). The
+download is deleted whether this worked or not. Video uploads go the same
+way; audio uploads and yt-dlp's `.mp3` keep their own ending as
+`source.<ext>`.
 
 `ingest.check_url` decides which links the fetchers may open at all —
 everything fetched is served back from `/files/…`, so a link is a read
@@ -119,8 +142,8 @@ primitive:
 `POST /api/create` calls it before creating anything, so a bad link is a 400
 with no project directory and no throttle marker spent. Not covered: DNS
 rebinding (the name is resolved once for the check, again by the fetcher),
-and hops yt-dlp or gdown follow on their own — both need a public host to
-start from.
+and hops yt-dlp or gdown follow on their own — they only get links to
+YouTube's and Drive's own servers.
 
 The new-version form's "process on a rented cloud GPU" checkbox appears
 only in the cloud web app (`jobs.enabled()`: the job-record key and the

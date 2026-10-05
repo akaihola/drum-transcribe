@@ -3,8 +3,8 @@ revision = 3
 requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "(python_full_version >= '3.12' and platform_machine != 'aarch64' and sys_platform == 'linux') or (python_full_version >= '3.12' and platform_python_implementation != 'CPython' and sys_platform == 'linux')",
-    "(python_full_version < '3.12' and platform_machine != 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.12' and platform_python_implementation != 'CPython' and sys_platform == 'linux')",
     "python_full_version >= '3.12' and platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux'",
+    "(python_full_version < '3.12' and platform_machine != 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.12' and platform_python_implementation != 'CPython' and sys_platform == 'linux')",
     "python_full_version < '3.12' and platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux'",
 ]
 supported-markers = [
@@ -534,7 +534,7 @@ requires-dist = [
     { name = "audio-separator", extras = ["cpu"], specifier = ">=0.30" },
     { name = "beat-this" },
     { name = "demucs", specifier = ">=4.1" },
-    { name = "gdown", specifier = ">=5" },
+    { name = "gdown", specifier = ">=6" },
     { name = "librosa", specifier = ">=0.10" },
     { name = "music21", specifier = ">=9.1" },
     { name = "numpy" },

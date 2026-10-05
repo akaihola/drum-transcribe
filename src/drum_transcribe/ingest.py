@@ -21,6 +21,9 @@ from urllib.parse import urlparse
 from . import gate
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
+# Lossy audio taken out of a link's download or a video as it is, under the
+# ending chosen here; re-encoding it as FLAC would make it 5-10x bigger.
+KEPT_CODECS = {"mp3": ".mp3", "aac": ".m4a", "opus": ".ogg"}
 VARIANTS = ("adtof", "mdx23c", "fused")
 RUNNING: set[Path] = set()  # version dirs with a job thread going (progress.py)
 FETCH_LIMIT = 15 * 60  # s for a recording's download, and again for its conversion
@@ -172,9 +175,21 @@ class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _on(url: str, *sites: str) -> bool:
+    """Whether the link's server is one of ``sites`` or under one of them
+    (``youtube.com`` merely in the query doesn't count)."""
+    host = urlparse(url).hostname or ""
+    return any(host == site or host.endswith(f".{site}") for site in sites)
+
+
 def _download(version_dir: Path, url: str) -> Path:
     check_url(url)
-    if "youtube.com" in url or "youtu.be" in url:
+    # Never the name the link (or Drive) gives: /files/… would serve a .html
+    # or .svg as a page of this site, with its script acting as the visitor.
+    # yt-dlp names its download after the format YouTube offers (.webm, .m4a),
+    # so it gets only links that really lead to YouTube.
+    fetched = version_dir / "fetched.bin"
+    if _on(url, "youtube.com", "youtu.be"):
         _log(version_dir, marker("downloading the recording with yt-dlp"))
         _log(version_dir, f"   {url}")
         with open(version_dir / "pipeline.log", "a") as logf:
@@ -185,19 +200,16 @@ def _download(version_dir: Path, url: str) -> Path:
                 stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
             )
         return next(version_dir.glob("fetched.*"))
-    if "drive.google.com" in url:
+    if _on(url, "drive.google.com"):
         _log(version_dir, marker("downloading the recording with gdown"))
         _log(version_dir, f"   {url}")
         import gdown
 
-        name = gdown.download(url=url, output=f"{version_dir}/", fuzzy=True, quiet=True)
-        if not name:
+        if not gdown.download(url=url, output=str(fetched), quiet=True):
             raise RuntimeError("Google Drive download failed (is the link public?)")
-        return Path(name)
+        return fetched
     _log(version_dir, marker("downloading the recording"))
     _log(version_dir, f"   {url}")
-    suffix = Path(url.split("?")[0]).suffix or ".bin"
-    fetched = version_dir / f"fetched{suffix}"
     opener = urllib.request.build_opener(_CheckedRedirect)
     give_up = time.monotonic() + FETCH_LIMIT
     with opener.open(url, timeout=60) as r, open(fetched, "wb") as f:
@@ -209,18 +221,30 @@ def _download(version_dir: Path, url: str) -> Path:
 
 
 def _as_source(version_dir: Path, fetched: Path) -> Path:
-    if fetched.suffix.lower() in AUDIO_EXTS:
+    """The recording as <version_dir>/source.<ext>; ``fetched`` is used up."""
+    if fetched.suffix.lower() in AUDIO_EXTS:  # an upload's, or yt-dlp's .mp3
         source = version_dir / f"source{fetched.suffix.lower()}"
         if fetched != source:
             fetched.rename(source)
         return source
 
-    # video or unknown container: extract/convert the audio track
+    # a video, or a link's fetched.bin: take out its (first) audio track
     _log(version_dir, marker(f"extracting audio from {fetched.name} with ffmpeg"))
-    source = version_dir / "source.m4a"
-    with open(version_dir / "pipeline.log", "a") as logf:
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(fetched), "-vn", "-ac", "2", str(source)],
-            stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
-        )
+    try:
+        codec = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+             "stream=codec_name", "-of", "csv=p=0", str(fetched)],
+            capture_output=True, text=True, timeout=60, check=False,  # ffmpeg says why
+        ).stdout.strip()
+        if codec in KEPT_CODECS:
+            source, how = version_dir / f"source{KEPT_CODECS[codec]}", ["-c:a", "copy"]
+        else:  # lossless: a link may well be a .wav
+            source, how = version_dir / "source.flac", ["-ac", "2"]
+        with open(version_dir / "pipeline.log", "a") as logf:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(fetched), "-map", "0:a:0", *how, str(source)],
+                stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
+            )
+    finally:
+        fetched.unlink()
     return source
