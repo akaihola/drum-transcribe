@@ -21,6 +21,9 @@ from urllib.parse import urlparse
 from . import gate
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff"}
+# Lossy audio taken out of a link's download or a video as it is, under the
+# ending chosen here; re-encoding it as FLAC would make it 5-10x bigger.
+KEPT_CODECS = {"mp3": ".mp3", "aac": ".m4a", "opus": ".ogg"}
 VARIANTS = ("adtof", "mdx23c", "fused")
 RUNNING: set[Path] = set()  # version dirs with a job thread going (progress.py)
 FETCH_LIMIT = 15 * 60  # s for a recording's download, and again for its conversion
@@ -225,13 +228,21 @@ def _as_source(version_dir: Path, fetched: Path) -> Path:
             fetched.rename(source)
         return source
 
-    # a video, or a link's fetched.bin: extract/convert the audio track
+    # a video, or a link's fetched.bin: take out its (first) audio track
     _log(version_dir, marker(f"extracting audio from {fetched.name} with ffmpeg"))
-    source = version_dir / "source.flac"  # lossless: a link may well be a .wav
     try:
+        codec = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+             "stream=codec_name", "-of", "csv=p=0", str(fetched)],
+            capture_output=True, text=True, timeout=60, check=False,  # ffmpeg says why
+        ).stdout.strip()
+        if codec in KEPT_CODECS:
+            source, how = version_dir / f"source{KEPT_CODECS[codec]}", ["-c:a", "copy"]
+        else:  # lossless: a link may well be a .wav
+            source, how = version_dir / "source.flac", ["-ac", "2"]
         with open(version_dir / "pipeline.log", "a") as logf:
             subprocess.run(
-                ["ffmpeg", "-y", "-i", str(fetched), "-vn", "-ac", "2", str(source)],
+                ["ffmpeg", "-y", "-i", str(fetched), "-map", "0:a:0", *how, str(source)],
                 stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
             )
     finally:
