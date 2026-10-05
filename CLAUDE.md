@@ -14,3 +14,9 @@ per-topic docs under docs/.
 - Results from different pipeline variants and different songs stay in
   separate directories: `output/<song>/<variant>/`.
 - Missing tools on this NixOS laptop: run via comma, e.g. `, mscore`.
+- Development happens in agent@gogo's clone. Run CPU-, disk- and
+  network-heavy testing and all deployment (pipeline runs, image builds and
+  pushes, cloud deploys, big downloads) from akaihola@atom's clone
+  `~/prg/drum-transcribe`, which has the models, results and build tools.
+  agent@gogo can't ssh to atom: hand those steps to a session on atom, with
+  the commits carried over by git bundle.
