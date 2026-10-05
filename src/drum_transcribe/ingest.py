@@ -172,12 +172,21 @@ class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _on(url: str, *sites: str) -> bool:
+    """Whether the link's server is one of ``sites`` or under one of them
+    (``youtube.com`` merely in the query doesn't count)."""
+    host = urlparse(url).hostname or ""
+    return any(host == site or host.endswith(f".{site}") for site in sites)
+
+
 def _download(version_dir: Path, url: str) -> Path:
     check_url(url)
     # Never the name the link (or Drive) gives: /files/… would serve a .html
     # or .svg as a page of this site, with its script acting as the visitor.
+    # yt-dlp names its download after the format YouTube offers (.webm, .m4a),
+    # so it gets only links that really lead to YouTube.
     fetched = version_dir / "fetched.bin"
-    if "youtube.com" in url or "youtu.be" in url:
+    if _on(url, "youtube.com", "youtu.be"):
         _log(version_dir, marker("downloading the recording with yt-dlp"))
         _log(version_dir, f"   {url}")
         with open(version_dir / "pipeline.log", "a") as logf:
@@ -188,7 +197,7 @@ def _download(version_dir: Path, url: str) -> Path:
                 stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
             )
         return next(version_dir.glob("fetched.*"))
-    if "drive.google.com" in url:
+    if _on(url, "drive.google.com"):
         _log(version_dir, marker("downloading the recording with gdown"))
         _log(version_dir, f"   {url}")
         import gdown
