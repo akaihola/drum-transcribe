@@ -1617,8 +1617,11 @@ class AppHandler(SimpleHTTPRequestHandler):
         # revalidate (cheap 304s via Last-Modified) so a reload never renders
         # stale artifacts from the heuristic cache.
         self.send_header("Cache-Control", "no-cache")
-        # (no path yet when answering a garbled request line)
-        if urlparse(getattr(self, "path", "")).path.startswith("/files/"):
+        try:  # do_GET's own test
+            files = urlparse(self.path).path.startswith("/files/")
+        except (AttributeError, ValueError):  # answering a garbled request
+            files = True
+        if files:
             # A visitor's link or a rented GPU host can put any file here:
             # never let the browser run one as a page of this site.
             self.send_header("X-Content-Type-Options", "nosniff")
