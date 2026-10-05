@@ -101,20 +101,27 @@ it):
 
 ## Fetching a new version (ingest.py)
 
-Daemon thread per new version: fetch (yt-dlp for YouTube, gdown for
-Drive share links, urllib otherwise) → `source.<ext>` → run `python -m drum_transcribe.cli run` per variant
+Daemon thread per new version: fetch (by the link's host name: yt-dlp for
+YouTube, gdown for Drive share links, urllib otherwise) → `source.<ext>` → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`. A link-created
 version also keeps its link in `source-url.txt` (uploaded to the bucket in
 the cloud, like `created`); `scan_output` reports a YouTube video id from it
 as `youtube`.
 
-A link's download is always saved as `fetched.bin`, never under the name
-the link or Drive gives it (`x.html` would be served back as a page), then
-ffmpeg converts it to `source.flac` (lossless: the link may be a `.wav`)
-and it is deleted, whether the conversion worked or not. Video uploads go
-the same way; audio uploads and yt-dlp's `.mp3` keep their own ending,
-which this code chose, as `source.<ext>`.
+A link's download is never saved under a name the link or Drive gives it
+(`x.html` would be served back as a page): gdown and urllib save it as
+`fetched.bin`. yt-dlp names it after YouTube's format (`.webm`, `.m4a`), so
+it gets only links whose host is YouTube's — "youtube.com" anywhere else in
+a link once sent attacker pages to yt-dlp's generic fallback, which saved a
+page's `<audio src="x.svg">` as `fetched.svg`. Then ffmpeg takes out the
+first audio track: MP3, AAC and Opus are copied as they are into
+`source.mp3`, `.m4a` or `.ogg` (re-encoding them as FLAC made them 5–10×
+bigger, and the page loads the whole original before it plays); anything
+else becomes `source.flac` (lossless: the link may be a `.wav`). The
+download is deleted whether this worked or not. Video uploads go the same
+way; audio uploads and yt-dlp's `.mp3` keep their own ending as
+`source.<ext>`.
 
 `ingest.check_url` decides which links the fetchers may open at all —
 everything fetched is served back from `/files/…`, so a link is a read
@@ -135,8 +142,8 @@ primitive:
 `POST /api/create` calls it before creating anything, so a bad link is a 400
 with no project directory and no throttle marker spent. Not covered: DNS
 rebinding (the name is resolved once for the check, again by the fetcher),
-and hops yt-dlp or gdown follow on their own — both need a public host to
-start from.
+and hops yt-dlp or gdown follow on their own — they only get links to
+YouTube's and Drive's own servers.
 
 The new-version form's "process on a rented cloud GPU" checkbox appears
 only in the cloud web app (`jobs.enabled()`: the job-record key and the
