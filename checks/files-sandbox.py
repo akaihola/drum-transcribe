@@ -1,12 +1,14 @@
 """Nothing fetched from a visitor's link may become a page of this site.
 
-Links that lead to a web page (or name a Drive file "x.html") must leave no
-file behind, and whatever does lie under the output root is served with
-headers that keep its scripts from running (stored XSS via /files/…).
+A link's download is saved under a name this code chooses, never one the
+link or Drive gives ("x.html"); links to web pages leave no file behind; and
+whatever does lie under the output root is served with headers that keep
+its scripts from running (stored XSS via /files/…).
 
     uv run python checks/files-sandbox.py
 """
 
+import http.client
 import os
 import subprocess
 import tempfile
@@ -17,12 +19,15 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 
+import gdown
+
 os.environ.pop("CREATE_PASSWORDS", None)  # the laptop's rules: local links are fine
 
 from drum_transcribe import ingest
 from drum_transcribe.serve import AppHandler
 
 PAGE = "<script>document.title = 'pwned'</script>"
+SVG = f'<svg xmlns="http://www.w3.org/2000/svg">{PAGE}</svg>'
 
 
 def serve(handler) -> str:
@@ -31,43 +36,52 @@ def serve(handler) -> str:
     return f"http://127.0.0.1:{httpd.server_port}"
 
 
-class Named(SimpleHTTPRequestHandler):
-    """A link server that names its downloads, as Drive does."""
+def drive(url: str, output: str, quiet: bool) -> str:
+    """gdown without the network: given a directory, Drive names the file."""
+    path = Path(output, "x.html") if output.endswith("/") else Path(output)
+    path.write_text(PAGE)
+    return str(path)
 
-    def end_headers(self):
-        self.send_header("Content-Disposition", 'attachment; filename="x.html"')
-        super().end_headers()
+
+def left(vdir: Path) -> list[str]:
+    return sorted(p.name for p in vdir.iterdir())
 
 
 tmp = Path(tempfile.mkdtemp())
 site, root = tmp / "site", tmp / "output"
 site.mkdir()
-(site / "evil.html").write_text(PAGE)
-subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=d=1",
-                str(site / "tone.wav")], check=True)
-links = serve(partial(Named, directory=str(site)))
+(site / "evil.html").write_text(f'{PAGE}<audio src="evil.svg"></audio>')
+(site / "evil.svg").write_text(SVG)
+for tone in ["tone.wav", "tone.mp3"]:
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=d=1",
+                    str(site / tone)], check=True)
+links = serve(partial(SimpleHTTPRequestHandler, directory=str(site)))
 
-for n, (url, ok) in enumerate([
-    (f"{links}/tone.wav", True),
-    (f"{links}/tone.wav?drive.google.com", True),  # via gdown
-    (f"{links}/evil.html", False),
-    (f"{links}/evil.html?drive.google.com", False),
-    (f"{links}/evil.html?youtube.com", False),  # via yt-dlp
+for n, (url, source) in enumerate([
+    ("/tone.wav", "source.flac"),
+    ("/tone.mp3", "source.mp3"),  # lossy audio is kept as it is
+    ("/evil.html", None),
+    ("/evil.html?youtube.com", None),  # not YouTube: no yt-dlp saving evil.svg
 ]):
     vdir = root / "song" / f"v{n}"
     vdir.mkdir(parents=True)
     try:
-        source = ingest._fetch(vdir, url, None)
+        got = ingest._fetch(vdir, links + url, None).name
     except Exception:  # noqa: BLE001 - which error does not matter here
-        source = None
-    left = sorted(p.name for p in vdir.iterdir())
-    want = ["pipeline.log", "source.flac"] if ok else ["pipeline.log"]
-    assert left == want and (source is not None) == ok, (url, left)
-    print(f"ok  {url.removeprefix(links)} leaves {left}")
+        got = None
+    want = sorted({"pipeline.log", source} - {None})
+    assert got == source and left(vdir) == want, (url, got, left(vdir))
+    print(f"ok  {url} leaves {want}")
+
+gdown.download = drive
+vdir = root / "song" / "drive"
+vdir.mkdir()
+ingest._download(vdir, "https://drive.google.com/file/d/x/view")
+assert left(vdir) == ["fetched.bin", "pipeline.log"], left(vdir)
+print("ok  Drive's x.html is saved as fetched.bin")
 
 vdir = root / "song" / "v0"
-for name, body in [("planted.html", PAGE), ("planted.svg",
-                   f'<svg xmlns="http://www.w3.org/2000/svg">{PAGE}</svg>')]:
+for name, body in [("planted.html", PAGE), ("planted.svg", SVG)]:
     (vdir / name).write_text(body)
 app = serve(partial(AppHandler, root=root))
 
@@ -96,3 +110,9 @@ for path, extra, status in [
 h = headers("/")
 assert h["status"] == 200 and "Content-Security-Policy" not in h, h
 print("ok  / (the app itself) is not sandboxed")
+
+conn = http.client.HTTPConnection(app.removeprefix("http://"))
+conn.putrequest("OPTIONS", "http://[x/", skip_host=True)  # urlparse rejects it
+conn.endheaders()
+assert conn.getresponse().status == 501
+print("ok  a garbled request still gets its error reply")
