@@ -37,6 +37,9 @@ provide background; their historical plans do not set task status.
 
 ## Completed / Accepted
 
+- [ ] [*] Stop links from planting web pages on the site (stored XSS): save every
+      download as `fetched.bin`, delete it after conversion, sandbox `/files/`.
+
 - [x] [10] Use compact tree and sideways player layouts
   - Depends on: [4]
   <!-- hai:{"updatedAt":"2026-10-04T21:50:32.789Z"} -->

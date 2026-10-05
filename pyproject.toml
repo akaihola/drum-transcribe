@@ -8,7 +8,7 @@ dependencies = [
     "audio-separator[cpu]>=0.30",
     "beat-this",
     "demucs>=4.1",
-    "gdown>=5",
+    "gdown>=6",
     "librosa>=0.10",
     "music21>=9.1",
     "numpy",

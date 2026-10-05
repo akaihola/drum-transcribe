@@ -8,6 +8,16 @@ responses carry `Cache-Control: no-cache` (re-runs replace files in place;
 without it browsers heuristically cache and render stale scores), and
 `/files/**` supports byte ranges (Chromium won't seek audio otherwise).
 
+`/files/**` responses also carry `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: sandbox; default-src 'none'`. A visitor's link or
+a rented GPU host can put any file under the output root; a `.html` or
+`.svg` there would otherwise open as a page of this site, its script acting
+with the viewer's unlock cookie (delete versions, start paid GPU jobs).
+The sandbox has one visible cost: Chrome won't play an audio file opened
+directly in its own tab. The app never does that — its players embed the
+audio, and its file links are downloads. `checks/files-sandbox.py`
+covers both halves of this fix (names and headers).
+
 Browser-local drum recordings use IndexedDB and never enter server storage.
 Their transport, capture and export code is in explicitly served JavaScript
 modules under `src/drum_transcribe/static/`. See the local recording section
@@ -32,7 +42,7 @@ below and [implementation results](local-recording-handoff.md#implementation-res
 | `GET /api/seek` | current `{seq, bar, playing}`; pages poll it every 1 s |
 | `GET /api/progress?project=` | per version: `progress.version_progress` (see Live progress); polled every 2 s while a job runs |
 | `GET /static/<asset>` | explicit image and recording-module allowlist, with their content types |
-| `GET /files/**` | static from the output root |
+| `GET /files/**` | static from the output root, sandboxed (see above) |
 
 `scan_output` reports `drumless`, the URL of
 `stems/htdemucs/*/no_drums.ogg` (Opus; older results have only
@@ -91,14 +101,20 @@ it):
 
 ## Fetching a new version (ingest.py)
 
-Daemon thread per new version: fetch (yt-dlp for YouTube, gdown fuzzy for
-Drive share links, urllib otherwise; ffmpeg -vn extracts audio from video or
-unknown containers) → run `python -m drum_transcribe.cli run` per variant
+Daemon thread per new version: fetch (yt-dlp for YouTube, gdown for
+Drive share links, urllib otherwise) → `source.<ext>` → run `python -m drum_transcribe.cli run` per variant
 (adtof first for fast feedback), everything appended to
 `<version>/pipeline.log`. Failures land in the log as `ERROR: …`. A link-created
 version also keeps its link in `source-url.txt` (uploaded to the bucket in
 the cloud, like `created`); `scan_output` reports a YouTube video id from it
 as `youtube`.
+
+A link's download is always saved as `fetched.bin`, never under the name
+the link or Drive gives it (`x.html` would be served back as a page), then
+ffmpeg converts it to `source.flac` (lossless: the link may be a `.wav`)
+and it is deleted, whether the conversion worked or not. Video uploads go
+the same way; audio uploads and yt-dlp's `.mp3` keep their own ending,
+which this code chose, as `source.<ext>`.
 
 `ingest.check_url` decides which links the fetchers may open at all —
 everything fetched is served back from `/files/…`, so a link is a read

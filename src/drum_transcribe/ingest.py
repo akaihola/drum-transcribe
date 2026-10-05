@@ -174,6 +174,9 @@ class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
 
 def _download(version_dir: Path, url: str) -> Path:
     check_url(url)
+    # Never the name the link (or Drive) gives: /files/… would serve a .html
+    # or .svg as a page of this site, with its script acting as the visitor.
+    fetched = version_dir / "fetched.bin"
     if "youtube.com" in url or "youtu.be" in url:
         _log(version_dir, marker("downloading the recording with yt-dlp"))
         _log(version_dir, f"   {url}")
@@ -190,14 +193,11 @@ def _download(version_dir: Path, url: str) -> Path:
         _log(version_dir, f"   {url}")
         import gdown
 
-        name = gdown.download(url=url, output=f"{version_dir}/", fuzzy=True, quiet=True)
-        if not name:
+        if not gdown.download(url=url, output=str(fetched), quiet=True):
             raise RuntimeError("Google Drive download failed (is the link public?)")
-        return Path(name)
+        return fetched
     _log(version_dir, marker("downloading the recording"))
     _log(version_dir, f"   {url}")
-    suffix = Path(url.split("?")[0]).suffix or ".bin"
-    fetched = version_dir / f"fetched{suffix}"
     opener = urllib.request.build_opener(_CheckedRedirect)
     give_up = time.monotonic() + FETCH_LIMIT
     with opener.open(url, timeout=60) as r, open(fetched, "wb") as f:
@@ -209,18 +209,22 @@ def _download(version_dir: Path, url: str) -> Path:
 
 
 def _as_source(version_dir: Path, fetched: Path) -> Path:
-    if fetched.suffix.lower() in AUDIO_EXTS:
+    """The recording as <version_dir>/source.<ext>; ``fetched`` is used up."""
+    if fetched.suffix.lower() in AUDIO_EXTS:  # an upload's, or yt-dlp's .mp3
         source = version_dir / f"source{fetched.suffix.lower()}"
         if fetched != source:
             fetched.rename(source)
         return source
 
-    # video or unknown container: extract/convert the audio track
+    # a video, or a link's fetched.bin: extract/convert the audio track
     _log(version_dir, marker(f"extracting audio from {fetched.name} with ffmpeg"))
-    source = version_dir / "source.m4a"
-    with open(version_dir / "pipeline.log", "a") as logf:
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(fetched), "-vn", "-ac", "2", str(source)],
-            stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
-        )
+    source = version_dir / "source.flac"  # lossless: a link may well be a .wav
+    try:
+        with open(version_dir / "pipeline.log", "a") as logf:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(fetched), "-vn", "-ac", "2", str(source)],
+                stdout=logf, stderr=logf, check=True, timeout=FETCH_LIMIT,
+            )
+    finally:
+        fetched.unlink()
     return source
