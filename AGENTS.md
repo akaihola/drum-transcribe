@@ -2,12 +2,27 @@
 
 Forensic drum transcription: recording in → drum sheet music + review web app.
 Working, deployed on this laptop (`atom`), all results committed to `output/`
-conventions described below. Read [CLAUDE.md](CLAUDE.md) for binding project
-rules (non-developer user, Honey/minimal style, web-first interaction,
-frequent commits).
+conventions described below. The project rules below are binding.
 
 Issues are tracked in [TASKS.md](TASKS.md). Follow its rules for scheduling,
 progress, completion and user acceptance.
+
+## Project rules
+
+- The user is a musician, not a software developer. Keep all documentation
+  (especially README.md) up to date and understandable without programming
+  knowledge — explain what each output (e.g. the sonification) *is*.
+- Follow the Honey skill: minimum code that needs to exist, clean and minimal
+  architecture, easy to maintain. No speculative features.
+- Any step where the user listens, looks, or corrects results must be a web
+  server bound to 0.0.0.0, reachable from other machines.
+- Commit frequently, in small logical parts.
+- Results from different pipeline variants and different songs stay in
+  separate directories: `output/<song>/<variant>/`.
+- Missing tools on this NixOS laptop: run via comma, e.g. `, mscore`.
+- Develop in agent@gogo's clone. Heavy testing and all deployment run in
+  akaihola@atom's clone `~/prg/drum-transcribe` (a global rule), the only
+  clone with the models, results and Python environment.
 
 ## Commands
 

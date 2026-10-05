@@ -13,7 +13,7 @@ Continue in `/home/akaihola/prg/drum-transcribe-local-recording`, on branch
 requirements as `ab29343`. The original checkout at
 `/home/akaihola/prg/drum-transcribe` is clean. Recording code is now in `src/drum_transcribe/static/recording-*.js` and
 `local-recording.js`, integrated through `serve.py`.
-Read `AGENTS.md`, `CLAUDE.md`, `docs/webapp.md`, `docs/style-guide.md`, and
+Read `AGENTS.md`, `docs/webapp.md`, `docs/style-guide.md`, and
 `docs/operations.md` before editing. Use Bash for commands, keep `SHELL` set to
 Bash, and commit in small logical parts.
 

@@ -8,7 +8,7 @@ rentals. The design below was reviewed and approved on 2026-10-02; the
 reuse the worker already in the image, keep one rental coordinator, and
 make crash recovery explicit. Implement in the order below, in small commits.
 
-Read first: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md),
+Read first: [AGENTS.md](../AGENTS.md),
 [gpu-workers.md](gpu-workers.md), [operations.md](operations.md) (section
 "Cloud test deployment"), [webapp.md](webapp.md) (section "Fetching a new version"),
 the research behind this doc,
