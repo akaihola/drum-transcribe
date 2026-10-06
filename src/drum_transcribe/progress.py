@@ -17,7 +17,6 @@ import subprocess
 import time
 from datetime import datetime
 from functools import lru_cache
-from itertools import chain
 from pathlib import Path
 
 from .ingest import VARIANTS
@@ -82,8 +81,9 @@ IMAGE_BITS = 8e9 * 8  # the GPU image, compressed
 def playback_stem(vdir: Path, name: str) -> Path | None:
     """A Demucs stem as the page plays it: the Opus copy, or the FLAC in
     results made before Opus copies existed."""
-    return next(chain(vdir.glob(f"stems/htdemucs/*/{name}.ogg"),
-                      vdir.glob(f"stems/htdemucs/*/{name}.flac")), None)
+    stem = vdir / "stems" / "htdemucs" / "source" / name
+    return next((p for p in (stem.with_suffix(".ogg"), stem.with_suffix(".flac"))
+                 if p.exists()), None)
 
 
 def version_progress(vdir: Path, running: bool, rec: dict | None = None) -> dict:

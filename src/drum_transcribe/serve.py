@@ -1493,6 +1493,11 @@ document.addEventListener("DOMContentLoaded", () => {
 """
 
 
+# a name slugify makes; the pages put names into HTML as they are, so no
+# other name under the output root may reach them
+NAME = re.compile(r"[a-z0-9-]+")
+
+
 def slugify(text: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     if not slug:
@@ -1526,19 +1531,21 @@ def youtube_id(version_dir: Path) -> str | None:
 def scan_output(root: Path) -> dict:
     """Index of projects -> versions -> pipeline variants, from the file tree."""
     projects = []
-    for project_dir in sorted(p for p in root.iterdir() if p.is_dir()):
-        if project_dir.name.startswith("."):
-            continue
+    for project_dir in sorted(p for p in root.iterdir()
+                              if p.is_dir() and NAME.fullmatch(p.name)):
         versions = []
-        for vdir in sorted(p for p in project_dir.iterdir() if p.is_dir()):
+        for vdir in sorted(p for p in project_dir.iterdir()
+                           if p.is_dir() and NAME.fullmatch(p.name)):
             rel = f"/files/{project_dir.name}/{vdir.name}"
             rec = jobs.known(project_dir.name, vdir.name)
-            sources = sorted(vdir.glob("source.*"))
+            sources = sorted(p for p in vdir.glob("source.*")
+                             if p.stem == "source" and p.suffix in AUDIO_EXTS)
             drums = playback_stem(vdir, "drums")
             drumless = playback_stem(vdir, "no_drums")
             log = vdir / "pipeline.log"
             variants = []
-            for variant_dir in sorted(p for p in vdir.iterdir() if p.is_dir()):
+            for variant_dir in sorted(p for p in vdir.iterdir()
+                                      if p.is_dir() and NAME.fullmatch(p.name)):
                 try:  # missing, or cut short by a crash: not a result yet
                     events = json.loads((variant_dir / "events.json").read_text())["events"]
                 except (OSError, ValueError, KeyError):
@@ -1666,7 +1673,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         elif path == "/api/progress":
             project = parse_qs(urlparse(self.path).query).get("project", [""])[0]
             pdir = self.root / project
-            if not (re.fullmatch(r"[a-z0-9-]+", project) and pdir.is_dir()):
+            if not (NAME.fullmatch(project) and pdir.is_dir()):
                 self.send_error(404)
                 return
             self._send(json.dumps({
@@ -1783,7 +1790,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def _existing_dir(self, *parts: str) -> Path:
         """output/<project>/<version>[/<variant>], refusing anything else."""
-        if not all(re.fullmatch(r"[a-z0-9-]+", p) for p in parts):
+        if not all(NAME.fullmatch(p) for p in parts):
             raise ValueError("bad path component")
         found = self.root.joinpath(*parts)
         if not found.is_dir():

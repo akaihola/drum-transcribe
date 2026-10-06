@@ -36,6 +36,9 @@ No test suite; verify by running the pipeline on `output/dancing-through-life/ta
 (all stages cached → seconds) and by driving the web UI with PinchTab.
 Downloads and `/files/` must never become pages of the site (stored XSS):
 `LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run python checks/files-sandbox.py`.
+Names the app didn't make (project, version, variant, source, stem dirs)
+must stay off the pages, checked in Chromium:
+`uv run --with "$(grep -E '^playwright[=<>~!]' "$UV_CONSTRAINT")" python checks/hostile-names.py`.
 The cloud GPU job logic has mocked checks:
 `LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run --with boto3 python checks/gpu-jobs.py`
 (the library path only inside the Claude Code sandbox, where numpy can't
