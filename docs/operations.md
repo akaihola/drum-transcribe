@@ -182,6 +182,9 @@ viewed from anywhere without the laptop being on:
   (Loki API: `curl -G -H "Authorization: Bearer $SECRET_KEY"
   https://4b1f9092-5364-45e2-9395-596638758a27.logs.cockpit.fr-par.scw.cloud/loki/api/v1/query_range
   --data-urlencode 'query={resource_type="serverless_container"}'`).
+  That query also returns the project's other container: each line is
+  JSON, so keep those whose `resource_instance` starts with
+  `drumtranscribe1eb07827-webapp`.
   New results appear after the next cold start (or a `redeploy`) — no image
   rebuild needed for data.
 - How it's built (code changes only): `deploy/Dockerfile` — a slim Python
