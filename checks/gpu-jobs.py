@@ -23,6 +23,7 @@ import types
 from functools import partial
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qsl, urlparse
 
 from botocore.exceptions import ClientError  # ty: ignore[unresolved-import]
 
@@ -57,15 +58,15 @@ class S3:
 
     def __init__(self):
         self.objs: dict[tuple[str, str], bytes] = {}
-        self.fail_puts = 0
+        self.fail_puts: dict[str, int] = {}  # bucket -> puts that fail next
 
     @staticmethod
     def etag(body: bytes) -> str:
         return f'"{hashlib.md5(body).hexdigest()}"'
 
     def put_object(self, Bucket, Key, Body, IfMatch=None, IfNoneMatch=None, **_):
-        if self.fail_puts:
-            self.fail_puts -= 1
+        if self.fail_puts.get(Bucket):
+            self.fail_puts[Bucket] -= 1
             raise ClientError({"Error": {"Code": "InternalError"}}, "PutObject")
         cur = self.objs.get((Bucket, Key))
         if (IfNoneMatch == "*" and cur is not None) or (
@@ -101,6 +102,10 @@ class S3:
         if (Bucket, Key) not in self.objs:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
         Path(path).write_bytes(self.objs[Bucket, Key])
+
+    @staticmethod
+    def generate_presigned_url(op, Params, ExpiresIn):
+        return f"https://s3.test/{Params['Bucket']}/{Params['Key']}?op={op}&expires={ExpiresIn}"
 
     def keys(self, bucket, prefix=""):
         return [k for b, k in self.objs if b == bucket and k.startswith(prefix)]
@@ -279,6 +284,39 @@ def check_one_rental_per_job():
     assert len(w2.vast.created) == 1
 
 
+def check_hosts_hold_links_not_the_key():
+    """A host may fetch its recording and earlier results, and upload its
+    own version's files under the expected names, until soon after its
+    deadline; nothing else: no key, no other job, no created marker."""
+    w = World()
+    w.submit("v1")
+    w.submit("v2")
+    w.tick()
+    assert len(w.vast.created) == 2
+    for _, payload in w.vast.created:
+        env = payload["env"]
+        assert os.environ["S3_SECRET_KEY"] not in env.values() and "S3_ACCESS_KEY" not in env
+        rec = w.rec(env["VERSION"])
+        a, prefix = attempt(rec), f"{SONG}/{env['VERSION']}/"
+        lines = [line.split() for line in w.s3.objs[
+            "results", f"sources/{rec['job']}/{a['claim']}.links"].decode().splitlines()]
+        allowed = {*coordinator.SHARED, f"workers/{a['claim']}.log",
+                   *(f"{v}/{f}" for v in rec["variants"] for f in coordinator.RESULTS)}
+        for method, path, link in lines:
+            u = urlparse(link)
+            q = dict(parse_qsl(u.query))
+            key = u.path.removeprefix("/results/")
+            assert q["op"] == f"{method.lower()}_object", link
+            assert int(q["expires"]) <= coordinator.ATTEMPT + 600
+            if method == "PUT":
+                assert key == prefix + path and path in allowed, link
+            else:
+                assert key in (prefix + path, f"sources/{rec['job']}/{path}"), link
+        granted = {(method, path) for method, path, _ in lines}
+        assert ("GET", "source.mp3") in granted and ("PUT", "adtof/done") in granted
+        assert not any(path.endswith("created") for _, path in granted)
+
+
 def check_failed_write_rents_nothing():
     w = World()
     w.submit()
@@ -286,9 +324,10 @@ def check_failed_write_rents_nothing():
     w.tick(passes=2)  # recording published, nothing on offer
     assert "no suitable" in w.rec()["status"].lower() or "price" in w.rec()["status"].lower()
     w.vast.offer_list = offers
-    w.s3.fail_puts = 1  # the claim can't be saved
-    w.tick()
-    assert not w.vast.created and not w.rec()["attempts"]
+    for bucket in ("results", jobs.BUCKET):  # the host's links, then the claim
+        w.s3.fail_puts = {bucket: 1}
+        w.tick()
+        assert not w.vast.created and not w.rec()["attempts"], bucket
     w.tick()
     assert len(w.vast.created) == 1
 

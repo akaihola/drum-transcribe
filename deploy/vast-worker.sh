@@ -7,38 +7,42 @@
 # every step is repeatable, and the deadline is absolute, so a resume
 # doesn't extend it.
 #
+# The host holds no bucket key: each fetch and upload uses a presigned
+# link from the rental's link list, which names every file it may touch.
+#
 # Env, set at creation:
-#   S3_ACCESS_KEY, S3_SECRET_KEY  worker key for the results bucket
-#   SONG, VERSION, VARIANTS       results go to <SONG>/<VERSION>/ in the bucket
+#   LINKS                         link to the link list: "<GET|PUT> <path> <link>"
+#                                 lines, paths relative to <SONG>/<VERSION>/
+#   SONG, VERSION, VARIANTS       the song version and the variants to make
 #   GENERATION                    written into <variant>/done once a variant is up
 #   RAW_BARS                      1 = keep the beat tracker's barlines as heard
 #   CLAIM                         attempt id; this run's log is workers/<CLAIM>.log
-#   SOURCE                        bucket prefix where the one source.<ext> appears
 #   DEADLINE                      unix time by which this attempt must be over
 # Injected by Vast: CONTAINER_ID, CONTAINER_API_KEY (can delete this instance).
 set -uo pipefail
 cd /app   # .cache/ and .models/ resolve relative to CWD
 export TQDM_DISABLE=1  # progress bars would bury the log
 
-S3_BUCKET=${S3_BUCKET:-drum-transcribe-results}
-# the worker key may touch objects only, so rclone must not check the bucket;
-# contimeout/timeout catch dead connections, --max-duration slow ones
-export RCLONE_CONFIG_S3_TYPE=s3 RCLONE_CONFIG_S3_PROVIDER=Scaleway \
-    RCLONE_CONFIG_S3_ENDPOINT=${S3_ENDPOINT:-https://s3.fr-par.scw.cloud} \
-    RCLONE_CONFIG_S3_REGION=fr-par \
-    RCLONE_CONFIG_S3_ACCESS_KEY_ID=$S3_ACCESS_KEY \
-    RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=$S3_SECRET_KEY \
-    RCLONE_S3_NO_CHECK_BUCKET=true RCLONE_CONTIMEOUT=10s RCLONE_TIMEOUT=30s \
-    RCLONE_CONFIG=/tmp/rclone.conf  # all config is above; an empty file stops a NOTICE per call
-touch /tmp/rclone.conf
-remote="s3:$S3_BUCKET/$SONG/$VERSION"
 dest="output/$SONG/$VERSION"
 LOG=/tmp/worker.log
+links=/tmp/links
 stage() { echo "== $* == $(date -u +%FT%TZ)"; }
-push_log() { rclone copyto --max-duration 20s "$LOG" "$remote/workers/$CLAIM.log" 2>/dev/null; }
+link() { awk -v m="$1" -v p="$2" '$1 == m && $2 == p { print $3 }' "$links" 2>/dev/null; }
+# connect and idle timeouts on every transfer; callers add --max-time for slow ones
+fetch() { curl -sf --connect-timeout 10 --speed-limit 1 --speed-time 30 "$@"; }
+push_log() {  # a copy: the log grows meanwhile
+    cp "$LOG" "$LOG.$BASHPID"
+    fetch --max-time 20 -T "$LOG.$BASHPID" "$(link PUT "workers/$CLAIM.log")" >/dev/null 2>&1
+    rm -f "$LOG.$BASHPID"
+}
 
 if [ "${1:-}" != work ]; then
     exec >>"$LOG" 2>&1
+    # the web app publishes the list before it rents the host
+    for _ in 1 2 3; do
+        fetch --max-time 30 -o "$links.part" "$LINKS" && mv "$links.part" "$links" && break
+        sleep 10
+    done
     (while sleep 60; do push_log; done) &
     pusher=$!
     left=$(( DEADLINE - $(date +%s) ))
@@ -64,6 +68,7 @@ fi
 
 # ---- the part bounded by DEADLINE ----
 set -e
+[ -s "$links" ] || { echo "could not fetch the link list"; exit 5; }
 stage "checking the GPU"
 # a host can look fine yet have a driver too old for the image's CUDA;
 # torch then silently runs on the CPU at GPU prices
@@ -71,48 +76,56 @@ stage "checking the GPU"
     || { echo "GPU unusable on this host (driver?)"; exit 3; }
 
 stage "waiting for the recording"
-until line=$(rclone lsf --format sp --include 'source.*' "s3:$S3_BUCKET/$SOURCE" 2>/dev/null | head -1) \
-        && [ -n "$line" ]; do
-    sleep 10
-done
-size=${line%%;*} name=${line#*;}
+# the web app may still be fetching it; it appears under one of these names
+recording() {
+    for n in $(awk '$1 == "GET" && $2 ~ /^source\./ { print $2 }' "$links"); do
+        fetch --max-time 20 -r 0-0 -o /dev/null "$(link GET "$n")" && { echo "$n"; return; }
+    done
+    return 1
+}
+until name=$(recording); do sleep 10; done
 mkdir -p "$dest"
 src="$dest/$name"
 
 stage "fetching the recording"
-# The timed download is the bucket speed test: a host whose route to the
-# bucket crawls (2-12 kB/s on 2026-10-01) is given up before any GPU work.
-if [ "$(stat -c %s "$src" 2>/dev/null)" != "$size" ]; then
-    t0=$(date +%s)
-    rclone copyto --max-duration "$(( 20 + size / 500000 ))s" "s3:$S3_BUCKET/$SOURCE$name" "$src.part" \
-        && [ "$(stat -c %s "$src.part")" = "$size" ] \
-        || { echo "bucket too slow from this host"; exit 4; }
+# The download is the bucket speed test: a host whose route to the bucket
+# crawls (2-12 kB/s on 2026-10-01) is given up before any GPU work.
+if [ ! -f "$src" ]; then
+    speed=$(fetch --speed-limit 200000 --speed-time 20 --max-time 600 -w '%{speed_download}' \
+        -o "$src.part" "$(link GET "$name")") || { echo "bucket too slow from this host"; exit 4; }
     mv "$src.part" "$src"
-    echo "   bucket speed $(( size / 1000 / ($(date +%s) - t0 + 1) )) kB/s"
+    echo "   bucket speed $(( ${speed%.*} / 1000 )) kB/s"
 fi
 
 stage "restoring earlier results"
 # a replacement host carries on from the beat grid and the hits found before;
 # unreadable copies count as missing in the pipeline itself
-rclone copy --max-duration 120s "$remote" "$dest" \
-    --include "/beats_raw.json" --include "/*/onsets.json" || echo "   (restore failed, recomputing)"
+for path in beats_raw.json $(printf '%s/onsets.json ' $VARIANTS); do
+    if fetch --max-time 60 --create-dirs -o "$dest/$path.part" "$(link GET "$path")"; then
+        mv "$dest/$path.part" "$dest/$path"
+    fi
+done
 if [ "$RAW_BARS" = 1 ]; then touch "$dest/keep-raw-bars"; else rm -f "$dest/keep-raw-bars"; fi
 
 for variant in $VARIANTS; do
-    if [ "$(rclone cat --max-duration 20s "$remote/$variant/done" 2>/dev/null)" = "$GENERATION" ]; then
+    if [ "$(fetch --max-time 20 "$(link GET "$variant/done")")" = "$GENERATION" ]; then
         echo "   $variant: already done"
         continue
     fi
     /venv/main/bin/drum-transcribe run "$src" --variant "$variant" -o "$dest"
     stage "uploading $variant"
-    # The shared files (recording, beat grid, Opus stems) go with every
-    # variant; rclone skips what is already there. The FLACs and the kit
-    # stems stay on this host. Never overwrite the web app's own files.
-    rclone copy --max-duration 600s "$dest" "$remote" \
-        --filter "- /keep-raw-bars" --filter "- done" --filter "- feedback.json" \
-        --filter "- *.part" --filter "+ /source.*" --filter "- *.flac" \
-        --filter "- /stems/mdx23c/**"
+    # Each listed file that is here and changed since it went up: the
+    # shared ones (beat grid, Opus stems) go with the first variant.
+    while read -r method path url; do
+        f="$dest/$path"
+        [ "$method" = PUT ] && [ "$f" -nt "$f.sent" ] || continue
+        case $path in *.ogg) type=audio/ogg ;; *) type=application/octet-stream ;; esac
+        fetch --max-time 600 -H "Content-Type: $type" -T "$f" "$url" \
+            || { echo "uploading $path failed"; exit 6; }
+        touch "$f.sent"
+    done < "$links"
     # last, so the marker means a complete upload of this generation
-    echo "$GENERATION" | rclone rcat --max-duration 30s "$remote/$variant/done"
+    fetch --max-time 30 -X PUT -H "Content-Type: text/plain" --data-binary "$GENERATION" \
+        "$(link PUT "$variant/done")"
 done
 stage "all variants uploaded"

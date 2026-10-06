@@ -25,7 +25,6 @@ before increasing scale or allowing overlapping deployments.
 
 from __future__ import annotations
 
-import os
 import random
 import re
 import threading
@@ -36,7 +35,7 @@ from pathlib import Path
 from . import gate, ingest, jobs, vast
 from .ingest import AUDIO_EXTS, marker
 
-IMAGE = "ghcr.io/akaihola/drum-transcribe-gpu:2026-10-03"
+IMAGE = "ghcr.io/akaihola/drum-transcribe-gpu:2026-10-06"
 LABEL = "drum-transcribe/"  # every rental is <LABEL><job>/<claim>; others aren't ours
 TRIES = 5                   # rentals per generation: 1-4 bid, the 5th at a fixed price
 DAILY = 30                  # rentals per UTC day, all songs together
@@ -68,8 +67,14 @@ _preparing: dict[str, threading.Thread] = {}  # job id -> thread fetching its re
 _prep_failed: dict[str, str] = {}     # job id -> why its recording couldn't be had
 _seen: dict[str, str] = {}            # results-bucket key -> etag already in output/
 _pushed: dict[str, float] = {}        # job id -> mtime of its log last saved
-# kept by the web app itself; a worker must not overwrite them
+# kept by the web app itself; never fetched back from the bucket
 LOCAL = {"created", "source-url.txt", "keep-raw-bars", "feedback.json"}
+# all a worker may upload, under <song>/<version>/: the shared files and
+# each variant's (the recording, the web app copies there itself)
+SHARED = ("beats_raw.json", "beats.json",
+          "stems/htdemucs/source/drums.ogg", "stems/htdemucs/source/no_drums.ogg")
+RESULTS = ("onsets.json", "events.json", "audition.mid", "sonification.ogg",
+           "score.musicxml", "score.mscz", "mscz-problems.txt", "done")
 
 
 def start(root: Path) -> None:
@@ -413,6 +418,7 @@ class _Job:
              "deadline": now + ATTEMPT, "create": "claimed", "instance": None,
              **{k: offer[k] for k in ("machine_id", "host_id", "public_ipaddr")},
              "offer": offer["id"], "price": offer["hourly"]}
+        payload = self.payload(a, offer)  # publishes its links: a failed write rents nothing
         rec["attempts"].append(a)
         rec["status"] = ""
         self.save()  # the claim; no rental without it
@@ -420,7 +426,7 @@ class _Job:
         self.log(f"   offer {offer['id']} in {offer.get('geolocation')}, "
                  f"${offer['hourly']:.3f}/h, host downloads at {int(offer['inet_down'])} Mbit/s")
         try:
-            a["instance"] = vast.create(offer["id"], self.payload(a, offer))
+            a["instance"] = vast.create(offer["id"], payload)
         except vast.Rejected as e:
             a["create"], a["closed"], a["outcome"] = "rejected", time.time(), f"offer refused: {e}"
             self.save()
@@ -438,15 +444,39 @@ class _Job:
 
     def payload(self, a: dict, offer: dict) -> dict:
         rec = self.rec
-        env = {"S3_ACCESS_KEY": os.environ["S3_ACCESS_KEY"],
-               "S3_SECRET_KEY": os.environ["S3_SECRET_KEY"],
-               "SONG": rec["song"], "VERSION": rec["version"],
+        env = {"LINKS": self.links(a), "SONG": rec["song"], "VERSION": rec["version"],
                "VARIANTS": " ".join(rec["variants"]), "GENERATION": str(rec["generation"]),
                "RAW_BARS": "1" if rec["raw_bars"] else "0", "CLAIM": a["claim"],
-               "SOURCE": f"sources/{rec['job']}/", "DEADLINE": str(int(a["deadline"]))}
+               "DEADLINE": str(int(a["deadline"]))}
         return {"client_id": "me", "image": IMAGE, "disk": 40, "label": a["label"],
                 "env": env, "onstart": "bash /app/deploy/vast-worker.sh", "runtype": "ssh",
                 "price": offer.get("bid"), "cancel_unavail": True}
+
+    def links(self, a: dict) -> str:
+        """All the rented host may do in the bucket, as presigned links that
+        expire soon after its deadline: fetch the recording (under whichever
+        audio ending it gets) and earlier results; upload this version's files
+        under the names in SHARED and RESULTS, and its own log. The host holds no key, so it
+        can touch nothing else. Published as one list, too long for the
+        instance's env; returns the link to that list."""
+        rec, (s3, bucket) = self.rec, gate.results_bucket()
+        prefix = f"{rec['song']}/{rec['version']}/"
+
+        def link(method: str, key: str) -> str:  # the last log upload follows the deadline
+            return s3.generate_presigned_url(f"{method.lower()}_object", ExpiresIn=ATTEMPT + 600,
+                                             Params={"Bucket": bucket, "Key": key})
+
+        each = [f"{v}/{f}" for v in rec["variants"] for f in RESULTS]
+        grants = ([("GET", f"source{e}", f"sources/{rec['job']}/source{e}")
+                   for e in sorted(AUDIO_EXTS)]
+                  + [("GET", p, prefix + p) for p in ("beats_raw.json", *(
+                      p for p in each if p.endswith(("/onsets.json", "/done"))))]
+                  + [("PUT", p, prefix + p)
+                     for p in (*SHARED, *each, f"workers/{a['claim']}.log")])
+        key = f"sources/{rec['job']}/{a['claim']}.links"
+        s3.put_object(Bucket=bucket, Key=key, Body="".join(
+            f"{m} {p} {link(m, k)}\n" for m, p, k in grants).encode())
+        return link("GET", key)
 
 
 def _prepare(vdir: Path, rec: dict) -> None:

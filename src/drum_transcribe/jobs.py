@@ -1,7 +1,7 @@
 """Trusted state of cloud GPU jobs: one record per version, in its own bucket.
 
-Every rented host holds the results bucket's key, so nothing there can be
-trusted. The `drum-transcribe-jobs` bucket admits only the web app's own
+Rented hosts write results into the results bucket, so nothing there can
+be trusted. The `drum-transcribe-jobs` bucket admits only the web app's own
 key (JOBS_ACCESS_KEY/JOBS_SECRET_KEY) and the owner (its bucket policy).
 Records are written with conditional PUTs: of two writers only one wins,
 and a write that fails means the caller must act on nothing.

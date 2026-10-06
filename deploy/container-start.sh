@@ -1,8 +1,8 @@
 #!/bin/sh
 # Cloud webapp container entrypoint: materialize credentials from env,
 # sync the bucket, start the web server. Secret env vars on the container:
-#   S3_ACCESS_KEY / S3_SECRET_KEY      worker bucket key (sync, presigning,
-#                                      and handed to each rented GPU host)
+#   S3_ACCESS_KEY / S3_SECRET_KEY      worker bucket key (sync, presigning;
+#                                      rented GPU hosts get only links)
 #   JOBS_ACCESS_KEY / JOBS_SECRET_KEY  the web app's own key: the only one
 #                                      the job-record bucket admits
 #   VAST_API_KEY                       Vast.ai API key; with the jobs key,
