@@ -25,9 +25,10 @@ Only the cloud web app rents (since 2026-10-03): a song is submitted
 through its form with "process on a rented cloud GPU", and the laptop
 pulls finished results with `rclone sync`. Local `output/` stays
 canonical (git-committed, served by the laptop's review web app). The
-bucket is transport; GPU hosts never see the repo, git, or main
-credentials. How the web app keeps a job going through closed pages,
-crashed hosts and container restarts:
+bucket is transport; GPU hosts never see the repo, git, or any
+credentials, only links to their own song's files (§3). How the web app
+keeps a job going through closed pages, crashed hosts and container
+restarts:
 [gpu-resilience-handoff.md](gpu-resilience-handoff.md).
 
 ## 1. The image
@@ -108,29 +109,30 @@ made atom's slow uplink acceptable here.
 instance's onstart command (`bash /app/deploy/vast-worker.sh`); no ssh.
 The web app passes everything in the instance's env: `SONG`, `VERSION`,
 `VARIANTS`, `GENERATION`, `RAW_BARS`, `CLAIM` (the rental's id),
-`SOURCE` (the bucket prefix `sources/<job>/` where the recording
-appears), `DEADLINE` (unix time) and the worker S3 key. In order:
+`DEADLINE` (unix time) and `LINKS`, the link to the rental's list of
+bucket links (§3); the host gets no bucket key. In order:
 
 1. checks that torch sees the GPU (a host whose driver can't run the
    image's CUDA would otherwise compute on the CPU at GPU prices);
-2. waits for `sources/<job>/source.<ext>` (the web app may still be
-   fetching it), then downloads it within `20 s + size / 500 kB/s`. That is the
-   bucket speed test: a host whose route to Scaleway crawls (2–12 kB/s
-   on 2026-10-01) gives up before any GPU work;
+2. waits for `source.<ext>` to appear behind one of its links (the web
+   app may still be fetching it), then downloads it, giving up if it
+   runs below 200 kB/s for 20 s. That is the bucket speed test: a host
+   whose route to Scaleway crawls (2–12 kB/s on 2026-10-01) gives up
+   before any GPU work;
 3. restores `beats_raw.json` and any `<variant>/onsets.json` from an
    earlier host, sets or clears `keep-raw-bars`;
 4. per variant, unless `<variant>/done` already holds this generation:
-   runs the pipeline, uploads the version (the recording, beat grid, the
-   Opus copies of the Demucs stems and the variant's files, never the
-   FLACs, the MDX23C kit stems, done markers, `feedback.json` or the
-   raw-bar flag), then writes `<variant>/done` with the generation;
+   runs the pipeline, uploads every file on its list that is new or
+   changed (the beat grids, the Opus copies of the Demucs stems and the
+   variant's files; nothing else has a link), then writes
+   `<variant>/done` with the generation;
 5. on success, failure or the deadline (everything runs under
    `timeout`), deletes its own instance through Vast's API with the
    per-instance `CONTAINER_API_KEY`, up to three tries.
 
 Its log goes to `<SONG>/<VERSION>/workers/<CLAIM>.log` every 60 s; the
-page's progress bars read it. Every rclone transfer has connect and idle
-timeouts plus a total `--max-duration`. Vast reruns onstart if it resumes
+page's progress bars read it. Every transfer (curl) has connect and idle
+timeouts plus a total `--max-time`. Vast reruns onstart if it resumes
 a stopped instance; every step above is repeatable and the deadline is
 absolute.
 
@@ -140,14 +142,26 @@ absolute.
   endpoint `https://s3.fr-par.scw.cloud` (~€0.01/GB/month). Inputs go
   under `sources/<job>/` (the uploaded original, the published
   `source.<ext>`); results under `<song>/<version>/`.
-- Workers authenticate with a **dedicated scoped key** (IAM application
-  `drum-transcribe-worker`, expires 2027-03-31), stored in the gitignored
-  `.secrets.worker-s3.json` at the repo root. Rented hosts never see the
-  main Scaleway or GitHub credentials. Since 2026-10-03 its policy grants
-  objects only (`ObjectStorageObjectsRead/Write/Delete` on project
-  dallape), so a host can no longer change the bucket's CORS, versioning
-  or lifecycle rules. That also denies HeadBucket, so rclone needs
-  `--s3-no-check-bucket` (the worker sets `RCLONE_S3_NO_CHECK_BUCKET`).
+- The web app and the laptop use a **dedicated scoped key** (IAM
+  application `drum-transcribe-worker`, expires 2027-03-31), stored in
+  the gitignored `.secrets.worker-s3.json` at the repo root. Since
+  2026-10-03 its policy grants objects only
+  (`ObjectStorageObjectsRead/Write/Delete` on project dallape), so it
+  can't change the bucket's CORS, versioning or lifecycle rules. That
+  also denies HeadBucket, so rclone needs `--s3-no-check-bucket`.
+- **Rented hosts get no key** (since 2026-10-06). Before renting, the
+  coordinator publishes the rental's link list
+  `sources/<job>/<claim>.links`: one presigned link per object the
+  worker may fetch or upload, all expiring 10 min after the rental's
+  deadline (`coordinator._Job.links`). GET: the recording under
+  each audio ending (it may not be there yet), the beat grid and hits an
+  earlier host left. PUT: the version's files under the names the app
+  expects (`coordinator.SHARED`, `RESULTS` per variant, done markers
+  included) and the rental's own log. So a host can't read other songs,
+  write any other name, touch another version's done markers or the
+  anonymous-limit `created` markers, or delete anything. The list
+  (≈45 links of ~340 characters) is too long for the instance's env,
+  which holds only the link to it.
 - Job records live in a second bucket, `drum-transcribe-jobs`, whose
   bucket policy admits only the web app's own key (IAM application
   `drum-transcribe-webapp`, objects only, expires 2027-09-28, gitignored
@@ -157,15 +171,18 @@ absolute.
   `rclone sync s3:drum-transcribe-results output/ --exclude 'sources/**'`
   (configure rclone with the worker key, or use `, scw object` / any S3
   client).
-- **Everything in the results bucket is untrusted.** Every rented host
-  gets the worker key, so a host operator can upload any file under any
-  name — including names like `../../.bashrc` that try to escape the
-  results folder and overwrite files on the laptop or in the cloud app.
-  rclone blocks that by itself; the places that copy the bucket with
-  boto3 (`deploy/sync_bucket.py`, `coordinator.py` collecting results)
-  check each name and skip anything landing outside the version folder.
-  Done markers count only when they name the generation in the trusted
-  job record, and instance ids are taken only from Vast's own listing.
+- **The results stay untrusted.** A host still writes its own
+  version's files, so their contents are its word, and a name in the
+  bucket may come from anywhere — including names like
+  `../../.bashrc` that try to escape the results folder and overwrite
+  files on the laptop or in the cloud app. rclone blocks that by
+  itself; the places that copy the bucket with boto3
+  (`deploy/sync_bucket.py`, `coordinator.py` collecting results) check
+  each name and skip anything landing outside the version folder. The
+  pages list only names the app makes itself (`serve.NAME`,
+  `checks/hostile-names.py`). Done markers count only when they name the
+  generation in the trusted job record, and instance ids are taken only
+  from Vast's own listing.
 
 ## 4. Renting a GPU (Vast.ai)
 
@@ -232,14 +249,22 @@ uv run vastai search offers \
   'gpu_name=RTX_3090 num_gpus=1 reliability>0.98 inet_down>500 rentable=true verified=true cuda_max_good>=12.9' \
   --type=bid -o 'dph_total'
 
+# a link list for one song version, valid ATTEMPT + 10 min; prints LINKS
+# (the recording goes to sources/<job>/source.<ext>, any job id)
+uv run --with boto3 python -c 'import time, types; from pathlib import Path
+from drum_transcribe import coordinator as c
+rec = {"job": "<job>", "song": "<song>", "version": "<version>", "variants": ["adtof"]}
+j = c._Job(types.SimpleNamespace(root=Path("output")), rec, None)
+print(j.links({"claim": "manual", "deadline": time.time() + c.ATTEMPT}))'
+
 # launch one song by hand (worker env: see deploy/vast-worker.sh header;
-# the recording must be in the bucket under SOURCE; DEADLINE = unix time)
+# DEADLINE = unix time)
 uv run vastai create instance <OFFER_ID> \
   --image ghcr.io/akaihola/drum-transcribe-gpu:latest --disk 40 \
   --label manual-test --cancel-unavail \
   --onstart-cmd 'bash /app/deploy/vast-worker.sh' \
   --env '-e SONG=... -e VERSION=... -e VARIANTS=adtof -e GENERATION=1 -e RAW_BARS=0
-         -e CLAIM=manual -e SOURCE=sources/<job>/ -e DEADLINE=... -e S3_ACCESS_KEY=... -e S3_SECRET_KEY=...' \
+         -e CLAIM=manual -e DEADLINE=... -e LINKS=...' \
   --bid_price 0.15
 
 uv run vastai show instances            # watch status
