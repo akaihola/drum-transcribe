@@ -80,12 +80,16 @@ viewed from anywhere without the laptop being on:
   (`deploy/cloudflare/`, design in [loading-page-plan.md](loading-page-plan.md))
   answers page loads that the container doesn't answer within 2.5 s with a
   "Starting up…" page that reloads itself once the app is up. Routes:
-  `plokkaus.vempai.men/*` → the Worker (fail open), `plokkaus.vempai.men/api/*`
-  → no Worker, so the once-a-second polls don't count against the free
-  plan's 100 000 Worker requests a day. Deploy after editing:
-  `cd deploy/cloudflare && set -a && . ../../.secrets.cloudflare.env && set +a && npx wrangler@4 deploy`
-  (then check the main route still has `request_limit_fail_open: true`:
-  `GET /zones/<zone>/workers/routes`). **Off switch:** set the `plokkaus`
+  `plokkaus.vempai.men/*` → the Worker (`"request_limit_fail_open": true`),
+  `plokkaus.vempai.men/api/*` → no Worker, so the once-a-second polls
+  don't count against the free plan's 100 000 Worker requests a day. Both
+  are made through the Cloudflare API (`POST /zones/<zone>/workers/routes`
+  with the main token), not in `wrangler.toml`: wrangler re-creates the
+  routes listed there on every deploy, with fail open off (seen
+  2026-10-06). Deploy after editing — that file's token can only upload
+  Workers (Account → Workers Scripts → Edit):
+  `cd deploy/cloudflare && set -a && . ../../.secrets.cloudflare-worker.env && set +a && npx wrangler@4 deploy`.
+  **Off switch:** set the `plokkaus`
   DNS record back to "DNS only"; the site then works exactly as before,
   without the loading page. Proxying caps request bodies at 100 MB (free plan),
   so bigger uploads fail with 413; Scaleway alone accepted 120 MB.

@@ -6,15 +6,16 @@ ability to *maintain* that deployment, plus any results and code not yet
 pushed. This page lists what to keep in the password manager and how to
 get working again on a new machine.
 
-## Keep in the password manager (six items)
+## Keep in the password manager (seven items)
 
-Six files hold every credential. Save each one as its own secure note,
+Seven files hold every credential. Save each one as its own secure note,
 named by its path. Print them all for copying with:
 
 ```bash
 cd ~/prg/drum-transcribe
 for f in .secrets.throttle.env .secrets.worker-s3.json .secrets.jobs-s3.json \
-         .secrets.cloudflare.env ~/.config/scw/config.yaml \
+         .secrets.cloudflare.env .secrets.cloudflare-worker.env \
+         ~/.config/scw/config.yaml \
          ~/.config/vastai/vast_api_key; do
   echo "════ $f"; grep -vE '^\s*(#|$)' "$f"
 done
@@ -25,7 +26,8 @@ done
 | `.secrets.throttle.env` | web app `CREATE_PASSWORDS` and `TOKEN_SECRET`; **`TOKEN_SECRET` cannot be recreated** — a new one logs every browser out of its password bypass |
 | `.secrets.worker-s3.json` | scoped S3 key for the results bucket (IAM application `drum-transcribe-worker`, expires 2027-03-31) |
 | `.secrets.jobs-s3.json` | the cloud web app's own S3 key, the only one the job-record bucket `drum-transcribe-jobs` admits (IAM application `drum-transcribe-webapp`, expires 2027-09-28); the container's `JOBS_ACCESS_KEY`/`JOBS_SECRET_KEY` |
-| `.secrets.cloudflare.env` | Cloudflare API token (Workers + DNS for `vempai.men`) and account ID — deploys the loading-page Worker, flips the `plokkaus` record |
+| `.secrets.cloudflare.env` | main Cloudflare API token (Workers, DNS and WAF for `vempai.men`; expires 2026-10-24) and account ID — Worker routes, the scanner rule, flips the `plokkaus` record |
+| `.secrets.cloudflare-worker.env` | Cloudflare token that can only upload Workers (Account → Workers Scripts → Edit) and the account ID — deploys the loading-page Worker |
 | `~/.config/scw/config.yaml` | main Scaleway API key, profile `drum-transcribe` — needed to push images and update the container; expires 2027-09-28 (the previous one lapsed silently, found at a failed push). After renewing, re-run `podman login rg.fr-par.scw.cloud -u nologin` with the new secret key |
 | `~/.config/vastai/vast_api_key` | Vast.ai API key (the container's `VAST_API_KEY` too) |
 
