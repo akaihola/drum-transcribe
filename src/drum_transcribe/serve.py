@@ -1539,7 +1539,7 @@ def scan_output(root: Path) -> dict:
             rel = f"/files/{project_dir.name}/{vdir.name}"
             rec = jobs.known(project_dir.name, vdir.name)
             sources = sorted(p for p in vdir.glob("source.*")
-                             if p.stem == "source" and p.suffix in AUDIO_EXTS)
+                             if re.fullmatch(r"source\.[A-Za-z0-9]+", p.name))
             drums = playback_stem(vdir, "drums")
             drumless = playback_stem(vdir, "no_drums")
             log = vdir / "pipeline.log"

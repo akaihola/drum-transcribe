@@ -29,8 +29,8 @@ def result(vdir: Path, variant: str) -> None:
 root = Path(tempfile.mkdtemp())
 song = root / "song" / "v1"
 result(song, "adtof")
-(song / "source.mp3").write_bytes(b"x")
-(song / f'source.">{evil(1)}.mp3').write_bytes(b"x")  # sorts before source.mp3
+(song / "source.WAV").write_bytes(b"x")  # a laptop run keeps its input's ending
+(song / f'source.">{evil(1)}.mp3').write_bytes(b"x")  # sorts before source.WAV
 result(song, evil(2))
 (song / "stems" / "htdemucs" / evil(3)).mkdir(parents=True)
 (song / "stems" / "htdemucs" / evil(3) / "drums.ogg").write_bytes(b"x")
@@ -40,7 +40,7 @@ result(root / evil(5) / "v1", "adtof")
 index = scan_output(root)
 assert [p["name"] for p in index["projects"]] == ["song"], index
 (v,) = index["projects"][0]["versions"]
-assert v["name"] == "v1" and v["source"] == "/files/song/v1/source.mp3", v
+assert v["name"] == "v1" and v["source"] == "/files/song/v1/source.WAV", v
 assert [x["name"] for x in v["variants"]] == ["adtof"] and v["drums"] is None, v
 print("ok  the index leaves out every name the app did not make")
 
