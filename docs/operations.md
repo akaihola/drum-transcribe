@@ -89,6 +89,25 @@ viewed from anywhere without the laptop being on:
   DNS record back to "DNS only"; the site then works exactly as before,
   without the loading page. Proxying caps request bodies at 100 MB (free plan),
   so bigger uploads fail with 413; Scaleway alone accepted 120 MB.
+- Scanner block: the WAF custom rule "Block scanner probes" (dashboard:
+  `vempai.men` → Security → WAF → Custom rules, action Block) answers
+  probes for secret files, PHP and WordPress with a 403 from Cloudflare,
+  before the Worker, so they never wake the container. Before it, 8 of the
+  68 container starts in the week to 2026-10-06 were woken by such probes
+  alone. Expression (the free plan has no regex):
+  ```
+  http.host eq "plokkaus.vempai.men" and (
+    (http.request.uri.path contains "/." and not http.request.uri.path contains "/.well-known/")
+    or http.request.uri.path contains ".env"
+    or http.request.uri.path contains ".php"
+    or http.request.uri.path contains "/wp-"
+  )
+  ```
+  Nothing the app serves matches (its names are `[a-z0-9-]+`; all 277
+  matches in that week's request log were 404s). `/.well-known/` stays
+  open for Scaleway's certificate renewal. Scans that also load `/` still
+  wake the container, as do requests to the `*.scw.cloud` endpoint, which
+  skip Cloudflare.
 - What it is: the same web pages as the local server, serving whatever is in
   the `drum-transcribe-results` bucket (see [gpu-workers.md](gpu-workers.md)).
   Local (in-container) processing does not work — the image has no ML

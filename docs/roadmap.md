@@ -74,6 +74,6 @@ bars).
   skips machines, and for slow bucket links whole addresses, that failed
   in the past week).
 - PDF export (Verovio can render server-side) if printed parts are wanted.
-- Scanners find the hostname for the issued certificate, and each probe wakes the
-  container. That costs a little extra. Let's block the obvious probe paths (`/.env*`,
-  `/.git/*`) with a Cloudflare WAF rule.
+- Scanners find the hostname for the issued certificate, and each probe woke the
+  container. A Cloudflare WAF rule now blocks the obvious probe paths (`/.env*`,
+  `/.git/*`, PHP, WordPress); see [operations.md](operations.md) → Scanner block.
