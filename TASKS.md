@@ -28,9 +28,6 @@ provide background; their historical plans do not set task status.
 - [15] Replace the results-bucket key
   - Depends on: [16]
 
-- [12] Queue medium level security issues
-  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-05T18:48:52.458Z"} -->
-
 - [13] Queue fixing low priority security issues
   <!-- hai:{"id":"simple-edb26053-520e-4bbc-bac4-21dd9ba41e6e","priority":"none","labels":[],"createdAt":"2026-10-05T18:51:26.504Z","updatedAt":"2026-10-05T18:51:26.504Z"} -->
 
@@ -38,6 +35,9 @@ provide background; their historical plans do not set task status.
   <!-- hai:{"id":"simple-202c2bed-255f-4da9-a3ac-c0b1e0f9abfb","priority":"none","labels":[],"createdAt":"2026-10-05T18:55:01.490Z","updatedAt":"2026-10-05T18:55:25.921Z"} -->
 
 ## Scheduled
+
+- [12] Queue medium level security issues
+  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-14T21:19:33.960Z"} -->
 
 - [8] Cloud GPU checks on real rentals
   <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-14T21:18:30.018Z"} -->
