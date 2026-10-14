@@ -42,11 +42,11 @@ provide background; their historical plans do not set task status.
 
 ## Scheduled
 
-- [16] Deploy the GPU host fix (no cloud GPU jobs until then)
-  - Depends on: [11]
-  <!-- hai:{"updatedAt":"2026-10-14T20:42:37.442Z"} -->
-
 ## In Progress
+
+- [~] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
+  - Depends on: [11]
+  <!-- hai:{"updatedAt":"2026-10-14T20:43:28.042Z"} -->
 
 ## Completed / Accepted
 
