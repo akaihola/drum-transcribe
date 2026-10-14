@@ -46,7 +46,7 @@ provide background; their historical plans do not set task status.
 
 - [~] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
   - Depends on: [11]
-  <!-- hai:{"updatedAt":"2026-10-14T20:43:59.907Z"} -->
+  <!-- hai:{"updatedAt":"2026-10-14T20:44:17.403Z"} -->
 
 ## Completed / Accepted
 

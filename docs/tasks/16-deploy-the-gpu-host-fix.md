@@ -67,3 +67,12 @@ Atom is reachable, but SSH to `akaihola@atom` rejects the available keys
 with `Permission denied (publickey,password,keyboard-interactive)`.
 Deployment, atom-side checks, registry cleanup, output-name inspection and
 real-song verification are pending access. No cloud GPU job has been started.
+
+The fix and build instructions were merged into gogo main without a GitHub
+push. Local validation passed: `bash -n deploy/vast-worker.sh`,
+`git diff --check`, and static assertions that the Dockerfile copies only
+`deploy/vast-worker.sh` from `deploy/`, the staging instructions exclude
+other deployment files, and the documented tag matches `coordinator.IMAGE`.
+The image has not been built or deployed; the static checks do not replace
+atom-side verification. Task [16] stays In Progress and [15] stays queued.
+The feature worktree is retained until deployment can finish.
