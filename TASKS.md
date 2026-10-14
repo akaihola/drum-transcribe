@@ -25,17 +25,35 @@ provide background; their historical plans do not set task status.
 
 ## Ordered backlog
 
-- [5] Block network scanners
-  <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-03T17:40:05.628Z"} -->
+- [16] Deploy the GPU host fix (no cloud GPU jobs until then)
+  - Depends on: [11]
+
+- [15] Replace the results-bucket key
+  - Depends on: [16]
 
 - [8] Cloud GPU checks on real rentals
   <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-03T17:41:23.086Z"} -->
+
+- [12] Queue medium level security issues
+  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-05T18:48:52.458Z"} -->
+
+- [13] Queue fixing low priority security issues
+  <!-- hai:{"id":"simple-edb26053-520e-4bbc-bac4-21dd9ba41e6e","priority":"none","labels":[],"createdAt":"2026-10-05T18:51:26.504Z","updatedAt":"2026-10-05T18:51:26.504Z"} -->
+
+- [14] Queue fixing low priority PII issues etc
+  <!-- hai:{"id":"simple-202c2bed-255f-4da9-a3ac-c0b1e0f9abfb","priority":"none","labels":[],"createdAt":"2026-10-05T18:55:01.490Z","updatedAt":"2026-10-05T18:55:25.921Z"} -->
 
 ## Scheduled
 
 ## In Progress
 
 ## Completed / Accepted
+
+- [x] [5] Block network scanners
+  <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-07T04:05:06.729Z"} -->
+
+- [ ] [11] Malicious GPU hosts can corrupt data
+  <!-- hai:{"id":"simple-590d8bef-9a9c-4925-a17c-f66e0e83a827","priority":"none","labels":[],"createdAt":"2026-10-05T18:44:04.871Z","updatedAt":"2026-10-05T18:44:04.871Z"} -->
 
 - [ ] [*] Stop links from planting web pages on the site (stored XSS): save
       downloads as `fetched.bin`, send only real YouTube/Drive links to
@@ -68,7 +86,7 @@ provide background; their historical plans do not set task status.
 
 [1]: docs/tasks/1-decide-scope-of-feedback-driven-correction.md
 
-<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10 -->
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 -->
 
 [2]: docs/tasks/2-pdf-export.md
 
@@ -87,6 +105,18 @@ provide background; their historical plans do not set task status.
 [9]: docs/tasks/9-robust-gpu-jobs.md
 
 [10]: docs/tasks/10-responsive-player-layouts.md
+
+[11]: docs/tasks/11-malicious-gpu-hosts-can-corrupt-data.md
+
+[12]: docs/tasks/12-queue-medium-level-security-issues.md
+
+[13]: docs/tasks/13-queue-fixing-low-priority-security-issues.md
+
+[14]: docs/tasks/14-queue-fixing-low-priority-security-issues.md
+
+[15]: docs/tasks/15-replace-the-bucket-key.md
+
+[16]: docs/tasks/16-deploy-the-gpu-host-fix.md
 
 ## Rules
 
