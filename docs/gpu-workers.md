@@ -34,10 +34,10 @@ restarts:
 ## 1. The image
 
 `deploy/Dockerfile.gpu` → `ghcr.io/akaihola/drum-transcribe-gpu`
-(public, so Vast hosts pull anonymously with no rate limits; tags:
-`cu128-v1`, `latest`; ~8 GB compressed). Since 2026-09-25 `latest` also
+(public, so Vast hosts pull anonymously with no rate limits; target tags:
+`2026-10-06`, `latest`; ~8 GB compressed). Since 2026-09-25 `latest` also
 contains MuseScore for the .mscz export (see
-[notation-musescore.md](notation-musescore.md)); `cu128-v1` predates it.
+[notation-musescore.md](notation-musescore.md)).
 
 Design decisions, each of which broke something before it was made:
 
@@ -69,16 +69,27 @@ GHCR keeps the unchanged multi-GB layers):
 ```bash
 # stage a clean context — repo .cache also holds unrelated junk (uv,
 # nix, fontconfig…), so pick just the two model-cache dirs
-mkdir -p .build-ctx-gpu/.cache
+rm -rf .build-ctx-gpu
+mkdir -p .build-ctx-gpu/.cache .build-ctx-gpu/deploy
 cp -al .cache/torch .cache/hf .build-ctx-gpu/.cache/
-cp -al .models src deploy .build-ctx-gpu/
+cp -al .models src .build-ctx-gpu/
+cp deploy/Dockerfile.gpu deploy/vast-worker.sh .build-ctx-gpu/deploy/
 cp pyproject.toml .build-ctx-gpu/
-TAG=$(date +%F)  # then set coordinator.IMAGE to this tag
+TAG=2026-10-06  # must match coordinator.IMAGE
 podman build -f .build-ctx-gpu/deploy/Dockerfile.gpu \
   -t ghcr.io/akaihola/drum-transcribe-gpu:$TAG \
   -t ghcr.io/akaihola/drum-transcribe-gpu:latest .build-ctx-gpu
 podman push ghcr.io/akaihola/drum-transcribe-gpu:$TAG
 podman push ghcr.io/akaihola/drum-transcribe-gpu:latest
+```
+
+Only the worker script is copied into the image from `deploy/`. Keep the
+staged context limited to the files above: Cloudflare's local Wrangler cache
+can contain your network's location. Before using the rebuilt image, check
+that this prints nothing:
+
+```bash
+podman run --rm --entrypoint find ghcr.io/akaihola/drum-transcribe-gpu:2026-10-06 /app -name '.wrangler*'
 ```
 
 Pushing needs `podman login ghcr.io -u akaihola` with a *classic* GitHub

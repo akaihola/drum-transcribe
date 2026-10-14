@@ -32,6 +32,6 @@ RUN curl -fsSL -o /tmp/ms.AppImage https://github.com/musescore/MuseScore/releas
     && ln -s /opt/musescore/AppRun /usr/local/bin/musescore
 COPY src ./src
 RUN uv pip install --python /venv/main/bin/python --no-cache --no-deps .
-COPY deploy ./deploy
+COPY deploy/vast-worker.sh ./deploy/vast-worker.sh
 ENV TORCH_HOME=/app/.cache/torch HF_HOME=/app/.cache/hf XDG_CACHE_HOME=/app/.cache
 ENTRYPOINT ["/venv/main/bin/drum-transcribe"]
