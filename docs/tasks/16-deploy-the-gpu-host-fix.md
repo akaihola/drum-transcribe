@@ -48,3 +48,22 @@ leak from task [12], which must be fixed before the build.
   proves the curl worker against Scaleway (task [11] step 6).
 
 Then move [16] to Completed with `[ ]` and start task [15].
+
+## Deployment plan and progress, 2026-10-14
+
+- Move task [16] to In Progress and commit the tracker on the feature branch.
+- Copy only `deploy/vast-worker.sh` into the GPU image. Stage only the
+  Dockerfile and worker script from `deploy/`, and use tag `2026-10-06`.
+- Review and merge the fix into gogo main, without pushing source to GitHub.
+- On atom, fast-forward from gogo, run the repository checks, build and push
+  the GPU image, verify it contains no Wrangler cache, redeploy the cloud
+  web app, restart the laptop service, and remove the old GHCR versions.
+- Check atom's output names and report anything hidden by the new rules.
+- After deployment, process one real song and inspect its running rental's
+  environment for `LINKS` and the absence of bucket credentials. Complete
+  [16] awaiting acceptance and start [15] only after these checks pass.
+
+Atom is reachable, but SSH to `akaihola@atom` rejects the available keys
+with `Permission denied (publickey,password,keyboard-interactive)`.
+Deployment, atom-side checks, registry cleanup, output-name inspection and
+real-song verification are pending access. No cloud GPU job has been started.
