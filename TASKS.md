@@ -25,9 +25,6 @@ provide background; their historical plans do not set task status.
 
 ## Ordered backlog
 
-- [16] Deploy the GPU host fix (no cloud GPU jobs until then)
-  - Depends on: [11]
-
 - [15] Replace the results-bucket key
   - Depends on: [16]
 
@@ -44,6 +41,10 @@ provide background; their historical plans do not set task status.
   <!-- hai:{"id":"simple-202c2bed-255f-4da9-a3ac-c0b1e0f9abfb","priority":"none","labels":[],"createdAt":"2026-10-05T18:55:01.490Z","updatedAt":"2026-10-05T18:55:25.921Z"} -->
 
 ## Scheduled
+
+- [16] Deploy the GPU host fix (no cloud GPU jobs until then)
+  - Depends on: [11]
+  <!-- hai:{"updatedAt":"2026-10-14T20:42:37.442Z"} -->
 
 ## In Progress
 
