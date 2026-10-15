@@ -76,3 +76,54 @@ other deployment files, and the documented tag matches `coordinator.IMAGE`.
 The image has not been built or deployed; the static checks do not replace
 atom-side verification. Task [16] stays In Progress and [15] stays queued.
 The feature worktree is retained until deployment can finish.
+
+## Deployment, 2026-10-15 (on atom)
+
+- Step 1: atom's main had one commit gogo lacked (99fdf75, the /files/
+  XSS handoff file, also on GitHub's main). gogo main has the same file
+  byte for byte, so atom's main was moved onto gogo main
+  (`git reset --keep`); nothing was lost.
+- Checks on atom pass: files-sandbox, gpu-jobs (16 of 16), hostile-names,
+  `bash -n deploy/vast-worker.sh`.
+- Step 3: built `drum-transcribe-gpu:2026-10-06` (also `latest`) from the
+  staged context and pushed both. In the image, `find /app -name
+  '.wrangler*'` prints nothing, there is no `cf.json` or `.secrets*`
+  anywhere, `/app/deploy` holds only `vast-worker.sh`, and all ten
+  checkpoints are there. Pushing needed a new classic GitHub token
+  (write:packages, delete:packages): the 2026-09-20 one was saved nowhere.
+- Step 4: web app image rebuilt and pushed, container redeployed (ready
+  2026-10-15 15:49 UTC); laptop server restarted, listening on
+  0.0.0.0:8765.
+- Step 5: deleted all ten older GHCR versions: tags `2026-10-03`,
+  `cu128-v1`, `dummy` and seven untagged ones, all from 2026-10-03 or
+  earlier. GHCR now lists only `2026-10-06` and `latest`.
+- Step 6: both `ls` commands list nothing on atom; no song loses players
+  or disappears.
+- Real song: `taustanauha`'s recording uploaded to the cloud site as
+  `dancing-through-life/gpu-check`, GPU box ticked. Vast's record of all
+  five rentals (56118859, 56120136, 56120391, 56121670, 56122555) showed
+  image `2026-10-06`, env `CLAIM CONTAINER_RUNTIME DEADLINE GENERATION
+  LINKS RAW_BARS SONG VARIANTS VERSION`, and no `S3_ACCESS_KEY` or
+  `S3_SECRET_KEY` (nor in `onstart`). The job still failed ("5 cloud GPUs
+  failed in a row") before any worker started:
+  - 1: deleted at 16:00:12 by our own deletion guard (Vast's scheduler,
+    IP 13.216.37.47), 11 min into loading and 19 min before its
+    deadline; see below.
+  - 2, 3, 4: outbid while loading ("meant to be stopped").
+  - 5 (fixed price): the host kept retrying one image layer and missed
+    the 15-minute start limit. The same layer downloaded fine to atom,
+    anonymously, with the right digest.
+- Still open: one real song that finishes, which also proves the curl
+  worker against Scaleway. Next: "Try again" just after a full hour.
+
+### The deletion guard fires an hour early (found 2026-10-15, not fixed here)
+
+`vast.add_guard` starts the hourly DELETE 1 s past the first full hour
+after the deadline. Vast's scheduler ticks a few seconds after minute 0
+(16:00:12 here) and runs a job whose start is less than an hour away, so
+the guard with start 17:00:01 ran at 16:00:12. The 2026-10-03 probes fit
+this too (gpu-resilience-handoff.md: starts 12:15, 12:35 and 13:22 all ran
+at 13:00:29). So every rental whose 30-minute window crosses a full hour
+is deleted at that hour, healthy or not. Starting the guard half past the
+next full hour instead (+1800 s, not +1 s) fires it at the intended hour
+under either reading. Needs its own task.
