@@ -50,6 +50,9 @@ provide background; their historical plans do not set task status.
     - Depends on: [13], [14], [15], [16], [17], [18], [19], [20]
   <!-- hai:{"id":"simple-6572fd80-2f1d-40a1-bbdf-e1d2426e22a7","createdAt":"2026-10-14T21:22:04.438Z","updatedAt":"2026-10-14T21:22:12.711Z"} -->
 
+- [22] Stop the deletion guard deleting rentals an hour early
+  <!-- hai:{"id":"simple-fc10f727-9e53-42af-af3b-e84d77d2ef85","createdAt":"2026-10-15T20:35:43.177Z","updatedAt":"2026-10-15T20:35:43.177Z"} -->
+
 ## Scheduled
 
 - [8] Cloud GPU checks on real rentals
@@ -57,11 +60,11 @@ provide background; their historical plans do not set task status.
 
 ## In Progress
 
-- [~] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
-  - Depends on: [11]
-  <!-- hai:{"updatedAt":"2026-10-14T20:44:17.403Z"} -->
-
 ## Completed / Accepted
+
+- [ ] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
+  - Depends on: [11]
+  <!-- hai:{"updatedAt":"2026-10-15T20:35:42.804Z"} -->
 
 - [ ] [12] Queue medium level security issues
   <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-14T21:22:21.458Z"} -->
@@ -103,7 +106,7 @@ provide background; their historical plans do not set task status.
 
 [1]: docs/tasks/1-decide-scope-of-feedback-driven-correction.md
 
-<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21 -->
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22 -->
 
 [2]: docs/tasks/2-pdf-export.md
 
@@ -144,6 +147,8 @@ provide background; their historical plans do not set task status.
 [20]: docs/tasks/20-stop-a-link-with-a-line-break-from-breaking-the-song-list.md
 
 [21]: docs/tasks/21-purge-security-task-notes-from-git-history-then-push.md
+
+[22]: docs/tasks/22-stop-the-deletion-guard-deleting-rentals-an-hour-early.md
 
 ## Rules
 
