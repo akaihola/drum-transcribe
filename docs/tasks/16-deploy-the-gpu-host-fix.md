@@ -113,7 +113,7 @@ The feature worktree is retained until deployment can finish.
   - 5 (fixed price): the host kept retrying one image layer and missed
     the 15-minute start limit. The same layer downloaded fine to atom,
     anonymously, with the right digest.
-- Still open: one real song that finishes, which also proves the curl
+- Still open then: one real song that finishes, which also proves the curl
   worker against Scaleway. Next: "Try again" just after a full hour.
 
 ### The deletion guard fires an hour early (found 2026-10-15, not fixed here)
@@ -127,3 +127,17 @@ at 13:00:29). So every rental whose 30-minute window crosses a full hour
 is deleted at that hour, healthy or not. Starting the guard half past the
 next full hour instead (+1800 s, not +1 s) fires it at the intended hour
 under either reading. Needs its own task.
+
+### Real song finished, 2026-10-15 20:27–20:33 UTC
+
+"Try again" on `dancing-through-life/gpu-check`, pressed just after
+20:27 UTC so the early guard could not fire. Rental 56149713 (CN host,
+the same machine as attempts 3 and 4, image already cached) was running
+66 s after renting. While it ran, Vast's record showed image
+`2026-10-06`, `LINKS` in its env and no `S3_ACCESS_KEY`/`S3_SECRET_KEY`.
+adtof, mdx23c and fused were ready by 20:33:28 (829, 1564 and 829
+events); the drums stem, the drumless backing and every variant's files
+open on the cloud site. The worker deleted its own rental at 20:32:45
+(Vast audit log: from the host's address) and the coordinator removed
+its guard. This proves the curl worker against Scaleway (task [11]
+step 6). All steps and checks of this task are done.
