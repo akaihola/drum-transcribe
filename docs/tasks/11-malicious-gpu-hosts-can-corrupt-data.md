@@ -63,3 +63,4 @@ Still to do, on atom:
 6. One real cloud GPU job (task 8) to prove the curl worker against Scaleway.
 
 2026-10-10: steps 1–3, 5 and 6 are now task [16]; step 4 stays task [15].
+2026-10-15: steps 1–3, 5 and 6 done and verified on a real rental (task [16]).
