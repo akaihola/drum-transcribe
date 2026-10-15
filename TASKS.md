@@ -28,16 +28,29 @@ provide background; their historical plans do not set task status.
 - [15] Replace the results-bucket key
   - Depends on: [16]
 
+- [17] Make the anonymous creation limit hold under simultaneous requests
+  <!-- hai:{"id":"simple-38df422a-9696-4960-99ea-f78653b9f3f2","createdAt":"2026-10-14T21:22:03.112Z","updatedAt":"2026-10-14T21:22:03.112Z"} -->
+
+- [18] Close the remaining private-network fetch gaps
+  <!-- hai:{"id":"simple-21bf943a-28fc-4bd0-8994-5707027a042a","createdAt":"2026-10-14T21:22:03.430Z","updatedAt":"2026-10-14T21:22:03.430Z"} -->
+
+- [19] Stop publishing uploaders' private metadata
+  <!-- hai:{"id":"simple-4a744b57-a13a-4223-b112-09332d14b32c","createdAt":"2026-10-14T21:22:03.748Z","updatedAt":"2026-10-14T21:22:03.748Z"} -->
+
+- [20] Stop a link with a line break from breaking the song list
+  <!-- hai:{"id":"simple-53e050da-a8bd-47c5-b5a9-99c19bacb4cc","createdAt":"2026-10-14T21:22:04.129Z","updatedAt":"2026-10-14T21:22:04.129Z"} -->
+
 - [13] Queue fixing low priority security issues
   <!-- hai:{"id":"simple-edb26053-520e-4bbc-bac4-21dd9ba41e6e","priority":"none","labels":[],"createdAt":"2026-10-05T18:51:26.504Z","updatedAt":"2026-10-05T18:51:26.504Z"} -->
 
 - [14] Queue fixing low priority PII issues etc
   <!-- hai:{"id":"simple-202c2bed-255f-4da9-a3ac-c0b1e0f9abfb","priority":"none","labels":[],"createdAt":"2026-10-05T18:55:01.490Z","updatedAt":"2026-10-05T18:55:25.921Z"} -->
 
-## Scheduled
+- [21] Purge security task notes from Git history, then push
+    - Depends on: [13], [14], [15], [16], [17], [18], [19], [20]
+  <!-- hai:{"id":"simple-6572fd80-2f1d-40a1-bbdf-e1d2426e22a7","createdAt":"2026-10-14T21:22:04.438Z","updatedAt":"2026-10-14T21:22:12.711Z"} -->
 
-- [12] Queue medium level security issues
-  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-14T21:19:33.960Z"} -->
+## Scheduled
 
 - [8] Cloud GPU checks on real rentals
   <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-14T21:18:30.018Z"} -->
@@ -49,6 +62,9 @@ provide background; their historical plans do not set task status.
   <!-- hai:{"updatedAt":"2026-10-14T20:44:17.403Z"} -->
 
 ## Completed / Accepted
+
+- [ ] [12] Queue medium level security issues
+  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-14T21:22:21.458Z"} -->
 
 - [x] [5] Block network scanners
   <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-07T04:05:06.729Z"} -->
@@ -87,7 +103,7 @@ provide background; their historical plans do not set task status.
 
 [1]: docs/tasks/1-decide-scope-of-feedback-driven-correction.md
 
-<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16 -->
+<!-- hai:reserved-numbers:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21 -->
 
 [2]: docs/tasks/2-pdf-export.md
 
@@ -118,6 +134,16 @@ provide background; their historical plans do not set task status.
 [15]: docs/tasks/15-replace-the-bucket-key.md
 
 [16]: docs/tasks/16-deploy-the-gpu-host-fix.md
+
+[17]: docs/tasks/17-make-the-anonymous-creation-limit-hold-under-simultaneous-requests.md
+
+[18]: docs/tasks/18-close-the-remaining-private-network-fetch-gaps.md
+
+[19]: docs/tasks/19-stop-publishing-uploaders-private-metadata.md
+
+[20]: docs/tasks/20-stop-a-link-with-a-line-break-from-breaking-the-song-list.md
+
+[21]: docs/tasks/21-purge-security-task-notes-from-git-history-then-push.md
 
 ## Rules
 

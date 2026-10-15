@@ -14,3 +14,19 @@ Queue fixing these issues in the ordered backlog of `TASKS.md`. Make sure `TASKS
 **The public GPU image leaks your approximate location.** `ghcr.io/akaihola/drum-transcribe-gpu:2026-10-03` (also tagged latest) can be downloaded by anyone. `Dockerfile.gpu:40` copies all of `deploy/` and there is no `.dockerignore`, so the image includes `deploy/cloudflare/.wrangler/cache/cf.json`. That file holds the city, postal code, latitude/longitude and ISP of the network where wrangler ran, probably your home. **Fix:** add a `.dockerignore`, rebuild, and delete the old tags on GHCR. (2026-10-10: queued as part of task [16], which rebuilds the image anyway.)
 
 **No security issues in public repository:** If any descriptions of security issues have accidentally been committed, rewrite history to remove traces of them. Also force push to GitHub to clean them up there too.
+
+## Queued, 2026-10-15
+
+- Anonymous limit race → [17].
+- Private-network fetch gaps and the `docs/webapp.md` note → [18].
+- Uploaders' metadata → [19].
+- Line break in a link breaks the song list → [20].
+- GPU image location leak → already in [16] (step 2; the code part is
+  commit `3271352`, rebuild and GHCR cleanup pending atom access).
+- History purge and the eventual push → [21], after all of the above.
+
+Checked on 2026-10-15: GitHub has none of the security task notes
+(`git log -p --remotes=origin -- TASKS.md docs/tasks` finds none of them).
+They exist only in unpushed local history from `dde23b6` on, because the
+tracker automation commits `TASKS.md` and `docs/tasks/`; [21] removes them.
+Nothing was force-pushed, as nothing needed cleaning on GitHub.
