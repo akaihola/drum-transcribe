@@ -34,10 +34,10 @@ restarts:
 ## 1. The image
 
 `deploy/Dockerfile.gpu` → `ghcr.io/akaihola/drum-transcribe-gpu`
-(public, so Vast hosts pull anonymously with no rate limits; target tags:
-`2026-10-06`, `latest`; ~8 GB compressed). Since 2026-09-25 `latest` also
-contains MuseScore for the .mscz export (see
-[notation-musescore.md](notation-musescore.md)).
+(public, so Vast hosts pull anonymously with no rate limits; tags:
+`2026-10-06`, `latest`, the only ones since 2026-10-15; ~8 GB
+compressed). Since 2026-09-25 `latest` also contains MuseScore for the
+.mscz export (see [notation-musescore.md](notation-musescore.md)).
 
 Design decisions, each of which broke something before it was made:
 
