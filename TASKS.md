@@ -55,10 +55,11 @@ provide background; their historical plans do not set task status.
 
 ## Scheduled
 
-- [8] Cloud GPU checks on real rentals
-  <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-14T21:18:30.018Z"} -->
-
 ## In Progress
+
+- [~] [8] Cloud GPU checks on real rentals
+  - Depends on: [16]
+  <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-15T12:00:00.000Z"} -->
 
 ## Completed / Accepted
 
