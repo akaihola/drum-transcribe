@@ -50,3 +50,19 @@ check, note the instance ids, and afterwards confirm with
    parks each as stopped; the fifth try rents at the fixed price.
 
 Record results under the handoff's "Verification results" section.
+
+## Status, 2026-10-15 13:30: waiting for [16]
+
+Not run; no rental, bucket or Vast change made. Task [16] built both
+images on atom (`drum-transcribe-gpu:2026-10-06`, `webapp:test`) but
+stopped before pushing them: GHCR has no `2026-10-06` tag, the web app in
+Scaleway's registry and its container are from 2026-10-05, and `main` (atom
+and gogo) still lists [16] In Progress. The coordinator rents
+`IMAGE` = `2026-10-06`, so rentals couldn't even load before the push.
+
+Ready: `checks/gpu-rentals.py` (starts in cloud mode on atom and reads the
+check jobs bucket, not the live one: smoke-tested without buckets), a
+60-s test clip (MP3, and PCM in MKV for the conversion check). Vast credit
+$8.85, no instances. Rented hosts accept the account's ssh key, atom's
+`~/.ssh/id_ed25519` (not `.secrets.gpu-ssh`). Whether a Vast container may
+use `iptables` is untested.
