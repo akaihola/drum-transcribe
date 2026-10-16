@@ -57,11 +57,11 @@ provide background; their historical plans do not set task status.
 
 ## In Progress
 
-- [~] [8] Cloud GPU checks on real rentals
-  - Depends on: [16]
-  <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-15T12:00:00.000Z"} -->
-
 ## Completed / Accepted
+
+- [ ] [8] Cloud GPU checks on real rentals
+  - Depends on: [16]
+  <!-- hai:{"id":"simple-6497f32cbc441249","updatedAt":"2026-10-16T17:45:00.000Z"} -->
 
 - [x] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
   - Depends on: [11]
