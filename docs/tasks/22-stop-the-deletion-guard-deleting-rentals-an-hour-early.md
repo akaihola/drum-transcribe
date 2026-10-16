@@ -23,3 +23,9 @@ and gpu-resilience-handoff.md (Guard timing).
 Verification: a rental claimed in the second half of an hour keeps
 running past the full hour, and Vast's audit log shows the guard's
 DELETE (IP 13.216.37.47) only after the deadline.
+
+2026-10-16, task [8]'s checks: three more. Rentals 56272851, 56272984
+and 56273095 (claimed 16:53–16:55 UTC, deadlines 17:22–17:25, guards
+starting 18:00:01) were deleted by Vast's scheduler at 17:00:08–09 UTC
+(IP 13.216.37.47), one of them while its worker ran. Rentals claimed
+before half past were never hit.
