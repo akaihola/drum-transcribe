@@ -62,12 +62,12 @@ provide background; their historical plans do not set task status.
 
 ## Completed / Accepted
 
-- [ ] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
+- [x] [16] Deploy the GPU host fix (no cloud GPU jobs until then)
   - Depends on: [11]
-  <!-- hai:{"updatedAt":"2026-10-15T20:35:42.804Z"} -->
+  <!-- hai:{"updatedAt":"2026-10-16T16:07:35.939Z"} -->
 
-- [ ] [12] Queue medium level security issues
-  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-14T21:22:21.458Z"} -->
+- [x] [12] Queue medium level security issues
+  <!-- hai:{"id":"simple-cdf92e3d-8a75-4367-8a79-dd5652c55f7b","priority":"none","labels":[],"createdAt":"2026-10-05T18:48:52.458Z","updatedAt":"2026-10-15T08:28:29.007Z"} -->
 
 - [x] [5] Block network scanners
   <!-- hai:{"id":"simple-d9594726c5ac8fca","updatedAt":"2026-10-07T04:05:06.729Z"} -->
