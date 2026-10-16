@@ -1,23 +1,25 @@
 """The cloud web app on atom, renting real Vast.ai GPUs, for the checks
-mocks can't make (docs/tasks/8-cloud-gpu-checks-on-real-rentals.md).
+mocks can't make (gpu-resilience-handoff.md, "Real-rental checks").
 
 Uses its own buckets and rental label, so it and the cloud web app never
 touch each other's jobs or rentals, and starts each time with an empty
 output folder, like a new container. Run it from atom's clone, which holds
 the keys (.secrets.jobs-s3.json, .secrets.worker-s3.json,
-~/.config/vastai/vast_api_key):
+~/.config/vastai/vast_api_key), with the two buckets made first and
+deleted after (`, scw object bucket create|delete NAME --profile
+drum-transcribe`):
 
-    uv run --with boto3 python checks/gpu-rentals.py PORT [POINT] [--park | --fixed] [--max-hourly=$]
+    uv run --with boto3 python checks/gpu-rentals.py PORT [POINT] [--fixed] [--max-hourly=$]
+
+and send it songs as the page does, e.g.
+`curl -T song.mp3 'http://127.0.0.1:PORT/api/upload?project=p&version=v&filename=song.mp3&gpu=1'`.
 
 POINT exits at once, like a killed container, at that point of the first
 rental: before-create, after-create, before-guard or after-guard.
---park bids tries 1-4 at half the going rate without cancel_unavail, so
-Vast parks each as stopped; the fifth rents at the fixed price.
 --fixed rents every try at the fixed price, which can't be outbid while
 the image loads (the record still says bid for tries 1-4).
 --max-hourly raises the price ceiling when no offer is under it.
 """
-
 import functools
 import json
 import os
@@ -75,16 +77,5 @@ for arg in sys.argv[2:]:
 if "--fixed" in sys.argv:
     offer = coordinator._offer
     patch(coordinator, _offer=lambda fixed, recs: offer(True, recs))
-
-if "--park" in sys.argv:
-    payload = coordinator._Job.payload
-
-    def parked(self, a, offer):
-        p = payload(self, a, offer)
-        if a["type"] == "bid":
-            p.update(price=round(offer["min_bid"] / 2, 4), cancel_unavail=False)
-        return p
-
-    patch(coordinator._Job, payload=parked)
 
 serve.serve(Path(tempfile.mkdtemp(prefix="gpu-rentals-")), "127.0.0.1", int(sys.argv[1]))

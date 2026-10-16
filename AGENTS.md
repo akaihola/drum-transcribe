@@ -42,7 +42,8 @@ must stay off the pages, checked in Chromium:
 The cloud GPU job logic has mocked checks:
 `LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH uv run --with boto3 python checks/gpu-jobs.py`
 (the library path only inside the Claude Code sandbox, where numpy can't
-find libstdc++ otherwise).
+find libstdc++ otherwise). What only real rentals show runs on atom with
+`checks/gpu-rentals.py` (a few cents per song; how-to in its docstring).
 
 The server runs as a systemd user service: `systemctl --user status drum-transcribe`.
 Restart it after editing `serve.py`/`ingest.py`: `systemctl --user restart drum-transcribe`
