@@ -7,12 +7,15 @@ output folder, like a new container. Run it from atom's clone, which holds
 the keys (.secrets.jobs-s3.json, .secrets.worker-s3.json,
 ~/.config/vastai/vast_api_key):
 
-    uv run --with boto3 python checks/gpu-rentals.py PORT [POINT] [--park]
+    uv run --with boto3 python checks/gpu-rentals.py PORT [POINT] [--park | --fixed] [--max-hourly=$]
 
 POINT exits at once, like a killed container, at that point of the first
 rental: before-create, after-create, before-guard or after-guard.
 --park bids tries 1-4 at half the going rate without cancel_unavail, so
 Vast parks each as stopped; the fifth rents at the fixed price.
+--fixed rents every try at the fixed price, which can't be outbid while
+the image loads (the record still says bid for tries 1-4).
+--max-hourly raises the price ceiling when no offer is under it.
 """
 
 import functools
@@ -64,6 +67,14 @@ patch(vast, **{
     "before-guard": {"add_guard": functools.partial(die, point)},
     "after-guard": {"add_guard": lambda *a: die(f"{point}: guard {add_guard(*a)}")},
 }[point])
+
+for arg in sys.argv[2:]:
+    if arg.startswith("--max-hourly="):
+        patch(coordinator, MAX_HOURLY=float(arg.split("=", 1)[1]))
+
+if "--fixed" in sys.argv:
+    offer = coordinator._offer
+    patch(coordinator, _offer=lambda fixed, recs: offer(True, recs))
 
 if "--park" in sys.argv:
     payload = coordinator._Job.payload
