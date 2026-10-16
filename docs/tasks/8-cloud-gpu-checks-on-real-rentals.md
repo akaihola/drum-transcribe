@@ -66,3 +66,21 @@ check jobs bucket, not the live one: smoke-tested without buckets), a
 $8.85, no instances. The ssh key registered with Vast is atom's
 `~/.ssh/id_ed25519` (not `.secrets.gpu-ssh`). Untested: ssh into a rental
 with it, and whether a Vast container may use `iptables`.
+
+## Result, 2026-10-16: done
+
+All five checks ran on real rentals once [16] was deployed; table and
+findings in
+[gpu-resilience-handoff.md, "Real-rental checks"](../gpu-resilience-handoff.md#real-rental-checks-2026-10-16).
+Each crash point and restart recovered with one rental, one guard and
+the caps intact; the slowed bucket route ended as "slow bucket link" with
+the site blocklisted; a finished job whose worker couldn't delete itself
+was ended by the web app; the fifth try rented at a fixed price.
+
+Differences from the plan: `iptables` is impossible on Vast hosts (no
+`CAP_NET_ADMIN`), so a `curl` wrapper on the host slowed the route
+instead; the fixed-price fifth try came up on its own (bids were
+outbid), so `--park` was dropped; no RTX 3090 was under $0.18/h, so the
+harness ran with a $0.25/h ceiling and fixed prices. The guard firing an
+hour early killed three of the rentals: task [22] (these three cases
+added there). About $0.20 at Vast; the check buckets are deleted.

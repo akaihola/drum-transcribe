@@ -619,3 +619,56 @@ blocks); a worker killed after its done markers with a failing DELETE; a
 fixed-price fifth try; the daily cap; a job carried on at a later visit
 after the container fell asleep mid-job (the restarts above are the same
 code path: the first pass of a new container).
+
+2026-10-16: the first five were run on real rentals, below.
+
+## Real-rental checks (2026-10-16)
+
+Task [8], with `checks/gpu-rentals.py` on atom: the web app and its
+coordinator from main, renting real Vast.ai machines with the
+`2026-10-06` image, but with its own two buckets and rental label
+(`drum-transcribe-check/`) so it and the cloud web app can't touch each
+other's jobs or rentals. A 60-s clip per job; each kill is `os._exit` (or
+`kill -9` of the process group) and each restart starts with an empty
+output folder, like a new container.
+
+No RTX 3090 was under the $0.18/h ceiling that evening, at fixed price
+($0.221/h and up) or by bid (minimum bids $0.16, so $0.20 at 1.25×), so
+the runs used `--max-hourly=0.25`, and after the first job `--fixed`
+(bids were outbid while loading, see below).
+
+| check | what happened |
+|---|---|
+| killed after saving the claim, before the create | after the restart the page said "Checking what became of the previous rental"; no instance or guard meanwhile. 10 min after the claim the audit log showed no create: try 1 closed "no rental was created (audit log)", try 2 rented. |
+| killed right after Vast created the rental | Vast listed the labelled instance, unguarded, and the record had no instance id. 5 s after the restart: "found the rental by its label", guard set, no second create. Unguarded for 40 s, i.e. until the restart. |
+| killed after recording the rental, before the guard | the restart set the guard; one guard. |
+| killed after Vast made the guard, before saving its id | the restart set no second guard (Vast listed one); the record keeps no guard id, which closing doesn't need. |
+| killed mid-upload (2 of 11 MB received) | the uploader got an empty reply; no record, nothing under `sources/`, no unfinished multipart upload. |
+| killed while ffmpeg took the audio out of an accepted upload (MKV) | the record and the original were in the bucket, no recording published, nothing rented. After the restart the recording was extracted again from the stored original and published; the job rented as usual. |
+| bucket route throttled | `iptables` can't run on Vast hosts: containers lack `CAP_NET_ADMIN` (capability mask `a80405fb` on two hosts; no `iptables`, and `tc` can't change anything). Instead `curl` on the host was wrapped to crawl at 20 kB/s, the 2026-10-01 symptom: the recording download gave up after 20 s ("bucket too slow from this host"), the worker deleted itself, the rental closed as "slow bucket link", and its site went on the blocklist. Then a Thai host was really that slow (twice, minutes after it had worked for another job): same outcome, nothing injected. |
+| worker's DELETE failing after its done markers | `console.vast.ai` pointed at 127.0.0.1 on the host: three "self-delete: HTTP 000". The web app collected the three variants and ended the rental itself ("finished") about 80 s after the worker finished; its guard stayed while Vast still listed it and went at closing. |
+| fixed-price fifth try | the first job's tries 2–4 were outbid while loading (Vast parked them, "meant to be stopped"). Try 5 asked for a fixed price: under $0.18/h none was on offer ("No cloud GPU within the price limit … looking again every minute"); at $0.25/h it rented on-demand at $0.221/h. That host (Jiangsu, CN) didn't load the image in 15 min, so the job failed after five tries, as designed. |
+
+Found on the way:
+
+- **The guard fires an hour early** (task [22]). Vast deleted three of
+  the rentals above at 17:00:08 UTC, from 13.216.37.47 under its own key
+  id: their guards started 18:00:01, their deadlines were 17:22–17:25.
+  Same as the live site's rental 56118859 on 2026-10-15. Any rental
+  claimed in the second half of an hour is deleted at the next full hour.
+- **Bids lose**: 10 of the 13 bid rentals of 2026-10-14…16 (live site
+  and these checks) were outbid while loading; of the other three, the
+  early guard deleted one, one ended with its job, one worked.
+- **The 9.4 GB image loads slowly**: of the 13 fixed-price rentals not
+  ended earlier, 10 ran after 75–665 s and 3 didn't load in 15 min
+  (Jiangsu CN, California twice).
+- Vast keeps offering asks it then refuses (HTTP 400 "not available",
+  410); the coordinator retries at once, a few seconds per round.
+- On the GPU hosts ONNX Runtime failed to load the CUDA 13 libraries
+  (`libcublasLt.so.13`) during MDX23C; the variant still finished. Not
+  looked into.
+
+Seven jobs, 18 rentals: six jobs finished, the first failed after its
+five tries as designed. Nothing was left at Vast (no instance, guard or
+scheduled job), the two buckets were deleted, and the live job records
+were untouched. Vast charged about $0.20 for the evening.
