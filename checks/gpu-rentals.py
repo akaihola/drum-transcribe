@@ -20,6 +20,7 @@ rental: before-create, after-create, before-guard or after-guard.
 the image loads (the record still says bid for tries 1-4).
 --max-hourly raises the price ceiling when no offer is under it.
 """
+
 import functools
 import json
 import os
